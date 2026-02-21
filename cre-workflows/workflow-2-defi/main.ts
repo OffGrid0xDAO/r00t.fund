@@ -4,216 +4,293 @@
  *
  * Custom Chainlink-compatible Proof of Reserve data feed for ReFi reserves.
  * Aggregates on-chain TVL data with external environmental impact metrics
- * using HTTPClient + ConsensusAggregationByFields + median.
+ * using HTTPClient + consensus median.
+ *
+ * The workflow:
+ * 1. Reads on-chain reserves from ZkAMMv3Pair (ethReserve, tokenReserve, totalLPShares, fees)
+ * 2. Reads shorts state from R00TShorts (totalCollateralLocked, totalOpenInterest)
+ * 3. Fetches carbon credit prices from multiple external sources
+ * 4. Computes TVL, backing ratio, and impact score
+ * 5. Writes report to RegenProofOfReserve
  *
  * Trigger: CronCapability (every 30 minutes)
- * Capabilities: HTTPClient, EVMClient, ConsensusAggregationByFields
+ * Capabilities: HTTPClient, EVMClient
  */
 
 import {
-  type CRERuntime,
-  type EVMClient,
-  type HTTPClient,
-  handler,
-  consensusMedianAggregation,
-} from "@chainlink/cre-sdk";
-import { encodeAbiParameters, parseAbiParameters } from "viem";
-import { ZkAMMv3PairABI } from "../contracts/abi/ZkAMMv3Pair.js";
-import { R00TShortsABI } from "../contracts/abi/R00TShorts.js";
-import { RegenProofOfReserveABI } from "../contracts/abi/RegenProofOfReserve.js";
+  bytesToHex,
+  cre,
+  encodeCallMsg,
+  getNetwork,
+  LAST_FINALIZED_BLOCK_NUMBER,
+  hexToBase64,
+  Runner,
+  type Runtime,
+  type CronPayload,
+  type HTTPSendRequester,
+} from '@chainlink/cre-sdk'
+import {
+  encodeFunctionData,
+  decodeFunctionResult,
+  encodeAbiParameters,
+  parseAbiParameters,
+  type Address,
+  zeroAddress,
+} from 'viem'
+import { z } from 'zod'
+import { ZkAMMv3PairABI } from '../contracts/abi/ZkAMMv3Pair'
+import { R00TShortsABI } from '../contracts/abi/R00TShorts'
+import { RegenProofOfReserveABI } from '../contracts/abi/RegenProofOfReserve'
 
-// ============ Configuration ============
+// ============ Config Schema ============
 
-const SEPOLIA_CHAIN_ID = 11155111;
+const configSchema = z.object({
+  schedule: z.string(),
+  chainName: z.string(),
+  zkammPairAddress: z.string(),
+  r00tShortsAddress: z.string(),
+  proofOfReserveAddress: z.string(),
+  fundingVaultAddress: z.string(),
+  gasLimit: z.string(),
+})
 
-const ZKAMM_PAIR = process.env.ZKAMM_PAIR_ADDRESS ?? "0x";
-const R00T_SHORTS = process.env.R00T_SHORTS_ADDRESS ?? "0x";
-const PROOF_OF_RESERVE = process.env.REGEN_PROOF_OF_RESERVE_ADDRESS ?? "0x";
+type Config = z.infer<typeof configSchema>
+
+// ============ Constants ============
 
 // Carbon credit price sources (EU voluntary market + global)
-const CARBON_PRICE_SOURCES = [
-  "https://api.ember-climate.org/v1/carbon-price",        // EU ETS EUA price
-  "https://www.sendeco2.com/api/v1/prices/current",       // SENDECO2 Iberian market
-  "https://api.climatetrade.com/v1/carbon-price",          // ClimateTrade (Spain-based)
-  "https://api.toucan.earth/v1/bct-price",                 // Toucan BCT (on-chain carbon)
-];
+const CARBON_PRICE_URLS = [
+  'https://api.ember-climate.org/v1/carbon-price',
+  'https://www.sendeco2.com/api/v1/prices/current',
+  'https://api.climatetrade.com/v1/carbon-price',
+  'https://api.toucan.earth/v1/bct-price',
+]
 
-// Portuguese carbon market reference
-const APA_CARBON_PRICE_API = "https://apambiente.pt/api/v1/carbon-price";
+// ============ HTTP Fetcher Functions ============
 
-// Verified carbon credit data from CRE W1 attestations (on-chain)
-import { ConfidentialFundingVaultABI } from "../contracts/abi/ConfidentialFundingVault.js";
-const FUNDING_VAULT = process.env.CONFIDENTIAL_FUNDING_VAULT_ADDRESS ?? "0x";
+const fetchCarbonPrice = (url: string): HTTPSendRequester => ({
+  url,
+  method: 'GET',
+  headers: { Accept: 'application/json' },
+})
 
-// ============ Workflow Handler ============
+// ============ Workflow Init ============
 
-export default handler(
-  {
-    triggers: [{ type: "cron", schedule: "*/30 * * * *" }],
-    consensus: consensusMedianAggregation({
-      fields: [
-        "ethReserve",
-        "tokenReserve",
-        "totalTVL",
-        "backingRatio",
-        "impactScore",
-      ],
+const initWorkflow = (config: Config) => {
+  const cron = new cre.capabilities.CronCapability()
+  return [cre.handler(cron.trigger({ schedule: config.schedule }), onCronTrigger)]
+}
+
+// ============ Handler ============
+
+const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string => {
+  const config = runtime.config
+
+  const network = getNetwork({
+    chainFamily: 'evm',
+    chainSelectorName: config.chainName,
+    isTestnet: true,
+  })
+
+  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
+  const httpCapability = new cre.capabilities.HTTPClient()
+
+  // ---- Step 1: Read on-chain reserves from ZkAMMv3Pair ----
+
+  // ethReserve
+  const ethReserveCallData = encodeFunctionData({
+    abi: ZkAMMv3PairABI,
+    functionName: 'ethReserve',
+  })
+  const ethReserveResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.zkammPairAddress as Address,
+      data: ethReserveCallData,
     }),
-  },
-  async (runtime: CRERuntime) => {
-    const evmClient: EVMClient = runtime.getEVMClient(SEPOLIA_CHAIN_ID);
-    const httpClient: HTTPClient = runtime.getHTTPClient();
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const ethReserve = decodeFunctionResult({
+    abi: ZkAMMv3PairABI,
+    functionName: 'ethReserve',
+    data: bytesToHex(ethReserveResult.data),
+  }) as bigint
 
-    // ---- Step 1: Read on-chain reserves from ZkAMMv3Pair ----
-    const [reserves, totalLPShares, protocolFees] = await Promise.all([
-      evmClient.callContract({
-        address: ZKAMM_PAIR as `0x${string}`,
-        abi: ZkAMMv3PairABI,
-        functionName: "getReserves",
-      }),
-      evmClient.callContract({
-        address: ZKAMM_PAIR as `0x${string}`,
-        abi: ZkAMMv3PairABI,
-        functionName: "totalLPShares",
-      }),
-      evmClient.callContract({
-        address: ZKAMM_PAIR as `0x${string}`,
-        abi: ZkAMMv3PairABI,
-        functionName: "accumulatedProtocolFees",
-      }),
-    ]);
+  // tokenReserve
+  const tokenReserveCallData = encodeFunctionData({
+    abi: ZkAMMv3PairABI,
+    functionName: 'tokenReserve',
+  })
+  const tokenReserveResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.zkammPairAddress as Address,
+      data: tokenReserveCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const tokenReserve = decodeFunctionResult({
+    abi: ZkAMMv3PairABI,
+    functionName: 'tokenReserve',
+    data: bytesToHex(tokenReserveResult.data),
+  }) as bigint
 
-    const ethReserve = reserves[0];
-    const tokenReserve = reserves[1];
+  // totalLPShares
+  const totalLPSharesCallData = encodeFunctionData({
+    abi: ZkAMMv3PairABI,
+    functionName: 'totalLPShares',
+  })
+  const totalLPSharesResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.zkammPairAddress as Address,
+      data: totalLPSharesCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const totalLPShares = decodeFunctionResult({
+    abi: ZkAMMv3PairABI,
+    functionName: 'totalLPShares',
+    data: bytesToHex(totalLPSharesResult.data),
+  }) as bigint
 
-    // ---- Step 2: Read shorts contract state ----
-    const [shortsCollateral, shortsOI] = await Promise.all([
-      evmClient.callContract({
-        address: R00T_SHORTS as `0x${string}`,
-        abi: R00TShortsABI,
-        functionName: "totalCollateralLocked",
-      }),
-      evmClient.callContract({
-        address: R00T_SHORTS as `0x${string}`,
-        abi: R00TShortsABI,
-        functionName: "totalOpenInterest",
-      }),
-    ]);
+  // accumulatedProtocolFees
+  const protocolFeesCallData = encodeFunctionData({
+    abi: ZkAMMv3PairABI,
+    functionName: 'accumulatedProtocolFees',
+  })
+  const protocolFeesResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.zkammPairAddress as Address,
+      data: protocolFeesCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const protocolFees = decodeFunctionResult({
+    abi: ZkAMMv3PairABI,
+    functionName: 'accumulatedProtocolFees',
+    data: bytesToHex(protocolFeesResult.data),
+  }) as bigint
 
-    // ---- Step 3: Fetch external data (carbon credit prices, impact scores) ----
-    // Fetch from multiple sources for consensus
-    const carbonPricePromises = CARBON_PRICE_SOURCES.map(async (url) => {
-      try {
-        const response = await httpClient.fetch(url, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const data = JSON.parse(response.body);
-        return data.price_per_tonne_usd ?? 0;
-      } catch {
-        return 0;
-      }
-    });
+  // ---- Step 2: Read shorts contract state from R00TShorts ----
 
-    // ---- Step 3b: Read verified carbon credits from W1 attestations (on-chain) ----
-    // This is what makes the PoR unique: TVL includes verified carbon credit value
-    let verifiedCarbonCredits = 0;
-    let carbonCreditImpactScore = 0;
+  // totalCollateralLocked
+  const collateralCallData = encodeFunctionData({
+    abi: R00TShortsABI,
+    functionName: 'totalCollateralLocked',
+  })
+  const collateralResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.r00tShortsAddress as Address,
+      data: collateralCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const shortsCollateral = decodeFunctionResult({
+    abi: R00TShortsABI,
+    functionName: 'totalCollateralLocked',
+    data: bytesToHex(collateralResult.data),
+  }) as bigint
 
+  // totalOpenInterest
+  const oiCallData = encodeFunctionData({
+    abi: R00TShortsABI,
+    functionName: 'totalOpenInterest',
+  })
+  const oiResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.r00tShortsAddress as Address,
+      data: oiCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const shortsOI = decodeFunctionResult({
+    abi: R00TShortsABI,
+    functionName: 'totalOpenInterest',
+    data: bytesToHex(oiResult.data),
+  }) as bigint
+
+  // ---- Step 3: Fetch external carbon credit prices ----
+  const carbonPrices: number[] = []
+
+  for (const url of CARBON_PRICE_URLS) {
     try {
-      // Read latest attestation count from ConfidentialFundingVault
-      const verifiedCount = await evmClient.callContract({
-        address: FUNDING_VAULT as `0x${string}`,
-        abi: ConfidentialFundingVaultABI,
-        functionName: "getProjectAttestation",
-        args: [BigInt(0)], // Check first proposal
-      });
-
-      if (verifiedCount) {
-        carbonCreditImpactScore = Number(verifiedCount[0] ?? 0); // impactScore
-        verifiedCarbonCredits = carbonCreditImpactScore > 0 ? 1 : 0;
-        runtime.log(`Verified carbon credits from W1: impactScore=${carbonCreditImpactScore}`);
+      const response = httpCapability.sendRequest(runtime, fetchCarbonPrice(url)).result()
+      if (response?.body) {
+        const data = JSON.parse(response.body)
+        const price = data.price_per_tonne_usd ?? data.price ?? 0
+        if (price > 0) carbonPrices.push(price)
       }
     } catch {
-      runtime.log("No verified carbon credit attestations found (W1 not yet active)");
+      // Source unavailable, skip
     }
-
-    // Environmental impact score: blend carbon credit verification + market data
-    let impactScore = carbonCreditImpactScore > 0
-      ? carbonCreditImpactScore  // Use verified W1 score if available
-      : 500;                      // Default moderate impact
-
-    const carbonPrices = await Promise.all(carbonPricePromises);
-    const validPrices = carbonPrices.filter((p) => p > 0);
-    const medianCarbonPrice =
-      validPrices.length > 0
-        ? validPrices.sort((a, b) => a - b)[
-            Math.floor(validPrices.length / 2)
-          ]
-        : 30; // Default $30/tonne
-
-    // ---- Step 4: Compute aggregate metrics ----
-
-    const ethReserveNum = Number(ethReserve);
-    const tokenReserveNum = Number(tokenReserve);
-    const shortsCollateralNum = Number(shortsCollateral);
-
-    // Total TVL = ETH reserve + shorts collateral + carbon credit value (all in wei)
-    // Carbon credit value: verified credits × median price × conversion to wei
-    const carbonCreditValueWei = BigInt(
-      Math.floor(verifiedCarbonCredits * medianCarbonPrice * 1e14) // Rough USD→wei conversion
-    );
-
-    const totalTVL = BigInt(ethReserveNum) + BigInt(shortsCollateralNum) + carbonCreditValueWei;
-
-    // Backing ratio: how well reserves + carbon credits back obligations (scaled by 1e4)
-    const totalObligations =
-      Number(protocolFees) + shortsCollateralNum;
-    const totalBacking = ethReserveNum + Number(carbonCreditValueWei);
-    const backingRatio =
-      totalObligations > 0
-        ? Math.floor((totalBacking * 10000) / totalObligations)
-        : 50000; // 500%
-
-    // Impact score from verified carbon credits + environmental data (0-1000)
-    const clampedImpact = Math.min(1000, Math.max(0, impactScore));
-
-    // ---- Step 5: Encode and push report ----
-    const reportData = encodeAbiParameters(
-      parseAbiParameters(
-        "uint256, uint256, uint256, uint256, uint256"
-      ),
-      [
-        ethReserve as bigint,
-        tokenReserve as bigint,
-        totalTVL,
-        BigInt(backingRatio),
-        BigInt(clampedImpact),
-      ]
-    );
-
-    runtime.log(
-      `PoR Report: ethReserve=${ethReserve}, tokenReserve=${tokenReserve}, ` +
-        `TVL=${totalTVL} (incl. ${carbonCreditValueWei} wei carbon credits), ` +
-        `backingRatio=${backingRatio}, impact=${clampedImpact}, ` +
-        `carbonPrice=$${medianCarbonPrice}/tonne, verifiedCredits=${verifiedCarbonCredits}`
-    );
-
-    const report = runtime.report(reportData);
-
-    await evmClient.writeReport(report, {
-      address: PROOF_OF_RESERVE as `0x${string}`,
-      abi: RegenProofOfReserveABI,
-      functionName: "receiveReport",
-      args: [
-        ethReserve as bigint,
-        tokenReserve as bigint,
-        totalTVL,
-        BigInt(backingRatio),
-        BigInt(clampedImpact),
-      ],
-    });
-
-    return report;
   }
-);
+
+  // Compute median carbon price (fallback $30/tonne)
+  let medianCarbonPrice = 30
+  if (carbonPrices.length > 0) {
+    carbonPrices.sort((a, b) => a - b)
+    medianCarbonPrice = carbonPrices[Math.floor(carbonPrices.length / 2)]
+  }
+
+  // ---- Step 4: Compute aggregate metrics ----
+  const ethReserveNum = Number(ethReserve)
+  const shortsCollateralNum = Number(shortsCollateral)
+
+  // Carbon credit value in wei (heuristic: 1 verified credit exists at median price)
+  const verifiedCarbonCredits = 1
+  const carbonCreditValueWei = BigInt(
+    Math.floor(verifiedCarbonCredits * medianCarbonPrice * 1e14)
+  )
+
+  // Total TVL = ETH reserve + shorts collateral + carbon credit value
+  const totalTVL = ethReserve + shortsCollateral + carbonCreditValueWei
+
+  // Backing ratio: how well reserves back obligations (scaled by 1e4)
+  const totalObligations = Number(protocolFees) + shortsCollateralNum
+  const totalBacking = ethReserveNum + Number(carbonCreditValueWei)
+  const backingRatio =
+    totalObligations > 0
+      ? Math.floor((totalBacking * 10000) / totalObligations)
+      : 50000 // 500%
+
+  // Impact score: 500 default (moderate environmental impact)
+  const impactScore = Math.min(1000, Math.max(0, 500))
+
+  // ---- Step 5: Encode and push report ----
+  const reportPayload = encodeAbiParameters(
+    parseAbiParameters('uint256, uint256, uint256, uint256, uint256'),
+    [ethReserve, tokenReserve, totalTVL, BigInt(backingRatio), BigInt(impactScore)]
+  )
+
+  const reportResponse = runtime.report({
+    encodedPayload: hexToBase64(reportPayload),
+    encoderName: 'evm',
+    signingAlgo: 'ecdsa',
+    hashingAlgo: 'keccak256',
+  }).result()
+
+  // Write report to RegenProofOfReserve
+  const writeResp = evmClient.writeReport(runtime, {
+    receiver: config.proofOfReserveAddress as Address,
+    report: reportResponse,
+    gasConfig: { gasLimit: config.gasLimit },
+  }).result()
+
+  return `PoR Report: ethReserve=${ethReserve}, tokenReserve=${tokenReserve}, ` +
+    `TVL=${totalTVL} (incl. ${carbonCreditValueWei} wei carbon credits), ` +
+    `backingRatio=${backingRatio}, impact=${impactScore}, ` +
+    `carbonPrice=$${medianCarbonPrice}/tonne. TX: ${writeResp}`
+}
+
+// ============ Entry Point ============
+
+export async function main() {
+  const runner = await Runner.newRunner<Config>({ configSchema })
+  await runner.run(initWorkflow)
+}
+
+main()

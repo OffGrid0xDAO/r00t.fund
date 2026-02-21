@@ -1,11 +1,10 @@
 {
-  "name": "@r00t-fund/cre-workflow-serra-estrela",
+  "name": "@r00t-fund/serra-estrela-native-forest",
   "version": "1.0.0",
+  "main": "dist/main.js",
   "private": true,
-  "type": "module",
-  "main": "main.ts",
-  "scripts": {
-    "simulate": "cre workflow simulate",
-    "deploy": "cre workflow deploy"
-  }
+  "scripts": { "postinstall": "bunx cre-setup" },
+  "license": "UNLICENSED",
+  "dependencies": { "@chainlink/cre-sdk": "^1.0.9", "viem": "2.34.0", "zod": "3.25.76" },
+  "devDependencies": { "@types/bun": "1.2.21" }
 }

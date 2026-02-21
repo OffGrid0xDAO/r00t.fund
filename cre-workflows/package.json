@@ -2,32 +2,23 @@
   "name": "@r00t-fund/cre-workflows",
   "version": "1.0.0",
   "private": true,
-  "description": "Chainlink CRE Workflows for R00t.fund — Privacy-Preserving ReFi Launchpad & DEX",
-  "type": "module",
+  "description": "Chainlink CRE Workflows for R00t.fund -- Privacy-Preserving ReFi Launchpad & DEX",
   "scripts": {
-    "build": "tsc",
-    "simulate:w1": "cd workflow-1-privacy && cre workflow simulate",
-    "simulate:w2": "cd workflow-2-defi && cre workflow simulate",
-    "simulate:w3": "cd workflow-3-ai && cre workflow simulate",
-    "simulate:w4": "cd workflow-4-prediction && cre workflow simulate",
-    "simulate:w5": "cd workflow-5-risk && cre workflow simulate",
-    "simulate:all": "npm run simulate:w5 && npm run simulate:w2 && npm run simulate:w3 && npm run simulate:w4 && npm run simulate:w1",
+    "simulate:w1": "cd workflow-1-privacy && cre workflow simulate .",
+    "simulate:w2": "cd workflow-2-defi && cre workflow simulate .",
+    "simulate:w3": "cd workflow-3-ai && cre workflow simulate .",
+    "simulate:w4": "cd workflow-4-prediction && cre workflow simulate .",
+    "simulate:w5": "cd workflow-5-risk && cre workflow simulate .",
+    "simulate:w6": "cd workflow-6-compliance && cre workflow simulate .",
+    "simulate:w7": "cd workflow-7-serra-estrela && cre workflow simulate .",
+    "simulate:all": "npm run simulate:w5 && npm run simulate:w2 && npm run simulate:w3 && npm run simulate:w4 && npm run simulate:w1 && npm run simulate:w6 && npm run simulate:w7",
     "deploy:w1": "cd workflow-1-privacy && cre workflow deploy",
     "deploy:w2": "cd workflow-2-defi && cre workflow deploy",
     "deploy:w3": "cd workflow-3-ai && cre workflow deploy",
     "deploy:w4": "cd workflow-4-prediction && cre workflow deploy",
-    "deploy:w5": "cd workflow-5-risk && cre workflow deploy"
-  },
-  "dependencies": {
-    "@chainlink/cre-sdk": "^0.1.0",
-    "viem": "^2.21.0",
-    "zod": "^3.23.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
-  },
-  "engines": {
-    "node": ">=20.0.0"
+    "deploy:w5": "cd workflow-5-risk && cre workflow deploy",
+    "deploy:w6": "cd workflow-6-compliance && cre workflow deploy",
+    "deploy:w7": "cd workflow-7-serra-estrela && cre workflow deploy",
+    "install:all": "for d in workflow-*/; do (cd $d && bun install); done"
   }
 }

@@ -1,24 +1,15 @@
-# Workflow 1: Confidential Regenerative Funding
-# Prize Track: Privacy ($16k)
-name: confidential-regenerative-funding
-description: >
-  Privacy-preserving project funding using ConfidentialHTTPClient for encrypted
-  carbon credit verification, ZK commitments, and sealed-bid project launches.
+staging-settings:
+  user-workflow:
+    workflow-name: "workflow-1-privacy-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
 
-triggers:
-  - type: cron
-    schedule: "*/5 * * * *"  # Every 5 minutes
-  - type: evmLogTrigger
-    contract: "${LAUNCHPAD_GOVERNANCE_ADDRESS}"
-    event: "ProposalExecuted(uint256,address,uint256)"
-    network: sepolia
-
-capabilities:
-  - ConfidentialHTTPClient
-  - EVMClient
-  - vaultDonSecrets
-
-target:
-  contract: "${CONFIDENTIAL_FUNDING_VAULT_ADDRESS}"
-  network: sepolia
-  function: "receiveReport"
+tenderly-settings:
+  user-workflow:
+    workflow-name: "workflow-1-privacy-tenderly"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.tenderly.json"
+    secrets-path: "../secrets.yaml"

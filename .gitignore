@@ -28,6 +28,9 @@ contracts/cache/
 contracts/out/
 contracts/broadcast/
 
+# CRE CLI build artifacts
+.cre_build_tmp.js
+
 # Environment — catch ALL .env variants
 .env
 .env.*

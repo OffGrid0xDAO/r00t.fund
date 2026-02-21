@@ -1,21 +1,15 @@
-# Workflow 3: AI Agent Orchestration
-# Prize Track: CRE & AI ($17k)
-name: ai-agent-orchestration
-description: >
-  AI-assisted CRE workflow using ConfidentialHTTPClient for encrypted LLM calls.
-  Coordinates autonomous trading agents with on-chain strategy recommendations.
+staging-settings:
+  user-workflow:
+    workflow-name: "workflow-3-ai-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
 
-triggers:
-  - type: cron
-    schedule: "*/5 * * * *"  # Every 5 minutes
-
-capabilities:
-  - ConfidentialHTTPClient
-  - HTTPClient
-  - EVMClient
-  - vaultDonSecrets
-
-target:
-  contract: "${AI_AGENT_ORCHESTRATOR_ADDRESS}"
-  network: sepolia
-  function: "receiveReport"
+tenderly-settings:
+  user-workflow:
+    workflow-name: "workflow-3-ai-tenderly"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.tenderly.json"
+    secrets-path: "../secrets.yaml"

@@ -1,24 +1,15 @@
-# Workflow 4: Regenerative Outcome Markets
-# Prize Track: Prediction Markets ($16k)
-name: regenerative-outcome-markets
-description: >
-  CRE-automated prediction market settlement using environmental outcome data.
-  Markets resolve based on real-world environmental milestones and impact metrics.
+staging-settings:
+  user-workflow:
+    workflow-name: "workflow-4-prediction-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
 
-triggers:
-  - type: evmLogTrigger
-    contract: "${REGEN_PREDICTION_MARKET_ADDRESS}"
-    event: "ResolutionRequested(uint256,uint256,string,uint256)"
-    network: sepolia
-  - type: cron
-    schedule: "*/10 * * * *"  # Every 10 minutes for periodic checks
-
-capabilities:
-  - HTTPClient
-  - EVMClient
-  - ConsensusAggregationByFields
-
-target:
-  contract: "${REGEN_PREDICTION_MARKET_ADDRESS}"
-  network: sepolia
-  function: "receiveReport"
+tenderly-settings:
+  user-workflow:
+    workflow-name: "workflow-4-prediction-tenderly"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.tenderly.json"
+    secrets-path: "../secrets.yaml"
