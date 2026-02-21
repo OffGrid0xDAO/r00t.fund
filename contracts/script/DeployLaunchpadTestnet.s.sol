@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "forge-std/Script.sol";
+import "../src/LaunchpadGovernance.sol";
+
+/// @title DeployLaunchpadTestnet
+/// @notice Deploy LaunchpadGovernance for testnet
+/// @dev Required environment variables:
+///      - PRIVATE_KEY: Deployer private key
+///      - ROOT_POOL: Address of $HIDDEN TokenPool (from ZkAMMv3)
+///      - ZK_AMM_V3: Address of ZkAMMv3 contract
+///      - NULLIFIER_REGISTRY: Address of global NullifierRegistry
+///      - PLATFORM_TREASURY: Address of platform treasury
+///      - VOTE_VERIFIER: Address of vote proof verifier
+///      - SWAP_VERIFIER: Address of swap proof verifier
+///      - TRANSFER_VERIFIER: Address of transfer proof verifier
+///      - WITHDRAW_VERIFIER: Address of withdraw proof verifier
+///      - PLEDGE_VERIFIER: Address of pledge proof verifier
+contract DeployLaunchpadTestnetScript is Script {
+    function run() external {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+
+        // Required addresses from environment
+        address rootPoolAddress = vm.envAddress("ROOT_POOL");
+        address zkAMMv3Address = vm.envAddress("ZK_AMM_V3");
+        address nullifierRegistryAddress = vm.envAddress("NULLIFIER_REGISTRY");
+        address platformTreasuryAddress = vm.envAddress("PLATFORM_TREASURY");
+        address voteVerifierAddress = vm.envAddress("VOTE_VERIFIER");
+        address swapVerifierAddress = vm.envAddress("SWAP_VERIFIER");
+        address transferVerifierAddress = vm.envAddress("TRANSFER_VERIFIER");
+        address withdrawVerifierAddress = vm.envAddress("WITHDRAW_VERIFIER");
+        address pledgeVerifierAddress = vm.envAddress("PLEDGE_VERIFIER");
+
+        console.log("=== Testnet Deployment Configuration ===");
+        console.log("ROOT_POOL:", rootPoolAddress);
+        console.log("ZK_AMM_V3:", zkAMMv3Address);
+        console.log("NULLIFIER_REGISTRY:", nullifierRegistryAddress);
+        console.log("PLATFORM_TREASURY:", platformTreasuryAddress);
+        console.log("VOTE_VERIFIER:", voteVerifierAddress);
+        console.log("SWAP_VERIFIER:", swapVerifierAddress);
+        console.log("TRANSFER_VERIFIER:", transferVerifierAddress);
+        console.log("WITHDRAW_VERIFIER:", withdrawVerifierAddress);
+        console.log("PLEDGE_VERIFIER:", pledgeVerifierAddress);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        LaunchpadGovernance launchpad = new LaunchpadGovernance(
+            rootPoolAddress,
+            zkAMMv3Address,
+            nullifierRegistryAddress,
+            platformTreasuryAddress,
+            voteVerifierAddress,
+            swapVerifierAddress,
+            transferVerifierAddress,
+            withdrawVerifierAddress,
+            pledgeVerifierAddress
+        );
+
+        console.log("");
+        console.log("=== LaunchpadGovernance Deployed ===");
+        console.log("Launchpad:", address(launchpad));
+
+        vm.stopBroadcast();
+    }
+}

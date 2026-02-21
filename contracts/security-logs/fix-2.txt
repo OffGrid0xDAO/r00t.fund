@@ -1,0 +1,15 @@
+## Summary: Security Fixes Applied
+
+I've fixed the LP share rounding exploitation vulnerability (Vuln 1 from the audit) in both contracts:
+
+### 1. `ZkProjectPool.sol:62-65`
+**Change:** Increased `MIN_LP_DEPOSIT` from `1e15` (0.001 tokens) to `1e17` (0.1 tokens)
+
+This makes repeated small deposit attacks economically infeasible. At 0.05% max rounding benefit per deposit, an attacker would need ~2000 deposits to accumulate meaningful value, but with the higher minimum deposit, gas costs far exceed any potential rounding benefit.
+
+### 2. `ZkAMMv3.sol:859-870`
+**Change:** Tightened the rounding loss tolerance from 0.1% to 0.05%
+
+This brings ZkAMMv3 in line with ZkProjectPool's stricter tolerance and reduces the cumulative rounding exploitation potential from repeated deposits.
+
+**Both contracts now compile successfully.** The test file (`LaunchpadGovernance.t.sol`) has pre-existing compilation errors unrelated to these changes (interface mismatch with `LaunchpadGovernanceV2`).

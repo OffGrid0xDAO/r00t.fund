@@ -1,0 +1,3 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Error: Internal transport error: Socket operation on non-socket (os error 38) with /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/

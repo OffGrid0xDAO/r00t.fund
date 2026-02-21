@@ -1,0 +1,24 @@
+{
+  "name": "zkamm-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for private trading on ZkAMM - control with natural language via Claude",
+  "main": "dist/index.js",
+  "bin": {
+    "zkamm-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ethers": "^6.13.0",
+    "snarkjs": "^0.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,254 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "forge-std/Script.sol";
+import "../src/ZkAMMv3.sol";
+import "../src/NullifierRegistry.sol";
+import "../src/LaunchpadGovernance.sol";
+import "../src/verifiers/SellVerifier.sol";
+import "../src/verifiers/TransferVerifier.sol";
+import "../src/verifiers/WithdrawVerifier.sol";
+import "../src/verifiers/SwapVerifier.sol";
+import "../src/verifiers/VoteVerifier.sol";
+import "../src/verifiers/AddLiquidityVerifier.sol";
+import "../src/verifiers/RemoveLiquidityVerifier.sol";
+import "../src/verifiers/ClaimLPFeesVerifier.sol";
+import "../src/verifiers/PledgeVerifier.sol";
+
+/// @title DeploySepoliaFull
+/// @notice Deploy the complete HideMyCoin system to Sepolia testnet
+/// @dev Deploys: Verifiers -> NullifierRegistry -> ZkAMMv3 -> LaunchpadGovernance
+///
+/// Required environment variables:
+///   - PRIVATE_KEY: Deployer private key
+///   - INITIAL_ETH_RESERVE: Optional, default 0.01 ETH for testnet
+///
+/// Usage:
+///   forge script script/DeploySepoliaFull.s.sol --rpc-url sepolia --broadcast --verify
+contract DeploySepoliaFullScript is Script {
+    // Deployed contract addresses (set during run)
+    address public sellVerifier;
+    address public transferVerifier;
+    address public withdrawVerifier;
+    address public swapVerifier;
+    address public voteVerifier;
+    address public addLiquidityVerifier;
+    address public removeLiquidityVerifier;
+    address public claimLPFeesVerifier;
+    address public pledgeVerifier;
+    address public nullifierRegistry;
+    address public zkAMMv3;
+    address public launchpad;
+    address public tokenPool;
+    address public lpPool;
+
+    function run() external {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        // Initial ETH for pool bootstrap (default: 0.01 ETH for testnet)
+        uint256 initialEth = vm.envOr("INITIAL_ETH_RESERVE", uint256(0.01 ether));
+
+        console.log("");
+        console.log("========================================");
+        console.log("   HideMyCoin Sepolia Full Deployment   ");
+        console.log("========================================");
+        console.log("");
+        console.log("Deployer:", deployer);
+        console.log("Deployer Balance:", deployer.balance / 1e18, "ETH");
+        console.log("Initial Pool ETH:", initialEth / 1e18, "ETH");
+        console.log("");
+
+        require(deployer.balance >= initialEth + 0.05 ether, "Insufficient ETH for deployment");
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        // ==========================================
+        // Step 1: Deploy all Verifiers
+        // ==========================================
+        console.log("Step 1: Deploying Verifiers...");
+
+        SellGroth16Verifier _sellVerifier = new SellGroth16Verifier();
+        sellVerifier = address(_sellVerifier);
+        console.log("  SellVerifier:", sellVerifier);
+
+        TransferGroth16Verifier _transferVerifier = new TransferGroth16Verifier();
+        transferVerifier = address(_transferVerifier);
+        console.log("  TransferVerifier:", transferVerifier);
+
+        WithdrawGroth16Verifier _withdrawVerifier = new WithdrawGroth16Verifier();
+        withdrawVerifier = address(_withdrawVerifier);
+        console.log("  WithdrawVerifier:", withdrawVerifier);
+
+        SwapGroth16Verifier _swapVerifier = new SwapGroth16Verifier();
+        swapVerifier = address(_swapVerifier);
+        console.log("  SwapVerifier:", swapVerifier);
+
+        VoteGroth16Verifier _voteVerifier = new VoteGroth16Verifier();
+        voteVerifier = address(_voteVerifier);
+        console.log("  VoteVerifier:", voteVerifier);
+
+        AddLiquidityGroth16Verifier _addLiquidityVerifier = new AddLiquidityGroth16Verifier();
+        addLiquidityVerifier = address(_addLiquidityVerifier);
+        console.log("  AddLiquidityVerifier:", addLiquidityVerifier);
+
+        RemoveLiquidityGroth16Verifier _removeLiquidityVerifier = new RemoveLiquidityGroth16Verifier();
+        removeLiquidityVerifier = address(_removeLiquidityVerifier);
+        console.log("  RemoveLiquidityVerifier:", removeLiquidityVerifier);
+
+        ClaimLPFeesGroth16Verifier _claimLPFeesVerifier = new ClaimLPFeesGroth16Verifier();
+        claimLPFeesVerifier = address(_claimLPFeesVerifier);
+        console.log("  ClaimLPFeesVerifier:", claimLPFeesVerifier);
+
+        PledgeGroth16Verifier _pledgeVerifier = new PledgeGroth16Verifier();
+        pledgeVerifier = address(_pledgeVerifier);
+        console.log("  PledgeVerifier:", pledgeVerifier);
+
+        // ==========================================
+        // Step 2: Deploy ZkAMMv3 (Main AMM)
+        // ==========================================
+        console.log("");
+        console.log("Step 2: Deploying ZkAMMv3...");
+
+        // For testnet, use deployer as all emergency signers
+        // In production, these should be different addresses
+        address emergencySigner1 = deployer;
+        address emergencySigner2 = address(uint160(deployer) + 1); // Different address
+        address emergencySigner3 = address(uint160(deployer) + 2); // Different address
+
+        ZkAMMv3 _zkAMMv3 = new ZkAMMv3{value: initialEth}(
+            "r00t",                  // name
+            "ROOT",                  // symbol
+            sellVerifier,            // sellVerifier
+            transferVerifier,        // transferVerifier
+            withdrawVerifier,        // withdrawVerifier
+            deployer,                // treasury (use deployer for testnet)
+            emergencySigner1,        // emergencySigner0
+            emergencySigner2,        // emergencySigner1
+            emergencySigner3         // emergencySigner2
+        );
+        zkAMMv3 = address(_zkAMMv3);
+        tokenPool = address(_zkAMMv3.tokenPool());
+        lpPool = address(_zkAMMv3.getLPPool());
+
+        console.log("  ZkAMMv3:", zkAMMv3);
+        console.log("  TokenPool:", tokenPool);
+        console.log("  LPPool:", lpPool);
+
+        // ==========================================
+        // Step 3: Configure ZkAMMv3 verifiers
+        // ==========================================
+        console.log("");
+        console.log("Step 3: Configuring ZkAMMv3 verifiers...");
+
+        _zkAMMv3.setAddLiquidityVerifier(addLiquidityVerifier);
+        console.log("  Set AddLiquidityVerifier");
+
+        _zkAMMv3.setRemoveLiquidityVerifier(removeLiquidityVerifier);
+        console.log("  Set RemoveLiquidityVerifier");
+
+        _zkAMMv3.setClaimLPFeesVerifier(claimLPFeesVerifier);
+        console.log("  Set ClaimLPFeesVerifier");
+
+        _zkAMMv3.setSwapVerifier(swapVerifier);
+        console.log("  Set SwapVerifier");
+
+        // ==========================================
+        // Step 4: Deploy NullifierRegistry
+        // ==========================================
+        console.log("");
+        console.log("Step 4: Deploying NullifierRegistry...");
+
+        // NullifierRegistry needs a governance address - use deployer initially
+        // and update after LaunchpadGovernance is deployed
+        NullifierRegistry _nullifierRegistry = new NullifierRegistry(deployer);
+        nullifierRegistry = address(_nullifierRegistry);
+        console.log("  NullifierRegistry:", nullifierRegistry);
+
+        // ==========================================
+        // Step 5: Deploy LaunchpadGovernance
+        // ==========================================
+        console.log("");
+        console.log("Step 5: Deploying LaunchpadGovernance...");
+
+        LaunchpadGovernance _launchpad = new LaunchpadGovernance(
+            tokenPool,              // rootPool (R00T commitment pool)
+            zkAMMv3,                // zkAMMv3
+            nullifierRegistry,      // nullifierRegistry
+            deployer,               // platformTreasury
+            voteVerifier,           // voteVerifier
+            swapVerifier,           // swapVerifier (for project pools)
+            transferVerifier,       // transferVerifier
+            withdrawVerifier,       // withdrawVerifier
+            pledgeVerifier          // pledgeVerifier
+        );
+        launchpad = address(_launchpad);
+        console.log("  LaunchpadGovernance:", launchpad);
+
+        // ==========================================
+        // Step 6: Final Configuration
+        // ==========================================
+        console.log("");
+        console.log("Step 6: Final configuration...");
+
+        // Set launchpad in ZkAMMv3 (for pool registration)
+        _zkAMMv3.setLaunchpad(launchpad);
+        console.log("  Set Launchpad in ZkAMMv3");
+
+        // Update NullifierRegistry governance to LaunchpadGovernance
+        _nullifierRegistry.setGovernance(launchpad);
+        console.log("  Set LaunchpadGovernance as NullifierRegistry governance");
+
+        // Authorize ZkAMMv3 in NullifierRegistry
+        _nullifierRegistry.setPoolAuthorization(zkAMMv3, true);
+        console.log("  Authorized ZkAMMv3 in NullifierRegistry");
+
+        vm.stopBroadcast();
+
+        // ==========================================
+        // Output Summary
+        // ==========================================
+        console.log("");
+        console.log("========================================");
+        console.log("   DEPLOYMENT COMPLETE                  ");
+        console.log("========================================");
+        console.log("");
+        console.log("=== Core Contracts ===");
+        console.log("ZkAMMv3:", zkAMMv3);
+        console.log("TokenPool:", tokenPool);
+        console.log("LPPool:", lpPool);
+        console.log("NullifierRegistry:", nullifierRegistry);
+        console.log("LaunchpadGovernance:", launchpad);
+        console.log("");
+        console.log("=== Verifiers ===");
+        console.log("SellVerifier:", sellVerifier);
+        console.log("TransferVerifier:", transferVerifier);
+        console.log("WithdrawVerifier:", withdrawVerifier);
+        console.log("SwapVerifier:", swapVerifier);
+        console.log("VoteVerifier:", voteVerifier);
+        console.log("AddLiquidityVerifier:", addLiquidityVerifier);
+        console.log("RemoveLiquidityVerifier:", removeLiquidityVerifier);
+        console.log("ClaimLPFeesVerifier:", claimLPFeesVerifier);
+        console.log("PledgeVerifier:", pledgeVerifier);
+        console.log("");
+        console.log("=== Configuration ===");
+        console.log("Treasury:", deployer);
+        console.log("Platform:", deployer);
+        console.log("Initial ETH Reserve:", initialEth);
+        console.log("");
+        console.log("========================================");
+        console.log("");
+        console.log("Copy these addresses to your .env files:");
+        console.log("");
+        console.log("# Frontend .env");
+        console.log("VITE_ZKAMM_ADDRESS=", zkAMMv3);
+        console.log("VITE_TOKEN_POOL_ADDRESS=", tokenPool);
+        console.log("VITE_LP_POOL_ADDRESS=", lpPool);
+        console.log("VITE_LAUNCHPAD_ADDRESS=", launchpad);
+        console.log("VITE_NULLIFIER_REGISTRY_ADDRESS=", nullifierRegistry);
+        console.log("");
+        console.log("# Ponder indexer");
+        console.log("ZKAMM_ADDRESS=", zkAMMv3);
+        console.log("");
+    }
+}

@@ -1,0 +1,6 @@
+packages:
+  - contracts
+  - sdk
+  - frontend
+  - relayer
+  - circuits

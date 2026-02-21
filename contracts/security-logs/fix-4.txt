@@ -1,0 +1,35 @@
+The contracts compile successfully. The warnings are only style-related (naming conventions). Let me provide a summary of all the fixes applied.
+
+## Summary of Security Fixes Applied
+
+All 5 identified vulnerabilities have been fixed:
+
+### Vuln 1: Commitment Front-Running in `ZkAMMv3.buyPrivate`
+**File:** `src/ZkAMMv3.sol`
+**Fix:** Added commitment binding protection using `keccak256(commitment, msg.sender, msg.value)`. This ensures that even if an attacker observes a pending transaction in the mempool, they cannot front-run with the same commitment because the binding includes `msg.sender`.
+- Added new mapping `usedCommitmentBindings` (line 171-173)
+- Added new error `CommitmentBindingAlreadyUsed` (line 377)
+- Added binding check in `buyPrivate()` (lines 501-505)
+
+### Vuln 2: LP Share Rounding Validation in `ZkProjectPool`
+**File:** `src/ZkProjectPool.sol`
+**Fix:** Added explicit check that `totalLPShares > 0` before LP share calculation to defend against edge cases, with documentation explaining that `MINIMUM_LIQUIDITY` burn in constructor ensures this is always true.
+- Added defensive check at line 721-723
+
+### Vuln 3: Pool Authorization Cooldown Bypass in `NullifierRegistry`
+**File:** `src/NullifierRegistry.sol`
+**Fix:** Added `poolOriginalAuthorizationTime` mapping that tracks the first-ever authorization time for each pool. The cooldown check in `onlyAuthorizedPool` modifier now uses this original time, preventing attackers from resetting the cooldown by toggling authorization off and back on.
+- Added new mapping `poolOriginalAuthorizationTime` (lines 37-40)
+- Updated `onlyAuthorizedPool` modifier (lines 114-116)
+- Updated `setPoolAuthorization()` (lines 177-184)
+- Updated `setPoolAuthorizationBatch()` (lines 199-206)
+
+### Vuln 4: Missing SNARK Scalar Field Validation in `LaunchpadGovernance.setTreasuryClaimCommitment`
+**File:** `src/LaunchpadGovernance.sol`
+**Fix:** Added validation that `outputCommitment < SNARK_SCALAR_FIELD` to prevent setting commitments that cannot be spent via ZK proofs, which would cause permanent fund lock.
+- Added check at lines 1031-1033
+
+### Vuln 5: Insufficient Epoch Increment Claim Window in `ZkAMMv3`
+**File:** `src/ZkAMMv3.sol`
+**Fix:** Extended `MIN_CLAIM_WINDOW` from 24 hours to 72 hours to account for weekends and ensure LPs have adequate time to claim their fees before an epoch increment resets the claimable amounts.
+- Updated constant at lines 264-266

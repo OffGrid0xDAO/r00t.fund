@@ -1,0 +1,166 @@
+Now I have a comprehensive view of the codebase. Let me compile my security findings into a detailed audit report. Based on my thorough review of all the contracts, I've identified the key vulnerability patterns and will now produce the final security report.
+
+---
+
+# Security Audit Report: HideMyCoin Contracts
+
+After a comprehensive security review of the Solidity smart contracts in this branch, I have identified the following HIGH-CONFIDENCE vulnerabilities that could lead to loss of funds, unauthorized access, or broken invariants.
+
+---
+
+## Vuln 1: `ZkProjectPool.sol:1263-1276`
+
+* **Severity**: Medium  
+* **Category**: logic_error / timing_vulnerability
+* **KB Reference**: [fv-sol-5-c3-improper-state-transitions.md] - Potential fee claiming race condition  
+* **Description**: The `claimLPFees()` function uses `feePerShare` as both a proof public signal and the current fee epoch marker. However, if `feePerShare` changes between proof generation and transaction execution (within the same block if multiple swaps occur), the proof could be valid for a different state than intended.
+
+* **Exploit Scenario**: 
+  1. LP holder generates a proof with current `feePerShare = X`
+  2. Another swap occurs in the same block, increasing `feePerShare` to `Y`  
+  3. The LP's transaction executes with `feePerShare = Y` in the proof validation
+  4. The proof may fail or the claimable fee calculation could be different than expected
+
+* **Recommendation**: The `claimedInBlock` mapping (added at line 1293) mitigates double-claiming in the same block, but consider using a snapshot of `feePerShare` at the time of proof generation that is stored with the LP commitment.
+
+* **Confidence**: 8/10
+
+---
+
+## Vuln 2: `ZkAMMv3.sol:1569-1577`
+
+* **Severity**: Medium  
+* **Category**: front_running / privacy_leak
+* **KB Reference**: [fv-sol-8-slippage/fv-sol-8-c2-front-running.md] - Partial front-running mitigation
+* **Description**: In `swapETHForProjectToken()`, the R00T commitment is computed deterministically from `(pool, block.number, msg.sender, r00tAmount, projectTokenCommitment, nonce)`. While the nonce provides some protection, the commitment can still be pre-computed by observers who see the transaction in the mempool before it's mined, since all other parameters are visible.
+
+* **Exploit Scenario**:
+  1. Attacker monitors mempool for `swapETHForProjectToken` transactions
+  2. Attacker sees pending tx with `(pool, msg.sender, r00tAmount, projectTokenCommitment)`
+  3. Attacker can predict the commitment value since `block.number` is the target block
+  4. This breaks the anonymity assumption of the commitment system - the attacker knows which commitment corresponds to which user
+
+* **Recommendation**: Include `blockhash(block.number - 1)` in the commitment computation to make it unpredictable until the block is mined. Alternatively, use a commitment scheme where the user provides a secret blinding factor.
+
+* **Confidence**: 8/10
+
+---
+
+## Vuln 3: `LaunchpadPoolFactory.sol:161-169`
+
+* **Severity**: High  
+* **Category**: access_control / authorization_check_failure
+* **KB Reference**: [fv-sol-4-bad-access-control/fv-sol-4-c2-unrestricted-role-assignment.md] - Authorization check is too strict
+* **Description**: The `deployPool()` function checks if `nullifierRegistry.governance() != address(this)` and `r00tPool.owner() != address(this) && !r00tPool.authorizedCallers(address(this))`. However, this factory contract is deployed separately from LaunchpadGovernance, and the NullifierRegistry governance is typically set to LaunchpadGovernance (not this factory). This means the factory will fail its own authorization check.
+
+* **Exploit Scenario**:
+  1. Deployment script deploys LaunchpadGovernance and sets NullifierRegistry.governance = LaunchpadGovernance
+  2. LaunchpadPoolFactory is deployed and configured
+  3. When executeProposal() tries to use the factory, it reverts because factory != NullifierRegistry.governance()
+  4. All pool deployments fail, locking pledged R00T in proposals
+
+* **Recommendation**: The authorization check should verify that the *caller* (LaunchpadGovernance) is authorized, not that this factory contract is the governance. Fix: Check `nullifierRegistry.governance() == governance` instead of `!= address(this)`.
+
+* **Confidence**: 9/10
+
+---
+
+## Vuln 4: `ZkProjectPool.sol:946-968`
+
+* **Severity**: Medium  
+* **Category**: privacy / deposit_front_running  
+* **KB Reference**: [fv-sol-8-slippage/fv-sol-8-c2-front-running.md] - Commitment privacy leak
+* **Description**: In `depositPublic()`, the `depositorBinding` prevents stealing commitments but the commitment value itself is still visible in the transaction parameters before being mined. An attacker can observe which commitment corresponds to which depositor, breaking the privacy guarantee.
+
+* **Exploit Scenario**:
+  1. User submits `depositPublic()` with their chosen commitment
+  2. Attacker monitors mempool and records (depositor_address, commitment) pairs
+  3. Even though the attacker can't steal the commitment, they now have metadata linking commitments to addresses
+  4. This information can be used to trace users' subsequent private transfers/swaps
+
+* **Recommendation**: Consider a commit-reveal scheme where users first commit to a hash of their commitment, then reveal in a second transaction. This separates the linkable transaction from the commitment insertion.
+
+* **Confidence**: 8/10
+
+---
+
+## Vuln 5: `ZkAMMv3.sol:929`
+
+* **Severity**: Medium  
+* **Category**: fund_mismanagement / commitment_collision
+* **KB Reference**: [fv-sol-5-logic-errors/fv-sol-5-c3-improper-state-transitions.md] - LP commitment collision detection incomplete
+* **Description**: The commitment collision check `if (lpDepositTime[lpCommitment] != 0) revert CommitmentAlreadyExists()` only checks `lpDepositTime`. However, an LP could fully withdraw their position (setting `lpCommitmentShares[commitment] = 0` and `lpCommitmentWithdrawn[commitment] = true`) but `lpDepositTime` would still be non-zero. A new LP trying to use the same commitment would be incorrectly rejected.
+
+* **Exploit Scenario**:
+  1. LP1 adds liquidity with commitment X, `lpDepositTime[X] = T1`
+  2. LP1 removes all liquidity, `lpCommitmentShares[X] = 0`, `lpCommitmentWithdrawn[X] = true`
+  3. LP2 (legitimately) generates the same commitment X by chance
+  4. LP2 tries to add liquidity but is rejected because `lpDepositTime[X] != 0`
+  5. LP2 cannot use their legitimately generated commitment
+
+* **Recommendation**: The collision check should be: `if (lpDepositTime[lpCommitment] != 0 && !lpCommitmentWithdrawn[lpCommitment]) revert CommitmentAlreadyExists()` to allow reuse of fully-withdrawn commitment slots. Alternatively, always check `lpCommitmentShares[commitment] > 0`.
+
+* **Confidence**: 8/10
+
+---
+
+## Vuln 6: `NullifierRegistry.sol:181-188`
+
+* **Severity**: Medium  
+* **Category**: logic_error / cooldown_bypass
+* **KB Reference**: [fv-sol-5-logic-errors/fv-sol-5-c1-boundary-misalignment.md] - Cooldown reset behavior inconsistency
+* **Description**: When a pool is authorized, `poolAuthorizationTime[pool] = block.timestamp` is set even if the pool was previously authorized and deauthorized. Combined with `poolOriginalAuthorizationTime` which is only set once, this creates a confusing state where `poolAuthorizationTime` differs from `poolOriginalAuthorizationTime`. The modifier `onlyAuthorizedPool` correctly uses `poolOriginalAuthorizationTime`, but external integrations reading `poolAuthorizationTime` would get misleading information.
+
+* **Exploit Scenario**:
+  1. Pool A is authorized at T=0, `poolOriginalAuthorizationTime[A] = 0`, `poolAuthorizationTime[A] = 0`
+  2. Pool A is deauthorized at T=100
+  3. Pool A is re-authorized at T=200, `poolAuthorizationTime[A] = 200` but `poolOriginalAuthorizationTime[A]` stays 0
+  4. External protocol querying `poolAuthorizationTime` thinks cooldown extends to T=200 + 24h
+  5. But actual cooldown (via `poolOriginalAuthorizationTime`) ended at T=24h
+
+* **Recommendation**: Either update `poolOriginalAuthorizationTime` on re-authorization (stricter but clearer) or document that `poolAuthorizationTime` is only informational and the actual cooldown logic uses `poolOriginalAuthorizationTime`.
+
+* **Confidence**: 8/10
+
+---
+
+## Vuln 7: `ZkAMMPair.sol:570-579`
+
+* **Severity**: High  
+* **Category**: fund_mismanagement / missing_transfer
+* **KB Reference**: [fv-sol-5-logic-errors/fv-sol-5-c3-improper-state-transitions.md] - withdrawPublic does not transfer tokens
+* **Description**: The `withdrawPublic()` function in ZkAMMPair verifies the ZK proof and marks the nullifier as spent, but it NEVER actually transfers any tokens to the recipient. It only emits a `PublicWithdrawal` event. Users can prove ownership and burn their commitment, but receive nothing in return.
+
+* **Exploit Scenario**:
+  1. User has project tokens as a commitment in the ZkAMMPair pool
+  2. User calls `withdrawPublic()` with valid proof to withdraw 1000 tokens to their address
+  3. Nullifier is marked as spent, event is emitted
+  4. User receives 0 tokens - their commitment is burned but no transfer occurs
+  5. User loses their entire token balance permanently
+
+* **Recommendation**: Add the token transfer after proof verification:
+```solidity
+nullifiers[nullifierHash] = true;
+// MISSING: Transfer tokens to recipient
+IERC20(tokenAddress).safeTransfer(recipient, amount);
+emit NullifierSpent(nullifierHash);
+emit PublicWithdrawal(nullifierHash, recipient, amount);
+```
+
+* **Confidence**: 10/10
+
+---
+
+## Summary
+
+| Vuln # | Severity | Contract | Issue |
+|--------|----------|----------|-------|
+| 7 | **HIGH** | ZkAMMPair.sol | withdrawPublic() does not transfer tokens - permanent fund loss |
+| 3 | **HIGH** | LaunchpadPoolFactory.sol | Authorization check blocks all pool deployments |
+| 1 | Medium | ZkProjectPool.sol | LP fee claiming timing vulnerability |
+| 2 | Medium | ZkAMMv3.sol | Atomic swap commitment is partially predictable |
+| 4 | Medium | ZkProjectPool.sol | Public deposit commitment privacy leak |
+| 5 | Medium | ZkAMMv3.sol | LP commitment collision detection incomplete |
+| 6 | Medium | NullifierRegistry.sol | Cooldown timestamp state inconsistency |
+
+**Critical Finding**: Vuln 7 is the most severe - `ZkAMMPair.withdrawPublic()` is completely non-functional and will cause permanent loss of user funds. This should be fixed immediately before deployment.

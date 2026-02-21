@@ -1,0 +1,29 @@
+Security Review Loop Summary
+============================
+Completed: Sun Jan 18 13:24:56 WET 2026
+Total runs: 12
+Clean runs achieved: 3
+Duration: 0h 42m 32s
+
+Log files:
+-rw-r--r--  1 0x0010110  staff  2567 Jan 18 12:47 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-1.txt
+-rw-r--r--  1 0x0010110  staff  1428 Jan 18 12:52 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-2.txt
+-rw-r--r--  1 0x0010110  staff  2188 Jan 18 12:59 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-3.txt
+-rw-r--r--  1 0x0010110  staff  2047 Jan 18 13:06 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-4.txt
+-rw-r--r--  1 0x0010110  staff  2143 Jan 18 13:11 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-5.txt
+-rw-r--r--  1 0x0010110  staff  1831 Jan 18 13:16 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-6.txt
+-rw-r--r--  1 0x0010110  staff  1540 Jan 18 13:21 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-8.txt
+-rw-r--r--  1 0x0010110  staff    52 Jan 18 13:24 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/fix-9.txt
+-rw-r--r--  1 0x0010110  staff  9155 Jan 18 12:43 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-1.txt
+-rw-r--r--  1 0x0010110  staff    52 Jan 18 13:24 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-10.txt
+-rw-r--r--  1 0x0010110  staff    52 Jan 18 13:24 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-11.txt
+-rw-r--r--  1 0x0010110  staff    52 Jan 18 13:24 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-12.txt
+-rw-r--r--  1 0x0010110  staff  8040 Jan 18 12:49 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-2.txt
+-rw-r--r--  1 0x0010110  staff  9336 Jan 18 12:53 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-3.txt
+-rw-r--r--  1 0x0010110  staff  6429 Jan 18 13:01 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-4.txt
+-rw-r--r--  1 0x0010110  staff  7585 Jan 18 13:08 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-5.txt
+-rw-r--r--  1 0x0010110  staff  6214 Jan 18 13:13 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-6.txt
+-rw-r--r--  1 0x0010110  staff  3126 Jan 18 13:17 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-7.txt
+-rw-r--r--  1 0x0010110  staff  7176 Jan 18 13:19 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-8.txt
+-rw-r--r--  1 0x0010110  staff  8146 Jan 18 13:23 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/review-9.txt
+-rw-r--r--  1 0x0010110  staff   169 Jan 18 13:24 /Users/0x0010110/Documents/GitHub/HideMyCoin/contracts/security-logs/summary.txt

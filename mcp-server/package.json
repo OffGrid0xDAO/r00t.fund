@@ -1,0 +1,36 @@
+{
+  "name": "@r00tfund/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for r00t.fund - enables AI agents to buy $ROOT tokens with x402 payments",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "r00tfund-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "x402",
+    "defi",
+    "regenerative-finance",
+    "ai-agents",
+    "cryptocurrency"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@coinbase/x402": "^0.1.0",
+    "x402": "^0.1.0",
+    "viem": "^2.21.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

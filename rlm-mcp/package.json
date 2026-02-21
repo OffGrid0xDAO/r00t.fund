@@ -1,0 +1,31 @@
+{
+  "name": "rlm-mcp",
+  "version": "1.0.0",
+  "description": "Recursive Language Model MCP Server - Handle arbitrarily long contexts with recursive decomposition",
+  "main": "dist/index.js",
+  "bin": {
+    "rlm-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "rlm",
+    "recursive-language-model",
+    "long-context"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

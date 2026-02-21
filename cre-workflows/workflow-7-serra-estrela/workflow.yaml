@@ -1,0 +1,30 @@
+# Workflow 7: Serra da Estrela Native Forest Restoration Data Feed
+# Custom Chainlink CRE Data Feed — Real Reforestation Monitoring
+#
+# After the 2025 summer fires in Serra da Estrela Natural Park (Portugal),
+# this workflow monitors the restoration of 9 hectares of native forest
+# with Quercus robur (carvalho-roble), Castanea sativa (castanheiro),
+# Crataegus monogyna (espinheiro/pilriteiro), and Prunus spinosa (abrunheiro).
+#
+# Uses satellite imagery, soil sensors, and fire recovery indices to
+# generate a Chainlink-compatible data feed for on-chain carbon credits.
+name: serra-estrela-native-forest-datafeed
+description: >
+  Custom CRE data feed monitoring post-fire native forest restoration
+  in Serra da Estrela Natural Park (9 hectares). Tracks NDVI recovery,
+  dNBR fire severity, soil organic carbon, and species survival rates.
+  Publishes AggregatorV3Interface-compatible data for carbon credit attribution.
+
+triggers:
+  - type: cron
+    schedule: "0 */6 * * *"  # Every 6 hours
+
+capabilities:
+  - HTTPClient
+  - EVMClient
+  - ConsensusAggregationByFields
+
+target:
+  contract: "${SERRA_ESTRELA_DATAFEED_ADDRESS}"
+  network: sepolia
+  function: "receiveReport"

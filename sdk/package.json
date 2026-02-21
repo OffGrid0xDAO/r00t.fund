@@ -1,0 +1,38 @@
+{
+  "name": "@r00t-fund/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SDK for interacting with the r00t.fund ZK-AMM",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@railgun-community/engine": "^9.5.1",
+    "@railgun-community/shared-models": "^8.0.0",
+    "@railgun-community/wallet": "10.8.1",
+    "ethers": "^6.9.0",
+    "poseidon-lite": "^0.2.0",
+    "snarkjs": "^0.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/snarkjs": "^0.7.8",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

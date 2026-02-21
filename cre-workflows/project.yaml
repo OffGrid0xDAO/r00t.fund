@@ -1,0 +1,69 @@
+# R00t.fund CRE Workflows Project Configuration
+# Shared configuration for all Chainlink CRE workflows
+
+name: r00t-fund-cre
+version: 1.0.0
+
+# DON Configuration
+don:
+  network: sepolia
+  donId: "don-sepolia-1"
+
+# Shared RPC endpoints
+rpc:
+  sepolia:
+    url: "${SEPOLIA_RPC_URL}"
+    chainId: 11155111
+  baseSepolia:
+    url: "${BASE_SEPOLIA_RPC_URL}"
+    chainId: 84532
+  # Tenderly Virtual TestNet (forked from Sepolia with real-time state sync)
+  tenderly-vnet:
+    url: "${TENDERLY_VIRTUAL_TESTNET_RPC}"
+    chainId: 73571
+    explorer: "https://dashboard.tenderly.co/manifestordao/manifestordao/testnet/596dfbfb-e22d-4186-b982-33682540383d"
+
+# Contract addresses (Sepolia deployments)
+contracts:
+  zkAMMv3Pair: "${ZKAMM_PAIR_ADDRESS}"
+  zkAMMv3Admin: "${ZKAMM_ADMIN_ADDRESS}"
+  zkAMMv3Router: "${ZKAMM_ROUTER_ADDRESS}"
+  r00tShorts: "${R00T_SHORTS_ADDRESS}"
+  launchpadGovernanceV2: "${LAUNCHPAD_GOVERNANCE_ADDRESS}"
+  rootToken: "${ROOT_TOKEN_ADDRESS}"
+  nullifierRegistry: "${NULLIFIER_REGISTRY_ADDRESS}"
+  # CRE callback contracts (deployed separately)
+  confidentialFundingVault: "${CONFIDENTIAL_FUNDING_VAULT_ADDRESS}"
+  regenProofOfReserve: "${REGEN_PROOF_OF_RESERVE_ADDRESS}"
+  aiAgentOrchestrator: "${AI_AGENT_ORCHESTRATOR_ADDRESS}"
+  regenPredictionMarket: "${REGEN_PREDICTION_MARKET_ADDRESS}"
+  protocolHealthMonitor: "${PROTOCOL_HEALTH_MONITOR_ADDRESS}"
+  # Chainlink ACE (Compliant Private Transfer) contracts
+  r00tPolicyEngine: "${R00T_POLICY_ENGINE_ADDRESS}"
+  compliantPrivateVault: "${COMPLIANT_PRIVATE_VAULT_ADDRESS}"
+  # Serra da Estrela Native Forest Data Feed
+  serraEstrelaNativeForest: "${SERRA_ESTRELA_DATAFEED_ADDRESS}"
+
+# Workflow references
+workflows:
+  - name: workflow-1-privacy
+    path: ./workflow-1-privacy
+    description: Confidential Regenerative Funding (Privacy Track)
+  - name: workflow-2-defi
+    path: ./workflow-2-defi
+    description: Regenerative Proof of Reserve (DeFi & Tokenization Track)
+  - name: workflow-3-ai
+    path: ./workflow-3-ai
+    description: AI Agent Orchestration (CRE & AI Track)
+  - name: workflow-4-prediction
+    path: ./workflow-4-prediction
+    description: Regenerative Outcome Markets (Prediction Markets Track)
+  - name: workflow-5-risk
+    path: ./workflow-5-risk
+    description: Protocol Health Monitor (Risk & Compliance Track)
+  - name: workflow-6-compliance
+    path: ./workflow-6-compliance
+    description: Compliant Private Transfers — Chainlink ACE Pattern (Privacy Track)
+  - name: workflow-7-serra-estrela
+    path: ./workflow-7-serra-estrela
+    description: Serra da Estrela Native Forest Restoration — Custom Data Feed

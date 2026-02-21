@@ -1,0 +1,49 @@
+All vulnerabilities have been fixed. Here's a summary of the changes:
+
+## Security Fixes Applied
+
+### Vuln 1: Griefing Vector in `swapETHForProjectToken` via Malicious Project Pools
+
+**Files Modified:** `ZkAMMv3.sol`
+
+**Changes:**
+1. Added `poolRegistrationTime` mapping to track when each pool was registered (line 210)
+2. Added `POOL_REGISTRATION_COOLDOWN` constant (24 hours) (line 214)
+3. Added `PoolCooldownNotMet` error (line 375)
+4. Updated `registerProjectPool()` to record registration timestamp (line 1412)
+5. Added cooldown check in `swapETHForProjectToken()` to prevent newly registered pools from accepting atomic swaps until 24 hours after registration (lines 1505-1511)
+
+**Rationale:** This prevents malicious pools that could selectively revert to grief users or observe commitment values. The 24-hour cooldown provides time for the community to detect and respond to potentially malicious pool registrations.
+
+---
+
+### Vuln 2: Rounding Loss in LP Fee Distribution
+
+**Files Modified:** `ZkAMMv3.sol`, `ZkProjectPool.sol`
+
+**Changes:**
+
+In `ZkAMMv3.sol`:
+1. Added `MIN_LP_FEE_FOR_DISTRIBUTION` constant (1e12 wei = 0.000001 ETH) (lines 97-103)
+2. Added `LPFeeTooSmall` error (line 376)
+3. Updated LP fee distribution in 4 locations:
+   - `buyPrivate()` (lines 505-520)
+   - `sellPrivate()` (lines 590-602)
+   - `sellPrivateToRailgun()` (lines 699-711)
+   - `swapETHForProjectToken()` (lines 1569-1581)
+
+In `ZkProjectPool.sol`:
+1. Added `MIN_LP_FEE_FOR_DISTRIBUTION` constant (1e12 wei) (lines 55-61)
+2. Updated LP fee distribution in 3 locations:
+   - `swapR00tForToken()` (lines 492-504)
+   - `swapTokenForR00t()` (lines 587-599)
+   - `atomicSwapFromR00T()` (lines 1446-1458)
+
+**Rationale:** When `totalLPShares` is very large relative to `lpFee`, the increment `(lpFee * FEE_PRECISION) / totalLPShares` can round to zero. This caused:
+1. Fees to be "lost" (added to accumulatedLPFees but never claimable)
+2. Over time, significant value could become stranded
+
+The fix ensures that:
+1. Fees below the minimum threshold go to protocol fees instead
+2. Even when above the threshold, if the actual increment rounds to zero, the fee goes to protocol
+3. This prevents dust fee accumulation while ensuring all fees are captured somewhere

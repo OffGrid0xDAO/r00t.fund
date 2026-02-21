@@ -1,0 +1,80 @@
+Based on my comprehensive security review of all the Solidity smart contracts in this branch, I have carefully analyzed the code for vulnerabilities. The codebase shows significant hardening with security fixes already applied. However, I did identify a few remaining issues.
+
+---
+
+# Security Audit Report: HideMyCoin Contracts
+
+## Summary
+
+After thorough analysis of the smart contracts, I found the codebase to be **well-hardened** with extensive security mitigations already in place, including:
+- ReentrancyGuard on all ETH-transferring functions
+- Checks-Effects-Interactions (CEI) pattern consistently applied
+- 48-hour admin timelocks for critical operations
+- SNARK scalar field validation to prevent nullifier aliasing
+- LP lock periods to prevent flash LP attacks
+- 2-of-3 emergency multisig for critical operations
+
+However, I identified **one HIGH severity issue** and **one MEDIUM severity issue** that warrant attention:
+
+---
+
+# Vuln 1: `ZkAMMv3.sol:1543-1553`
+
+* **Severity**: High
+* **Category**: logic_errors / fund_mismanagement
+* **KB Reference**: [fv-sol-5-c4-misordered-calculations.md] - Ordering of commitment insertion can create orphaned state
+* **Description**: In `swapETHForProjectToken()`, the R00T commitment is inserted into the token pool at line 1543 **after** the atomic swap external call at line 1532. While the external call revert protects against orphaned commitments, the **nullifier is already marked spent at line 1526** before the external call. If the external call (`atomicSwapFromR00T`) fails after consuming significant gas, the nullifier remains spent even though no swap occurred.
+
+More critically, the **deterministic commitment derivation** (lines 1502-1509) uses only `pool`, `block.number`, `msg.sender`, `r00tAmount`, `projectTokenCommitment`, and `nonce`. A malicious project pool contract could revert conditionally (e.g., based on `block.coinbase` or selectively) causing the sender's transaction to fail while learning the commitment value from the failed transaction's revert data or traces.
+
+* **Exploit Scenario**: 
+  1. Attacker deploys a malicious project pool that reverts for specific users
+  2. Victim calls `swapETHForProjectToken()` 
+  3. The reserves are updated, nullifier is marked spent 
+  4. Malicious pool reverts, causing full transaction revert
+  5. Attacker observes the deterministic commitment from traces
+  6. While the revert undoes state changes atomically, this still enables griefing where legitimate transactions are blocked
+
+* **Recommendation**: The current implementation correctly reverts atomically, but the griefing vector should be addressed by validating pools more thoroughly before registration. Consider requiring pools to pass additional validation criteria or implementing a pool stake that can be slashed for misbehavior.
+
+* **Confidence**: 8
+
+---
+
+# Vuln 2: `ZkProjectPool.sol:553-554` (and `ZkProjectPoolImpl.sol`)
+
+* **Severity**: Medium  
+* **Category**: fund_mismanagement / improper_state_tracking
+* **KB Reference**: [fv-sol-2-c3-rounding.md] - Precision loss in share calculations can be exploited
+* **Description**: In the LP fee distribution and claiming mechanism across both `ZkProjectPool` and `ZkProjectPoolImpl`, when `feePerShare` is updated at line 553, the calculation `feePerShare += (lpFee * FEE_PRECISION) / totalLPShares` experiences rounding loss when `totalLPShares` is very large relative to `lpFee`. Over time, these rounding losses accumulate, and the actual `accumulatedLPFees` may exceed what can be claimed, causing the last claimers to receive less than their fair share.
+
+Additionally, the `lastClaimedFeePerShare` mechanism doesn't account for the epoch system properly - when `claimLPFees()` uses epoch-based incremental calculation but `lastClaimedFeePerShare` mapping is still being set for individual LP commitments, there's a potential inconsistency. The contract uses two different accounting systems (per-commitment tracking via `lastClaimedFeePerShare` and epoch-based tracking via `feePerShareAtEpochStart`).
+
+* **Exploit Scenario**:
+  1. When pool has very large `totalLPShares` (e.g., after many deposits) and small trades, the fee increment per trade rounds to near-zero
+  2. Small LPs claiming fees frequently may receive nothing while fees accumulate in `accumulatedLPFees`
+  3. These "lost" fees become permanently locked as no LP can claim them
+  4. Over thousands of small trades, significant value can become stranded
+
+* **Recommendation**: 
+  1. Ensure minimum fee amounts before incrementing `feePerShare` (require `lpFee >= totalLPShares / FEE_PRECISION`)
+  2. Consolidate the fee tracking to use only the epoch-based system consistently
+  3. Add a mechanism to sweep dust fees to protocol treasury
+
+* **Confidence**: 8
+
+---
+
+## Additional Observations (Not Vulnerabilities)
+
+The following items were noted but do not represent exploitable vulnerabilities:
+
+1. **Well-implemented security fixes**: The codebase already addresses many common vulnerabilities including reentrancy, nullifier aliasing, flash LP attacks, and admin key compromise.
+
+2. **Verifier locking**: The `verifiersLocked` boolean prevents post-deployment verifier replacement - this is correctly implemented.
+
+3. **Emergency multisig**: The 2-of-3 emergency signer system with 24-hour expiry on approvals is well-designed.
+
+4. **Timelock mechanisms**: All critical admin functions properly require 48-hour timelocks.
+
+5. **CEI Pattern**: All functions follow Checks-Effects-Interactions pattern with state updates before external calls.

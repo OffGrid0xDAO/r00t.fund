@@ -1,0 +1,20 @@
+# Workflow 5: Protocol Health Monitor
+# Prize Track: Risk & Compliance ($16k)
+name: protocol-health-monitor
+description: >
+  Real-time protocol risk monitoring with automated circuit breaker capabilities.
+  Reads extensive on-chain state and computes composite risk scores.
+
+triggers:
+  - type: cron
+    schedule: "* * * * *"  # Every 60 seconds
+
+capabilities:
+  - EVMClient
+  - ConfidentialHTTPClient
+  - vaultDonSecrets
+
+target:
+  contract: "${PROTOCOL_HEALTH_MONITOR_ADDRESS}"
+  network: sepolia
+  function: "receiveReport"

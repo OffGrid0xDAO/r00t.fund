@@ -1,0 +1,2388 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "./TokenPool.sol";
+import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier} from "./interfaces/IVerifier.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+/// @notice Interface for ZkAMMPair (project token pools)
+interface IZkAMMPair {
+    function r00tReserve() external view returns (uint256);
+    function tokenReserve() external view returns (uint256);
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external view returns (uint256);
+    function projectTokenPool() external view returns (address);
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
+}
+
+/// @notice Interface for ZkProjectPool (new project token pools with atomic swap support)
+interface IZkProjectPool {
+    function r00tReserve() external view returns (uint256);
+    function tokenReserve() external view returns (uint256);
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external pure returns (uint256);
+    function projectTokenPool() external view returns (address);
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
+    function atomicSwapFromR00T(
+        uint256 r00tAmount,
+        uint256 r00tNullifier,
+        uint256 minTokensOut,
+        uint256 outputCommitment,
+        bytes calldata encryptedNote
+    ) external returns (uint256 tokensOut);
+}
+
+/// @notice Interface for Railgun proxy contract (shielding ETH)
+interface IRailgunProxy {
+    struct ShieldRequest {
+        bytes32 npk;           // Note public key
+        uint256 value;         // Amount to shield
+        bytes encryptedRandom; // Encrypted random for note
+    }
+    function shield(ShieldRequest[] calldata shieldRequests) external payable;
+}
+
+/// @title ZkAMMv3
+/// @author r00t.fund
+/// @notice Private AMM with fee collection, private LP, and security hardening
+/// @dev V3 adds: ReentrancyGuard, fee validation, private LP deposits/withdrawals, 24h LP lock
+///
+/// SECURITY IMPROVEMENTS FROM V2:
+/// - Added ReentrancyGuard to all external functions with ETH transfers
+/// - Added fee validation (fee <= ethOut) in sellPrivate
+/// - Added deadline parameter for transaction expiry
+/// - Checks-Effects-Interactions pattern enforced
+/// - Private LP with ZK proofs for deposits/withdrawals
+/// - 24-hour LP lock to prevent flash LP attacks
+///
+/// FEE DISTRIBUTION NOTE:
+/// During the initial phase when totalLPShares == 0 (no LP providers yet),
+/// LP fees (0.2% of each trade) are redirected to the protocol treasury.
+/// This is by design to avoid division-by-zero and ensures fees are captured.
+/// Once LPs join, fees are distributed proportionally via feePerShare.
+contract ZkAMMv3 is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // ============ Constants ============
+
+    /// @notice Total supply of tokens (69 million with 18 decimals)
+    uint256 public constant TOTAL_SUPPLY = 69_000_000 * 1e18;
+
+    /// @notice AMM fee in basis points (100 = 1%)
+    uint256 public constant FEE_BPS = 100;
+
+    /// @notice Protocol fee in basis points (30 = 0.3% of trade, goes to r00t treasury)
+    uint256 public constant PROTOCOL_FEE_BPS = 30;
+
+    /// @notice LP fee in basis points (70 = 0.7% of trade, distributed to LPs)
+    uint256 public constant LP_FEE_BPS = 70;
+
+    /// @notice Protocol fee on liquidity adds (10 = 0.1% of ETH deposited)
+    uint256 public constant LP_ADD_PROTOCOL_FEE_BPS = 10;
+
+    /// @notice Fee denominator (10000 = 100%)
+    uint256 public constant FEE_DENOMINATOR = 10000;
+
+    /// @notice Minimum ETH liquidity that must remain in pool
+    uint256 public constant MIN_LIQUIDITY = 0.01 ether;
+
+    /// @notice BN254 scalar field size for SNARK commitments
+    uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+
+    /// @notice LP lock period to prevent flash LP attacks (24 hours)
+    /// @dev SECURITY FIX: Was set to 1 minute for testing, now properly set to 24 hours
+    uint256 public constant LP_LOCK_PERIOD = 24 hours;
+
+    /// @notice Scaling factor for fee per share calculations (1e18)
+    uint256 public constant FEE_PRECISION = 1e18;
+
+    /// @notice Minimum LP fee required before distribution (prevents rounding dust)
+    /// @dev SECURITY FIX (Audit Vuln 2): When totalLPShares is very large relative to lpFee,
+    ///      the increment (lpFee * FEE_PRECISION) / totalLPShares can round to zero.
+    ///      This minimum ensures meaningful fee distribution per LP share.
+    ///      Value: 1e12 wei = 0.000001 ETH minimum fee to distribute.
+    ///      Fees below this threshold accumulate in accumulatedProtocolFees instead.
+    uint256 public constant MIN_LP_FEE_FOR_DISTRIBUTION = 1e12;
+
+    /// @notice Minimum time between fee epoch increments (7 days)
+    /// @dev SECURITY FIX (Vuln 1): Prevents owner from rapidly incrementing epochs to drain LP fees
+    uint256 public constant MIN_EPOCH_DURATION = 7 days;
+
+    // ============ State Variables ============
+
+    /// @notice Token name
+    string public name;
+
+    /// @notice Token symbol
+    string public symbol;
+
+    /// @notice ROOT ERC20 token - real tokens held by this contract
+    IERC20 public immutable rootToken;
+
+    /// @notice Token commitment merkle tree
+    TokenPool public immutable tokenPool;
+
+    /// @notice LP commitment merkle tree (separate from token pool)
+    TokenPool public immutable lpPool;
+
+    /// @notice Verifier for sell proofs
+    ISellVerifier public sellVerifier;
+
+    /// @notice Verifier for transfer proofs
+    ITransferVerifier public transferVerifier;
+
+    /// @notice Verifier for withdraw proofs
+    IWithdrawVerifier public withdrawVerifier;
+
+    /// @notice Verifier for add liquidity proofs
+    IAddLiquidityVerifier public addLiquidityVerifier;
+
+    /// @notice Verifier for LP withdrawal proofs
+    IRemoveLiquidityVerifier public removeLiquidityVerifier;
+
+    /// @notice Verifier for LP fee claiming proofs
+    IClaimLPFeesVerifier public claimLPFeesVerifier;
+
+    /// @notice Mapping of LP commitment to LP shares (for fee calculations)
+    mapping(uint256 => uint256) public lpCommitmentShares;
+
+    /// @notice ETH reserve in the pool
+    uint256 public ethReserve;
+
+    /// @notice Token reserve in the pool
+    uint256 public tokenReserve;
+
+    /// @notice Total LP shares issued
+    uint256 public totalLPShares;
+
+    /// @notice Accumulated fees per LP share (scaled by FEE_PRECISION)
+    uint256 public feePerShare;
+
+    /// @notice Mapping of spent nullifier hashes (for trading)
+    mapping(uint256 => bool) public nullifiers;
+
+    /// @notice Mapping of spent LP nullifier hashes
+    mapping(uint256 => bool) public lpNullifiers;
+
+    /// @notice Mapping of LP commitment deposit times (commitment => timestamp)
+    mapping(uint256 => uint256) public lpDepositTime;
+
+    /// @notice Mapping of last claimed fee per share for LP commitments
+    mapping(uint256 => uint256) public lastClaimedFeePerShare;
+
+    /// @notice Mapping of withdrawn LP commitments (prevents fee claims after withdrawal)
+    mapping(uint256 => bool) public lpCommitmentWithdrawn;
+
+    /// @notice Mapping of used token commitments (prevents front-running)
+    /// @dev SECURITY FIX (Audit Vuln 1): Tracks commitment+depositor bindings to prevent front-running
+    mapping(bytes32 => bool) public usedCommitmentBindings;
+
+    /// @notice Current fee epoch (increments when fees are distributed)
+    /// SECURITY FIX: Used for epoch-based claim nullifiers in claimLPFees circuit
+    uint256 public currentFeeEpoch;
+
+    /// @notice Mapping of spent claim nullifiers (prevents double-claiming per epoch)
+    /// SECURITY FIX: Each LP position can only claim once per epoch
+    mapping(uint256 => bool) public spentClaimNullifiers;
+
+    /// @notice Fee per share at the start of each epoch (for incremental fee calculation)
+    /// @dev SECURITY FIX (Vuln 1): Prevents double-counting fees across epochs
+    ///      claimable = (lpShares * (feePerShare - feePerShareAtEpochStart[epoch])) / FEE_PRECISION
+    mapping(uint256 => uint256) public feePerShareAtEpochStart;
+
+    /// @notice Timestamp of last fee epoch increment
+    /// @dev SECURITY FIX (Audit Vuln 1): Used to enforce MIN_EPOCH_DURATION between increments
+    uint256 public lastEpochIncrementTime;
+
+    /// @notice Whether verifiers have been locked (prevents upgrades after lock)
+    /// @dev SECURITY FIX (Vuln 2): Prevents owner from replacing verifiers with malicious ones
+    bool public verifiersLocked;
+
+    /// @notice Contract owner
+    address public owner;
+
+    /// @notice Treasury address for fee collection
+    address public treasury;
+
+    /// @notice Accumulated protocol fees (in ETH)
+    uint256 public accumulatedProtocolFees;
+
+    /// @notice Accumulated LP fees awaiting claim (in ETH)
+    uint256 public accumulatedLPFees;
+
+    /// @notice Whether initial liquidity has been bootstrapped
+    /// @dev SECURITY FIX: Prevents multiple bootstrap calls
+    bool public bootstrapped;
+
+    // ============ Project Pool Registry (for routing) ============
+
+    /// @notice Registered project pools (ZkAMMPair addresses)
+    address[] public projectPools;
+
+    /// @notice Mapping from pool address to whether it's registered
+    mapping(address => bool) public isProjectPool;
+
+    /// @notice Mapping from pool address to registration timestamp
+    /// @dev SECURITY FIX (Audit Vuln 1): Used to enforce cooldown before pools can accept atomic swaps
+    mapping(address => uint256) public poolRegistrationTime;
+
+    /// @notice Cooldown period before newly registered pools can accept atomic swaps (24 hours)
+    /// @dev SECURITY FIX (Audit Vuln 1): Prevents instant griefing by malicious pools
+    uint256 public constant POOL_REGISTRATION_COOLDOWN = 24 hours;
+
+    /// @notice Swap verifier for routed swaps
+    ISwapVerifier public swapVerifier;
+
+    /// @notice Launchpad governance contract (can register pools)
+    address public launchpad;
+
+    /// @notice Railgun proxy contract for anonymous ETH shielding
+    IRailgunProxy public railgunProxy;
+
+    /// @notice Nonce counter for atomic swap commitment uniqueness
+    /// @dev SECURITY FIX (Vuln 2): Prevents front-running by making commitments unpredictable
+    uint256 public atomicSwapNonce;
+
+    // ============ Admin Timelock State (SECURITY FIX) ============
+    // SECURITY FIX (Audit Vuln 1,2,4): Critical admin changes require 48-hour timelock
+    // This prevents instant takeover if owner key is compromised
+
+    /// @notice Admin timelock duration (48 hours)
+    uint256 public constant ADMIN_TIMELOCK = 48 hours;
+
+    /// @notice Pending owner address for timelock
+    address public pendingOwner;
+    /// @notice Timelock expiry for pending owner change
+    uint256 public ownerTimelockExpiry;
+
+    /// @notice Pending treasury address for timelock
+    address public pendingTreasury;
+    /// @notice Timelock expiry for pending treasury change
+    uint256 public treasuryTimelockExpiry;
+
+    /// @notice Pending Railgun proxy address for timelock
+    address public pendingRailgunProxy;
+    /// @notice Timelock expiry for pending Railgun proxy change
+    uint256 public railgunProxyTimelockExpiry;
+
+    /// @notice Whether Railgun proxy has been locked (one-time set after initial config)
+    /// @dev SECURITY FIX (Audit Vuln 4): Prevents malicious proxy replacement
+    bool public railgunProxyLocked;
+
+    /// @notice Minimum claim window before epoch can be incremented
+    /// @dev SECURITY FIX (Audit Vuln 5): Ensures LPs have time to claim fees
+    ///      SECURITY FIX (Audit Vuln 5b): Extended from 24h to 72h to account for weekends
+    uint256 public constant MIN_CLAIM_WINDOW = 72 hours;
+
+    /// @notice Timestamp when epoch increment was announced
+    /// @dev SECURITY FIX (Audit Vuln 5): LPs get MIN_CLAIM_WINDOW notice before epoch resets
+    uint256 public epochIncrementAnnouncedAt;
+
+    /// @notice Whether epoch increment has been announced
+    bool public epochIncrementPending;
+
+    /// @notice Timestamp of most recent LP deposit
+    /// @dev SECURITY FIX (Audit Vuln 9): Used to ensure new LPs have time to claim fees
+    ///      Epoch increment cannot be announced within MIN_CLAIM_WINDOW of last LP deposit
+    uint256 public lastLPDepositTime;
+
+    // ============ 2-of-3 Emergency Multisig ============
+    // SECURITY FIX: Requires 2 of 3 signers to approve emergency withdrawals
+    // If one wallet is compromised, attacker cannot drain the protocol alone
+
+    /// @notice Emergency signers (3 addresses, need 2 to execute)
+    address[3] public emergencySigners;
+
+    /// @notice Tracks which signers have approved a specific action
+    /// @dev Key is keccak256(actionType, params...), value is bitmap of approvals
+    mapping(bytes32 => uint8) public emergencyApprovals;
+
+    /// @notice Expiration time for emergency approvals (prevents stale approvals)
+    uint256 public constant EMERGENCY_APPROVAL_EXPIRY = 24 hours;
+
+    /// @notice Timestamp when approvals were first recorded for an action
+    mapping(bytes32 => uint256) public emergencyApprovalTimestamp;
+
+    /// @notice Pending emergency action details (so second signer doesn't need to re-enter params)
+    struct PendingEmergencyAction {
+        uint8 actionType;      // 1 = withdrawETH, 2 = withdrawAll, 3 = setSigner
+        uint256 amount;        // For withdrawETH
+        address recipient;     // For withdrawETH/withdrawAll
+        uint8 signerIndex;     // For setSigner
+        address newSigner;     // For setSigner
+    }
+
+    /// @notice Stored pending actions by hash
+    mapping(bytes32 => PendingEmergencyAction) public pendingEmergencyActions;
+
+    // ============ Events ============
+
+    event NewCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes encryptedNote);
+    event NewLPCommitment(uint256 indexed commitment, uint256 indexed leafIndex, uint256 lpShares, bytes encryptedNote);
+    event NullifierSpent(uint256 indexed nullifierHash);
+    event LPNullifierSpent(uint256 indexed nullifierHash);
+    event TokensPurchased(uint256 ethIn, uint256 tokensOut, uint256 protocolFee, uint256 lpFee);
+    event TokensSold(uint256 tokensIn, uint256 ethOut, uint256 protocolFee, uint256 lpFee);
+    event PrivateTransfer(uint256 transferAmount);
+    event PublicWithdrawal(uint256 indexed nullifierHash, address indexed recipient, uint256 amount);
+    event ProtocolFeesCollected(address indexed treasury, uint256 amount);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event LiquidityAddedPrivate(uint256 indexed commitment, uint256 ethAmount, uint256 tokenAmount, uint256 lpShares);
+    event LiquidityRemovedPrivate(uint256 indexed nullifierHash, uint256 ethOut, uint256 tokensOut);
+    event LPFeesClaimed(uint256 indexed claimNullifier, address indexed recipient, uint256 amount, uint256 feeEpoch);
+    event FeeEpochIncremented(uint256 newEpoch, uint256 totalLPFees);
+    event ClaimNullifierSpent(uint256 indexed claimNullifier);
+    event ProjectPoolRegistered(address indexed pool, string name, string symbol);
+    event SwapETHForProjectToken(address indexed pool, uint256 ethIn, uint256 hiddenIntermediate, uint256 tokensOut);
+    event SwapProjectTokenForETH(address indexed pool, uint256 tokensIn, uint256 hiddenIntermediate, uint256 ethOut);
+    event LiquidityBootstrapped(uint256 ethAmount, uint256 lpShares, uint256 burnedShares);
+    event EmergencyWithdrawal(address indexed recipient, uint256 ethAmount, uint256 tokenAmount);
+    event SoldToRailgun(uint256 indexed nullifierHash, uint256 tokensIn, uint256 ethOut, bytes32 railgunNpk);
+    event VerifierUpdated(string indexed verifierType, address indexed oldVerifier, address indexed newVerifier);  // SECURITY FIX M-04
+
+    // Emergency Multisig Events
+    event EmergencySignerUpdated(uint8 indexed index, address indexed oldSigner, address indexed newSigner);
+    event EmergencyApproval(bytes32 indexed actionHash, address indexed signer, uint8 approvalCount);
+    event EmergencyApprovalReset(bytes32 indexed actionHash);
+
+    // Admin Timelock Events (SECURITY FIX Audit Vulns 1,2,4)
+    event OwnershipTransferProposed(address indexed currentOwner, address indexed pendingOwner, uint256 effectiveTime);
+    event OwnershipTransferCompleted(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferCancelled(address indexed pendingOwner);
+    event TreasuryChangeProposed(address indexed currentTreasury, address indexed pendingTreasury, uint256 effectiveTime);
+    event TreasuryChangeCompleted(address indexed previousTreasury, address indexed newTreasury);
+    event TreasuryChangeCancelled(address indexed pendingTreasury);
+    event RailgunProxyChangeProposed(address indexed currentProxy, address indexed pendingProxy, uint256 effectiveTime);
+    event RailgunProxyChangeCompleted(address indexed previousProxy, address indexed newProxy);
+    event RailgunProxyLocked(address indexed proxy);
+    event EpochIncrementAnnounced(uint256 indexed epoch, uint256 effectiveTime);
+    event EpochIncrementCancelled(uint256 indexed epoch);
+
+    // ============ Errors ============
+
+    error NoETH();
+    error SlippageExceeded();
+    error InvalidProof();
+    error NullifierAlreadySpent();
+    error UnknownMerkleRoot();
+    error InsufficientETH();
+    error InsufficientLiquidity();
+    error TransferFailed();
+    error Unauthorized();
+    error ZeroAddress();
+    error NoFeesToCollect();
+    error ExcessiveFee();
+    error TransactionExpired();
+    error LPLocked();
+    error ZeroAmount();
+    error InvalidLPShares();
+    error LPAlreadyWithdrawn();
+    error PoolNotRegistered();
+    error PoolAlreadyRegistered();
+    error NotLaunchpad();
+    error NotImplemented();
+    error AlreadyBootstrapped();
+    error RailgunNotConfigured();
+    error CommitmentAlreadyExists();  // SECURITY FIX H-04: LP commitment collision
+    error CommitmentBindingAlreadyUsed();  // SECURITY FIX (Audit Vuln 1): Prevents commitment front-running
+    error ClaimNullifierAlreadySpent();  // SECURITY FIX: Prevents double-claiming per epoch
+    error NotEmergencySigner();          // Caller is not one of the 3 emergency signers
+    error EmergencySignersNotSet();      // Emergency signers not yet configured
+    error NoPendingAction();             // No pending emergency action with this hash
+    error VerifiersLocked();             // SECURITY FIX (Vuln 2): Verifiers cannot be changed after lock
+    error EpochTooSoon();                // SECURITY FIX: Epoch increment called before MIN_EPOCH_DURATION
+    error TimelockNotExpired();          // SECURITY FIX (Audit Vuln 1,2,4): Timelock period not yet passed
+    error NoPendingChange();             // SECURITY FIX: No pending timelock change to execute
+    error RailgunProxyAlreadyLocked();   // SECURITY FIX (Audit Vuln 4): Railgun proxy already locked
+    error EpochIncrementNotAnnounced();  // SECURITY FIX (Audit Vuln 5): Must announce epoch increment first
+    error ClaimWindowNotPassed();        // SECURITY FIX (Audit Vuln 5): Claim window not yet passed
+    error PoolCooldownNotMet();          // SECURITY FIX (Audit Vuln 1): Pool registration cooldown not yet passed
+    error LPFeeTooSmall();               // SECURITY FIX (Audit Vuln 2): LP fee too small to distribute without rounding loss
+    error RecentLPDeposit();             // SECURITY FIX (Audit Vuln 9): Cannot announce epoch increment within MIN_CLAIM_WINDOW of last LP deposit
+
+    // ============ Modifiers ============
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyLaunchpad() {
+        if (msg.sender != launchpad && msg.sender != owner) revert NotLaunchpad();
+        _;
+    }
+
+    modifier notExpired(uint256 deadline) {
+        if (block.timestamp > deadline) revert TransactionExpired();
+        _;
+    }
+
+    // ============ Constructor ============
+
+    /// @notice Initialize the AMM
+    /// @param _rootToken ROOT ERC20 token address (must transfer TOTAL_SUPPLY to this contract after deployment)
+    /// @param _name Token name
+    /// @param _symbol Token symbol
+    /// @param _sellVerifier Sell proof verifier
+    /// @param _transferVerifier Transfer proof verifier
+    /// @param _withdrawVerifier Withdraw proof verifier
+    /// @param _treasury Treasury address for fee collection
+    /// @param _emergencySigner0 First emergency signer (2-of-3 multisig)
+    /// @param _emergencySigner1 Second emergency signer (2-of-3 multisig)
+    /// @param _emergencySigner2 Third emergency signer (2-of-3 multisig)
+    constructor(
+        address _rootToken,
+        string memory _name,
+        string memory _symbol,
+        address _sellVerifier,
+        address _transferVerifier,
+        address _withdrawVerifier,
+        address _treasury,
+        address _emergencySigner0,
+        address _emergencySigner1,
+        address _emergencySigner2
+    ) payable {
+        if (_rootToken == address(0)) revert ZeroAddress();
+        if (_sellVerifier == address(0) || _transferVerifier == address(0) || _withdrawVerifier == address(0)) revert ZeroAddress();
+        if (_treasury == address(0)) revert ZeroAddress();
+
+        // Validate emergency signers - must be non-zero and unique
+        if (_emergencySigner0 == address(0) || _emergencySigner1 == address(0) || _emergencySigner2 == address(0)) revert ZeroAddress();
+        if (_emergencySigner0 == _emergencySigner1 || _emergencySigner1 == _emergencySigner2 || _emergencySigner0 == _emergencySigner2) revert InvalidProof();
+
+        rootToken = IERC20(_rootToken);
+        name = _name;
+        symbol = _symbol;
+
+        // Deploy Poseidon contract from circomlibjs bytecode
+        address poseidonAddr = PoseidonT3Deployer.deploy();
+
+        // Create separate merkle trees for tokens and LP positions
+        tokenPool = new TokenPool(poseidonAddr);
+        lpPool = new TokenPool(poseidonAddr);
+
+        sellVerifier = ISellVerifier(_sellVerifier);
+        transferVerifier = ITransferVerifier(_transferVerifier);
+        withdrawVerifier = IWithdrawVerifier(_withdrawVerifier);
+
+        tokenReserve = TOTAL_SUPPLY;
+        ethReserve = msg.value;
+
+        owner = msg.sender;
+        treasury = _treasury;
+
+        // Set emergency signers at deployment - active from block 0
+        emergencySigners[0] = _emergencySigner0;
+        emergencySigners[1] = _emergencySigner1;
+        emergencySigners[2] = _emergencySigner2;
+
+        // Emit events for indexing
+        emit EmergencySignerUpdated(0, address(0), _emergencySigner0);
+        emit EmergencySignerUpdated(1, address(0), _emergencySigner1);
+        emit EmergencySignerUpdated(2, address(0), _emergencySigner2);
+
+        // SECURITY FIX (Vuln 1): Initialize fee epoch to 1 and set baseline
+        // This prevents epoch 0 from having an uninitialized feePerShareAtEpochStart[0] = 0
+        // which would allow LPs to claim cumulative fees instead of incremental fees
+        currentFeeEpoch = 1;
+        feePerShareAtEpochStart[1] = 0; // Epoch 1 starts with 0 accumulated fees
+
+        // SECURITY FIX (Audit Vuln 1): Initialize epoch timestamp to deployment time
+        lastEpochIncrementTime = block.timestamp;
+    }
+
+    // ============ Buy Functions ============
+
+    /// @notice Buy tokens privately
+    /// @param newCommitment Commitment for received tokens
+    /// @param minTokensOut Minimum tokens to receive (slippage protection)
+    /// @param deadline Transaction deadline timestamp
+    /// @param encryptedNote Encrypted note for commitment recovery
+    /// @dev SECURITY FIX (Audit Vuln 1): Uses commitment binding to prevent front-running.
+    ///      The binding = keccak256(commitment, msg.sender, msg.value) ensures that
+    ///      even if an attacker sees a pending tx in the mempool, they cannot steal
+    ///      the commitment since they would have a different msg.sender.
+    function buyPrivate(
+        uint256 newCommitment,
+        uint256 minTokensOut,
+        uint256 deadline,
+        bytes calldata encryptedNote
+    ) external payable nonReentrant notExpired(deadline) {
+        // SECURITY FIX (Audit Vuln 5): Validate commitment is non-zero
+        // A zero commitment cannot be meaningfully spent via ZK proofs, causing permanent fund loss
+        if (newCommitment == 0) revert ZeroAmount();
+        // SECURITY FIX: Validate commitment is within SNARK scalar field
+        if (newCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        if (msg.value == 0) revert NoETH();
+
+        // SECURITY FIX (Audit Vuln 1): Prevent commitment front-running attacks
+        // Binding includes msg.sender so attacker with different address cannot steal commitment
+        bytes32 commitmentBinding = keccak256(abi.encodePacked(newCommitment, msg.sender, msg.value));
+        if (usedCommitmentBindings[commitmentBinding]) revert CommitmentBindingAlreadyUsed();
+        usedCommitmentBindings[commitmentBinding] = true;
+
+        // Calculate fees (0.1% protocol + 0.2% LP)
+        uint256 protocolFee = (msg.value * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (msg.value * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 amountAfterFees = msg.value - protocolFee - lpFee;
+
+        // Calculate tokens out using constant product formula
+        uint256 tokensOut = getAmountOut(amountAfterFees, ethReserve, tokenReserve);
+        if (tokensOut < minTokensOut) revert SlippageExceeded();
+
+        // Effects: Update all state before any external calls
+        ethReserve += amountAfterFees;
+        tokenReserve -= tokensOut;
+        accumulatedProtocolFees += protocolFee;
+
+        // Distribute LP fees if there are LP shares
+        // SECURITY FIX (Audit Vuln 2): Only distribute if fee is large enough to avoid rounding to zero
+        if (totalLPShares > 0 && lpFee >= MIN_LP_FEE_FOR_DISTRIBUTION) {
+            // Check that the increment won't round to zero
+            uint256 feeIncrement = (lpFee * FEE_PRECISION) / totalLPShares;
+            if (feeIncrement > 0) {
+                feePerShare += feeIncrement;
+                accumulatedLPFees += lpFee;
+            } else {
+                // Fee too small to distribute meaningfully, goes to protocol
+                accumulatedProtocolFees += lpFee;
+            }
+        } else {
+            // No LPs or fee too small, protocol gets the LP fee
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Interactions: Insert commitment into merkle tree
+        uint256 leafIndex = tokenPool.insert(newCommitment);
+
+        emit NewCommitment(newCommitment, leafIndex, encryptedNote);
+        emit TokensPurchased(msg.value, tokensOut, protocolFee, lpFee);
+    }
+
+    // ============ Sell Functions ============
+
+    /// @notice Sell tokens privately for ETH
+    /// @dev SECURITY: Added fee validation and nonReentrant guard
+    function sellPrivate(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 tokenAmount,
+        uint256 minEthOut,
+        address payable recipient,
+        address payable relayer,
+        uint256 fee,
+        uint256 changeCommitment,
+        uint256 deadline,
+        bytes calldata changeNote
+    ) external nonReentrant notExpired(deadline) {
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CHECKS
+        if (!tokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
+
+        // Prepare public signals for verifier (9 signals: 8 inputs + 1 binding output)
+        uint256[9] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            tokenAmount,
+            minEthOut,
+            uint256(uint160(address(recipient))),
+            uint256(uint160(address(relayer))),
+            fee,
+            changeCommitment,
+            0 // publicInputsBinding (computed by circuit)
+        ];
+
+        // Verify ZK proof
+        if (!sellVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // Calculate ETH out
+        uint256 ethOut = getAmountOut(tokenAmount, tokenReserve, ethReserve);
+        if (ethOut < minEthOut) revert SlippageExceeded();
+        if (ethOut > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+
+        // SECURITY FIX: Validate fee doesn't exceed output
+        if (fee > ethOut) revert ExcessiveFee();
+
+        // Calculate fees
+        uint256 protocolFee = (ethOut * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (ethOut * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethAfterFees = ethOut - protocolFee - lpFee;
+
+        // EFFECTS: All state changes before external calls
+        nullifiers[nullifierHash] = true;
+        tokenReserve += tokenAmount;
+        ethReserve -= ethOut;
+        accumulatedProtocolFees += protocolFee;
+
+        // Distribute LP fees
+        // SECURITY FIX (Audit Vuln 2): Only distribute if fee is large enough to avoid rounding to zero
+        if (totalLPShares > 0 && lpFee >= MIN_LP_FEE_FOR_DISTRIBUTION) {
+            uint256 feeIncrement = (lpFee * FEE_PRECISION) / totalLPShares;
+            if (feeIncrement > 0) {
+                feePerShare += feeIncrement;
+                accumulatedLPFees += lpFee;
+            } else {
+                accumulatedProtocolFees += lpFee;
+            }
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Insert change commitment if any (internal call to our own contract)
+        if (changeCommitment != 0) {
+            uint256 leafIndex = tokenPool.insert(changeCommitment);
+            emit NewCommitment(changeCommitment, leafIndex, changeNote);
+        }
+
+        emit NullifierSpent(nullifierHash);
+        emit TokensSold(tokenAmount, ethOut, protocolFee, lpFee);
+
+        // INTERACTIONS: External calls last (Checks-Effects-Interactions pattern)
+        uint256 recipientAmount = ethAfterFees - fee;
+        (bool success, ) = recipient.call{value: recipientAmount}("");
+        if (!success) revert TransferFailed();
+
+        // Send relayer fee
+        if (fee > 0) {
+            (success, ) = relayer.call{value: fee}("");
+            if (!success) revert TransferFailed();
+        }
+    }
+
+    /// @notice Sell tokens privately and shield ETH to Railgun (fully anonymous exit)
+    /// @dev Sells R00T tokens and sends ETH directly to Railgun's privacy pool.
+    ///      This breaks the on-chain link between seller identity and received ETH.
+    /// @param proof The ZK proof of token ownership
+    /// @param merkleRoot The merkle root used in the proof
+    /// @param nullifierHash The nullifier hash
+    /// @param tokenAmount Amount of tokens to sell
+    /// @param minEthOut Minimum ETH to receive (slippage protection)
+    /// @param railgunNpk Note public key for Railgun shield
+    /// @param encryptedRandom Encrypted random for Railgun note
+    /// @param changeCommitment Commitment for remaining tokens
+    /// @param deadline Transaction deadline timestamp
+    /// @param changeNote Encrypted note for change commitment
+    function sellPrivateToRailgun(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 tokenAmount,
+        uint256 minEthOut,
+        bytes32 railgunNpk,
+        bytes calldata encryptedRandom,
+        uint256 changeCommitment,
+        uint256 deadline,
+        bytes calldata changeNote
+    ) external nonReentrant notExpired(deadline) {
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CHECKS
+        if (address(railgunProxy) == address(0)) revert RailgunNotConfigured();
+        if (!tokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
+
+        // Prepare public signals for verifier
+        // Using zeros for recipient/relayer/fee since ETH goes to Railgun
+        // SECURITY NOTE (Vuln 4): The sell circuit MUST enforce that when recipient=0:
+        //   1. The proof binds recipient=0 in publicInputsBinding
+        //   2. The contract MUST send ETH to Railgun (not to any arbitrary address)
+        //   3. The circuit cannot be manipulated to redirect funds when recipient is zero
+        // This contract correctly sends to Railgun when recipient=0, but verify the circuit
+        // properly constrains this binding before deployment.
+        uint256[9] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            tokenAmount,
+            minEthOut,
+            uint256(0), // No recipient - ETH goes to Railgun (binding enforced by circuit)
+            uint256(0), // No relayer
+            uint256(0), // No fee
+            changeCommitment,
+            0 // publicInputsBinding (computed by circuit - MUST bind all inputs including recipient=0)
+        ];
+
+        // Verify ZK proof
+        if (!sellVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // Calculate ETH out
+        uint256 ethOut = getAmountOut(tokenAmount, tokenReserve, ethReserve);
+        if (ethOut < minEthOut) revert SlippageExceeded();
+        if (ethOut > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+
+        // Calculate fees
+        uint256 protocolFee = (ethOut * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (ethOut * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethAfterFees = ethOut - protocolFee - lpFee;
+
+        // EFFECTS: All state changes before external calls
+        nullifiers[nullifierHash] = true;
+        tokenReserve += tokenAmount;
+        ethReserve -= ethOut;
+        accumulatedProtocolFees += protocolFee;
+
+        // Distribute LP fees
+        // SECURITY FIX (Audit Vuln 2): Only distribute if fee is large enough to avoid rounding to zero
+        if (totalLPShares > 0 && lpFee >= MIN_LP_FEE_FOR_DISTRIBUTION) {
+            uint256 feeIncrement = (lpFee * FEE_PRECISION) / totalLPShares;
+            if (feeIncrement > 0) {
+                feePerShare += feeIncrement;
+                accumulatedLPFees += lpFee;
+            } else {
+                accumulatedProtocolFees += lpFee;
+            }
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Insert change commitment if any
+        if (changeCommitment != 0) {
+            uint256 leafIndex = tokenPool.insert(changeCommitment);
+            emit NewCommitment(changeCommitment, leafIndex, changeNote);
+        }
+
+        emit NullifierSpent(nullifierHash);
+        emit SoldToRailgun(nullifierHash, tokenAmount, ethAfterFees, railgunNpk);
+
+        // INTERACTIONS: Shield ETH to Railgun (external call last)
+        IRailgunProxy.ShieldRequest[] memory shieldRequests = new IRailgunProxy.ShieldRequest[](1);
+        shieldRequests[0] = IRailgunProxy.ShieldRequest({
+            npk: railgunNpk,
+            value: ethAfterFees,
+            encryptedRandom: encryptedRandom
+        });
+
+        railgunProxy.shield{value: ethAfterFees}(shieldRequests);
+    }
+
+    // ============ Transfer Functions ============
+
+    /// @notice Transfer tokens privately
+    function transferPrivate(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 recipientCommitment,
+        uint256 changeCommitment,
+        bytes calldata recipientNote,
+        bytes calldata changeNote
+    ) external nonReentrant {
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (recipientCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        if (!tokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
+
+        uint256[4] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            recipientCommitment,
+            changeCommitment
+        ];
+
+        if (!transferVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        nullifiers[nullifierHash] = true;
+
+        uint256 recipientIndex = tokenPool.insert(recipientCommitment);
+        emit NewCommitment(recipientCommitment, recipientIndex, recipientNote);
+
+        if (changeCommitment != 0) {
+            uint256 changeIndex = tokenPool.insert(changeCommitment);
+            emit NewCommitment(changeCommitment, changeIndex, changeNote);
+        }
+
+        emit NullifierSpent(nullifierHash);
+        emit PrivateTransfer(0);
+    }
+
+    // ============ Withdraw Functions ============
+
+    /// @notice Withdraw ROOT tokens from privacy pool to public wallet
+    /// @dev User proves ownership of a commitment to receive real ERC20 tokens
+    /// @param proof ZK proof of commitment ownership
+    /// @param merkleRoot Merkle root of token pool
+    /// @param nullifierHash Nullifier to prevent double-spending
+    /// @param amount Amount of ROOT tokens to withdraw
+    /// @param recipient Public address to receive ROOT ERC20 tokens
+    function withdrawPublic(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 amount,
+        address recipient
+    ) external nonReentrant {
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CHECKS
+        if (!tokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
+        if (recipient == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        // Verify contract has enough tokens
+        if (rootToken.balanceOf(address(this)) < amount) revert InsufficientLiquidity();
+
+        // 5 signals: 4 inputs + 1 binding output
+        uint256[5] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            amount,
+            uint256(uint160(recipient)),
+            0 // recipientBinding (computed by circuit)
+        ];
+
+        if (!withdrawVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // EFFECTS - Mark nullifier as spent
+        nullifiers[nullifierHash] = true;
+
+        // Note: tokenReserve tracks virtual tokens in the AMM
+        // ERC20 balance is separate - users can withdraw ERC20 without affecting AMM reserves
+        // The commitment pool tracks private ownership (tokens already left AMM when bought)
+
+        // INTERACTIONS - Transfer real ROOT tokens to recipient
+        rootToken.safeTransfer(recipient, amount);
+
+        emit NullifierSpent(nullifierHash);
+        emit PublicWithdrawal(nullifierHash, recipient, amount);
+    }
+
+    // ============ Private LP Functions ============
+
+    /// @notice Add liquidity privately (dual-sided: ETH + tokens)
+    /// @dev User sends ETH and proves ownership of token commitment to add proportional LP
+    /// @param proof ZK proof of token commitment ownership
+    /// @param merkleRoot Token merkle root
+    /// @param nullifierHash Nullifier hash of token commitment being spent
+    /// @param tokenAmount Amount of tokens being deposited from commitment
+    /// @param lpCommitment New LP commitment to create
+    /// @param changeCommitment Change token commitment (0 if exact amount)
+    /// @param deadline Transaction deadline
+    /// @param lpNote Encrypted note for LP recovery
+    /// @param changeNote Encrypted note for change token commitment
+    function addLiquidityPrivate(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 tokenAmount,
+        uint256 lpCommitment,
+        uint256 changeCommitment,
+        uint256 deadline,
+        bytes calldata lpNote,
+        bytes calldata changeNote
+    ) external payable nonReentrant notExpired(deadline) {
+        // SECURITY FIX (Vuln 1): Check verifier deployment FIRST before any other operations
+        // This prevents wasted gas and ensures clear failure mode
+        // Without verifier, use bootstrapLiquidity() instead (ETH-only, no fake tokens)
+        if (address(addLiquidityVerifier) == address(0)) {
+            revert Unauthorized(); // Verifier required - use bootstrapLiquidity() for initial setup
+        }
+
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (lpCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CHECKS
+        if (msg.value == 0) revert NoETH();
+        if (tokenAmount == 0) revert ZeroAmount();
+        if (!tokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
+
+        // Calculate protocol fee on LP add (0.05% of ETH)
+        uint256 protocolFee = (msg.value * LP_ADD_PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethAfterFee = msg.value - protocolFee;
+
+        // Verify proportional deposit (must match pool ratio)
+        // ethAmount / tokenAmount should equal ethReserve / tokenReserve
+        // Cross multiply: ethAmount * tokenReserve == tokenAmount * ethReserve (with 1% tolerance)
+        if (totalLPShares > 0) {
+            uint256 expectedTokens = (ethAfterFee * tokenReserve) / ethReserve;
+            // Allow 1% slippage on ratio
+            uint256 minTokens = (expectedTokens * 99) / 100;
+            uint256 maxTokens = (expectedTokens * 101) / 100;
+            if (tokenAmount < minTokens || tokenAmount > maxTokens) revert SlippageExceeded();
+        }
+
+        // 6 signals: 5 inputs + 1 binding output
+        uint256[6] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            tokenAmount,
+            lpCommitment,
+            changeCommitment,
+            0 // publicInputsBinding (computed by circuit)
+        ];
+        if (!addLiquidityVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // Calculate LP shares (using ETH after fee)
+        uint256 lpShares;
+        if (totalLPShares == 0) {
+            // First LP - use geometric mean of both contributions
+            // lpShares = sqrt(ethAmount * tokenAmount) for balanced incentive
+            lpShares = sqrt(ethAfterFee * tokenAmount);
+        } else {
+            // Proportional: based on % of pool added
+            // Use the smaller ratio to prevent gaming
+            uint256 ethRatio = (ethAfterFee * totalLPShares) / ethReserve;
+            uint256 tokenRatio = (tokenAmount * totalLPShares) / tokenReserve;
+            lpShares = ethRatio < tokenRatio ? ethRatio : tokenRatio;
+        }
+
+        if (lpShares == 0) revert InvalidLPShares();
+
+        // SECURITY FIX: Validate rounding loss is acceptable (max 0.05%)
+        // This prevents attackers from exploiting integer division rounding
+        // to accumulate slightly more LP value than contributed
+        // SECURITY FIX (Audit Vuln 4): Tightened from 0.1% to 0.05% to match ZkProjectPool
+        // and reduce cumulative rounding exploitation from repeated deposits
+        if (totalLPShares > 0) {
+            // lpShares * ethReserve should be within 0.05% of ethAfterFee * totalLPShares
+            uint256 expectedProduct = ethAfterFee * totalLPShares;
+            uint256 actualProduct = lpShares * ethReserve;
+            // Allow 0.05% rounding loss: actualProduct >= expectedProduct * 9995 / 10000
+            require(actualProduct * 10000 >= expectedProduct * 9995, "Rounding loss too high");
+        }
+
+        // SECURITY FIX (Vuln 3 + Vuln 5): Check for LP commitment collision
+        // If this commitment already exists AND has active shares, the user would lose their
+        // original LP position as lpCommitmentShares would be overwritten with new shares.
+        // SECURITY FIX (Vuln 5): Allow reuse of withdrawn commitment slots - check both conditions:
+        // 1. lpDepositTime != 0 means commitment was used before
+        // 2. lpCommitmentWithdrawn == false means it's still active (not yet withdrawn)
+        // Only reject if commitment exists AND is still active (not withdrawn)
+        if (lpDepositTime[lpCommitment] != 0 && !lpCommitmentWithdrawn[lpCommitment]) {
+            revert CommitmentAlreadyExists();
+        }
+
+        // EFFECTS: Update all state
+        nullifiers[nullifierHash] = true; // Spend the token commitment
+        accumulatedProtocolFees += protocolFee; // Protocol fee to r00t fund
+        ethReserve += ethAfterFee; // Only ETH after fee goes to reserve
+        tokenReserve += tokenAmount; // Tokens go into reserve (user deposited them)
+        totalLPShares += lpShares;
+        lpDepositTime[lpCommitment] = block.timestamp;
+        lastLPDepositTime = block.timestamp; // SECURITY FIX (Audit Vuln 9): Track for epoch increment protection
+        lastClaimedFeePerShare[lpCommitment] = feePerShare;
+        lpCommitmentShares[lpCommitment] = lpShares; // Track shares for this commitment
+        // SECURITY FIX (Vuln 5): Reset withdrawn flag if reusing a withdrawn commitment slot
+        // This allows the commitment to be treated as active again
+        if (lpCommitmentWithdrawn[lpCommitment]) {
+            lpCommitmentWithdrawn[lpCommitment] = false;
+        }
+
+        // Insert LP commitment to LP merkle tree
+        uint256 lpLeafIndex = lpPool.insert(lpCommitment);
+
+        // Insert change commitment to token merkle tree (if any)
+        if (changeCommitment != 0) {
+            uint256 changeLeafIndex = tokenPool.insert(changeCommitment);
+            emit NewCommitment(changeCommitment, changeLeafIndex, changeNote);
+        }
+
+        emit NullifierSpent(nullifierHash);
+        emit NewLPCommitment(lpCommitment, lpLeafIndex, lpShares, lpNote);
+        emit LiquidityAddedPrivate(lpCommitment, msg.value, tokenAmount, lpShares);
+    }
+
+    /// @notice Babylonian method for integer square root
+    function sqrt(uint256 x) internal pure returns (uint256 y) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
+
+    /// @notice Bootstrap initial liquidity (owner-only, one-time)
+    /// @dev SECURITY FIX: This is the safe way to add initial ETH liquidity without verifier
+    ///      Does NOT increase tokenReserve (tokens come from constructor's TOTAL_SUPPLY)
+    ///      Burns a portion of LP shares to prevent rug pull
+    /// @param lpCommitment LP commitment for owner's LP position
+    /// @param minLPShares Minimum LP shares to receive (SECURITY FIX H-03: slippage protection)
+    /// @param deadline Transaction deadline (SECURITY FIX H-03: front-running protection)
+    /// @param lpNote Encrypted note for LP commitment
+    function bootstrapLiquidity(
+        uint256 lpCommitment,
+        uint256 minLPShares,
+        uint256 deadline,
+        bytes calldata lpNote
+    ) external payable onlyOwner nonReentrant notExpired(deadline) {
+        if (bootstrapped) revert AlreadyBootstrapped();
+        if (msg.value < MIN_LIQUIDITY) revert NoETH();
+        if (lpCommitment == 0) revert ZeroAmount();
+        // SECURITY FIX (Audit Vuln 6): Validate LP commitment is within SNARK scalar field
+        // Without this check, LP commitments >= SNARK_SCALAR_FIELD cannot be spent via ZK proofs
+        // for liquidity removal or fee claims, causing permanent fund loss
+        if (lpCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // SECURITY FIX H-04: Prevent LP commitment collision
+        if (lpDepositTime[lpCommitment] != 0) revert CommitmentAlreadyExists();
+
+        // Mark as bootstrapped FIRST (prevent reentrancy issues)
+        bootstrapped = true;
+
+        // Calculate LP shares based on ETH deposited
+        // Use simple 1:1 for bootstrap (ETH = LP shares)
+        uint256 lpShares = msg.value;
+
+        // Burn 10% of LP shares to dead address to prevent rug
+        // This is a standard DeFi practice for fair launch
+        uint256 burnedShares = lpShares / 10;
+        uint256 ownerShares = lpShares - burnedShares;
+
+        // SECURITY FIX H-03: Check slippage
+        if (ownerShares < minLPShares) revert SlippageExceeded();
+
+        // Update reserves - ONLY ETH, tokenReserve stays at TOTAL_SUPPLY
+        ethReserve += msg.value;
+        totalLPShares = lpShares; // Both owner shares and burned shares count
+
+        // Track owner's LP position
+        lpDepositTime[lpCommitment] = block.timestamp;
+        lastLPDepositTime = block.timestamp; // SECURITY FIX (Audit Vuln 9): Track for epoch increment protection
+        lastClaimedFeePerShare[lpCommitment] = 0;
+        lpCommitmentShares[lpCommitment] = ownerShares;
+
+        // Insert LP commitment for owner
+        uint256 lpLeafIndex = lpPool.insert(lpCommitment);
+
+        emit NewLPCommitment(lpCommitment, lpLeafIndex, ownerShares, lpNote);
+        emit LiquidityBootstrapped(msg.value, ownerShares, burnedShares);
+    }
+
+    /// @notice Remove liquidity privately using ZK proof (dual-sided: returns ETH + token commitment)
+    /// @dev Requires LP withdrawal verifier to be deployed
+    /// @param proof ZK proof of LP commitment ownership
+    /// @param merkleRoot LP merkle root
+    /// @param nullifierHash LP nullifier hash
+    /// @param commitment The LP commitment being spent
+    /// @param lpShares Amount of LP shares to withdraw
+    /// @param minEthOut Minimum ETH to receive
+    /// @param recipient Address to receive ETH
+    /// @param tokenCommitment New token commitment for returned tokens
+    /// @param changeLPCommitment Change LP commitment (for partial withdrawal, 0 if full)
+    /// @param deadline Transaction deadline
+    /// @param tokenNote Encrypted note for returned token commitment
+    /// @param changeNote Encrypted note for change LP commitment
+    function removeLiquidityPrivate(
+        uint256[8] calldata proof,
+        uint256 merkleRoot,
+        uint256 nullifierHash,
+        uint256 commitment,
+        uint256 lpShares,
+        uint256 minEthOut,
+        address payable recipient,
+        uint256 tokenCommitment,
+        uint256 changeLPCommitment,
+        uint256 deadline,
+        bytes calldata tokenNote,
+        bytes calldata changeNote
+    ) external nonReentrant notExpired(deadline) {
+        // CHECKS
+        // SECURITY: Validate all ZK inputs are within SNARK scalar field to prevent aliasing attacks
+        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (commitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (tokenCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (changeLPCommitment != 0 && changeLPCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        if (!lpPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
+        if (lpNullifiers[nullifierHash]) revert NullifierAlreadySpent();
+        if (lpShares == 0) revert ZeroAmount();
+        if (recipient == address(0)) revert ZeroAddress();
+        if (tokenCommitment == 0) revert ZeroAmount(); // Must receive tokens back
+
+        // SECURITY FIX: Validate commitment has matching shares BEFORE checking lock
+        // This ensures the commitment parameter corresponds to a real LP position
+        if (lpCommitmentShares[commitment] == 0) revert InvalidLPShares();
+        if (lpCommitmentShares[commitment] != lpShares) revert InvalidLPShares();
+
+        // Check LP lock period
+        if (block.timestamp < lpDepositTime[commitment] + LP_LOCK_PERIOD) revert LPLocked();
+
+        // SECURITY FIX: Verifier MUST be deployed - no owner bypass allowed
+        // Allowing owner bypass would enable theft of any LP position without valid proof
+        if (address(removeLiquidityVerifier) == address(0)) revert NotImplemented();
+
+        // Verify LP proof
+        // SECURITY FIX: 8 signals - commitment now included to bind proof to specific LP position
+        uint256[8] memory pubSignals = [
+            merkleRoot,
+            nullifierHash,
+            commitment,      // SECURITY FIX: Bind proof to this specific commitment
+            lpShares,
+            minEthOut,
+            uint256(uint160(address(recipient))),
+            changeLPCommitment,
+            0 // publicInputsBinding
+        ];
+        if (!removeLiquidityVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // Calculate proportional returns
+        uint256 ethOut = (lpShares * ethReserve) / totalLPShares;
+        uint256 tokensOut = (lpShares * tokenReserve) / totalLPShares;
+
+        if (ethOut < minEthOut) revert SlippageExceeded();
+        if (ethOut > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+
+        // EFFECTS: Update all state before external calls
+        lpNullifiers[nullifierHash] = true;
+        ethReserve -= ethOut;
+        tokenReserve -= tokensOut;
+        totalLPShares -= lpShares;
+
+        // SECURITY FIX: Save original shares before clearing for change calculation
+        uint256 originalShares = lpCommitmentShares[commitment];
+        lpCommitmentShares[commitment] = 0; // Clear shares tracking
+        lpCommitmentWithdrawn[commitment] = true; // Mark as withdrawn to prevent fee claim abuse
+
+        // Insert token commitment for returned tokens
+        uint256 tokenLeafIndex = tokenPool.insert(tokenCommitment);
+        emit NewCommitment(tokenCommitment, tokenLeafIndex, tokenNote);
+
+        // Handle change LP commitment for partial withdrawal
+        if (changeLPCommitment != 0) {
+            // SECURITY FIX (Vuln 4): Check for change LP commitment collision
+            // If this commitment already exists, it would overwrite an existing LP position
+            if (lpDepositTime[changeLPCommitment] != 0) revert CommitmentAlreadyExists();
+
+            // SECURITY FIX: Use saved originalShares instead of cleared mapping
+            uint256 changeShares = originalShares - lpShares;
+            lpDepositTime[changeLPCommitment] = block.timestamp; // Reset lock for change
+            lastClaimedFeePerShare[changeLPCommitment] = feePerShare;
+            lpCommitmentShares[changeLPCommitment] = changeShares;
+            uint256 changeIndex = lpPool.insert(changeLPCommitment);
+            emit NewLPCommitment(changeLPCommitment, changeIndex, changeShares, changeNote);
+        }
+
+        emit LPNullifierSpent(nullifierHash);
+        emit LiquidityRemovedPrivate(nullifierHash, ethOut, tokensOut);
+
+        // INTERACTIONS: External call last
+        (bool success, ) = recipient.call{value: ethOut}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Claim accumulated LP fees without removing liquidity (SECURED VERSION)
+    /// @dev Uses ZK proof to verify LP ownership without spending the LP position
+    ///      SECURITY FIX: Uses epoch-based claim nullifiers to prevent unlimited fee claims
+    ///      Each LP position can only claim once per epoch (claimNullifier prevents replay)
+    /// @param proof ZK proof of LP commitment ownership
+    /// @param lpMerkleRoot LP merkle root for proof verification
+    /// @param claimNullifier Unique nullifier for this claim (Poseidon(nullifier, feeEpoch, leafIndex))
+    /// @param lpShares Amount of LP shares in the commitment
+    /// @param recipient Address to receive fees
+    function claimLPFees(
+        uint256[8] calldata proof,
+        uint256 lpMerkleRoot,
+        uint256 claimNullifier,
+        uint256 lpShares,
+        address payable recipient
+    ) external nonReentrant {
+        if (recipient == address(0)) revert ZeroAddress();
+        if (lpShares == 0) revert ZeroAmount();
+
+        // SECURITY FIX: Validate all ZK public inputs are within SNARK scalar field
+        // This prevents nullifier/root aliasing attacks (see fv-zk-2-c1-nullifier-aliasing.md)
+        if (lpMerkleRoot >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (claimNullifier >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // SECURITY FIX: Check claim nullifier hasn't been spent (prevents double-claim per epoch)
+        if (spentClaimNullifiers[claimNullifier]) revert ClaimNullifierAlreadySpent();
+
+        // SECURITY FIX: Verifier MUST be deployed - no owner bypass allowed
+        // Allowing owner bypass would enable theft of LP fees without valid proof
+        if (address(claimLPFeesVerifier) == address(0)) revert NotImplemented();
+
+        // Verify merkle root is valid
+        if (!lpPool.isKnownRoot(lpMerkleRoot)) revert UnknownMerkleRoot();
+
+        // Verify ZK proof (6 signals: 5 inputs + 1 binding output)
+        // SECURITY FIX: New circuit uses claimNullifier and feeEpoch instead of commitment
+        uint256[6] memory pubSignals = [
+            lpMerkleRoot,
+            claimNullifier,
+            currentFeeEpoch,
+            lpShares,
+            uint256(uint160(address(recipient))),
+            0 // publicInputsBinding (computed by circuit)
+        ];
+        if (!claimLPFeesVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
+
+        // Calculate claimable fees based on INCREMENTAL fee growth this epoch
+        // SECURITY FIX (Vuln 1): Use incremental calculation to prevent double-counting
+        //   - feePerShareAtEpochStart[epoch] stores feePerShare when epoch started
+        //   - We only pay fees accumulated SINCE the epoch started
+        //   - This prevents LPs from claiming cumulative fees across multiple epochs
+        uint256 epochStartFee = feePerShareAtEpochStart[currentFeeEpoch];
+        uint256 feeGrowthThisEpoch = feePerShare - epochStartFee;
+        uint256 claimable = (lpShares * feeGrowthThisEpoch) / FEE_PRECISION;
+
+        // Minimum viable claim to prevent dust attacks
+        if (claimable == 0) revert NoFeesToCollect();
+        if (claimable > accumulatedLPFees) claimable = accumulatedLPFees;
+
+        // EFFECTS: Update state
+        spentClaimNullifiers[claimNullifier] = true;
+        accumulatedLPFees -= claimable;
+
+        emit ClaimNullifierSpent(claimNullifier);
+        emit LPFeesClaimed(claimNullifier, recipient, claimable, currentFeeEpoch);
+
+        // INTERACTIONS: Transfer fees
+        (bool success, ) = recipient.call{value: claimable}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Increment the fee epoch (owner only, called after fee distributions)
+    /// @dev Allows LP positions to claim again after epoch increment.
+    ///      SECURITY FIX (Vuln 1): Records feePerShare at epoch start for incremental calculation
+    ///      SECURITY FIX (Audit Vuln 1): Rate-limited to prevent rapid epoch manipulation
+    ///
+    ///      IMPORTANT: The epoch increment sets feePerShareAtEpochStart[newEpoch] = feePerShare.
+    ///      This means immediately after an epoch increment, claimable fees for the NEW epoch = 0.
+    ///      This is BY DESIGN - it resets the claim window. LPs should claim BEFORE epoch increment
+    ///      to receive fees accumulated in the previous epoch.
+    ///
+    ///      SECURITY FIX (Audit Vuln 5): Two-step epoch increment with claim window
+    ///      1. Owner calls announceEpochIncrement() to start 24-hour claim window
+    ///      2. After 24 hours, owner calls executeEpochIncrement() to finalize
+    ///      This ensures LPs have guaranteed time to claim their fees before epoch resets.
+
+    /// @notice Announce upcoming epoch increment (starts 72-hour claim window)
+    /// @dev SECURITY FIX (Audit Vuln 5): Gives LPs guaranteed time to claim fees
+    /// @dev SECURITY FIX (Audit Vuln 9): Cannot announce if LP deposited within MIN_CLAIM_WINDOW
+    ///      This ensures new LPs have the full claim window after their LP lock expires
+    function announceEpochIncrement() external onlyOwner {
+        // Enforce minimum time between epoch increments
+        if (block.timestamp < lastEpochIncrementTime + MIN_EPOCH_DURATION) revert EpochTooSoon();
+
+        // SECURITY FIX (Audit Vuln 9): Ensure sufficient time since last LP deposit
+        // New LPs need LP_LOCK_PERIOD (24h) + full MIN_CLAIM_WINDOW (72h) to claim fees
+        // We enforce MIN_CLAIM_WINDOW since last deposit so they have time after unlock
+        if (block.timestamp < lastLPDepositTime + MIN_CLAIM_WINDOW) revert RecentLPDeposit();
+
+        // Require minimum accumulated fees before epoch can increment
+        require(accumulatedLPFees >= 0.01 ether, "Insufficient fees to increment epoch");
+
+        // Cannot announce if already pending
+        require(!epochIncrementPending, "Epoch increment already pending");
+
+        epochIncrementPending = true;
+        epochIncrementAnnouncedAt = block.timestamp;
+
+        emit EpochIncrementAnnounced(currentFeeEpoch + 1, block.timestamp + MIN_CLAIM_WINDOW);
+    }
+
+    /// @notice Execute epoch increment after claim window passes
+    /// @dev SECURITY FIX (Audit Vuln 5): Can only execute after 24-hour claim window
+    function executeEpochIncrement() external onlyOwner {
+        if (!epochIncrementPending) revert EpochIncrementNotAnnounced();
+        if (block.timestamp < epochIncrementAnnouncedAt + MIN_CLAIM_WINDOW) revert ClaimWindowNotPassed();
+
+        // Clear pending state
+        epochIncrementPending = false;
+        epochIncrementAnnouncedAt = 0;
+
+        // Execute epoch increment
+        currentFeeEpoch++;
+        lastEpochIncrementTime = block.timestamp;
+
+        // Record the feePerShare at the start of this new epoch
+        feePerShareAtEpochStart[currentFeeEpoch] = feePerShare;
+        emit FeeEpochIncremented(currentFeeEpoch, accumulatedLPFees);
+    }
+
+    /// @notice Cancel pending epoch increment
+    /// @dev Allows owner to cancel if conditions change
+    function cancelEpochIncrement() external onlyOwner {
+        if (!epochIncrementPending) revert EpochIncrementNotAnnounced();
+
+        uint256 cancelledEpoch = currentFeeEpoch + 1;
+        epochIncrementPending = false;
+        epochIncrementAnnouncedAt = 0;
+
+        emit EpochIncrementCancelled(cancelledEpoch);
+    }
+
+    /// @notice Legacy function - reverts with helpful message
+    /// @dev SECURITY FIX (Audit Vuln 5): Epoch increment now requires announcement + claim window
+    function incrementFeeEpoch() external pure {
+        revert("Use announceEpochIncrement() + executeEpochIncrement() with 24h claim window");
+    }
+
+    // ============ Fee Collection ============
+
+    /// @notice Collect accumulated protocol fees to treasury
+    function collectProtocolFees() external nonReentrant {
+        uint256 fees = accumulatedProtocolFees;
+        if (fees == 0) revert NoFeesToCollect();
+
+        accumulatedProtocolFees = 0;
+
+        (bool success, ) = treasury.call{value: fees}("");
+        if (!success) revert TransferFailed();
+
+        emit ProtocolFeesCollected(treasury, fees);
+    }
+
+    /// @notice Get pending protocol fees that can be collected
+    function pendingProtocolFees() external view returns (uint256) {
+        return accumulatedProtocolFees;
+    }
+
+    /// @notice Get pending LP fees in the pool
+    function pendingLPFees() external view returns (uint256) {
+        return accumulatedLPFees;
+    }
+
+    // ============ View Functions ============
+
+    function getAmountOut(
+        uint256 amountIn,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public pure returns (uint256 amountOut) {
+        uint256 amountInWithFee = amountIn * (FEE_DENOMINATOR - FEE_BPS);
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = reserveIn * FEE_DENOMINATOR + amountInWithFee;
+        amountOut = numerator / denominator;
+    }
+
+    function getTokenPrice() external view returns (uint256 price) {
+        return getAmountOut(1 ether, ethReserve, tokenReserve);
+    }
+
+    function getEthPrice() external view returns (uint256 price) {
+        return getAmountOut(1e18, tokenReserve, ethReserve);
+    }
+
+    function getReserves() external view returns (uint256 _ethReserve, uint256 _tokenReserve) {
+        return (ethReserve, tokenReserve);
+    }
+
+    function getTokenPool() external view returns (address) {
+        return address(tokenPool);
+    }
+
+    function getLPPool() external view returns (address) {
+        return address(lpPool);
+    }
+
+    function getLPInfo() external view returns (uint256 _totalShares, uint256 _feePerShare, uint256 _accumulatedFees) {
+        return (totalLPShares, feePerShare, accumulatedLPFees);
+    }
+
+    /// @notice Calculate required token amount for a given ETH deposit
+    /// @dev Returns the proportional token amount needed to maintain pool ratio
+    /// @dev SECURITY FIX: Handle division by zero when ethReserve is 0
+    function getRequiredTokensForEth(uint256 ethAmount) external view returns (uint256 tokensRequired) {
+        if (ethReserve == 0) {
+            // Pool not yet initialized - return 0 to indicate ratio cannot be calculated
+            return 0;
+        }
+        return (ethAmount * tokenReserve) / ethReserve;
+    }
+
+    /// @notice Calculate required ETH amount for a given token deposit
+    /// @dev Returns the proportional ETH amount needed to maintain pool ratio
+    /// @dev SECURITY FIX: Handle division by zero when tokenReserve is 0
+    function getRequiredEthForTokens(uint256 tokenAmount) external view returns (uint256 ethRequired) {
+        if (tokenReserve == 0) {
+            // Pool not yet initialized or fully drained - return 0
+            return 0;
+        }
+        return (tokenAmount * ethReserve) / tokenReserve;
+    }
+
+    /// @notice Preview LP shares for a given ETH + token deposit
+    /// @dev Returns estimated LP shares without making any state changes
+    /// @dev SECURITY FIX: Handle division by zero when reserves are 0 (e.g., after emergency withdrawal)
+    function previewAddLiquidity(uint256 ethAmount, uint256 tokenAmount) external view returns (uint256 lpSharesOut) {
+        if (totalLPShares == 0 || ethReserve == 0 || tokenReserve == 0) {
+            // First LP or pool drained - use geometric mean
+            return sqrt(ethAmount * tokenAmount);
+        }
+        uint256 ethRatio = (ethAmount * totalLPShares) / ethReserve;
+        uint256 tokenRatio = (tokenAmount * totalLPShares) / tokenReserve;
+        return ethRatio < tokenRatio ? ethRatio : tokenRatio;
+    }
+
+    /// @notice Preview ETH and token returns for removing LP
+    /// @dev Returns estimated returns without making any state changes
+    function previewRemoveLiquidity(uint256 lpShares) external view returns (uint256 ethOut, uint256 tokensOut) {
+        if (totalLPShares == 0) return (0, 0);
+        ethOut = (lpShares * ethReserve) / totalLPShares;
+        tokensOut = (lpShares * tokenReserve) / totalLPShares;
+    }
+
+    /// @notice Get claimable fees for an LP commitment
+    /// @dev Returns fees accrued since last claim
+    function getClaimableFees(uint256 commitment, uint256 lpShares) external view returns (uint256 claimable) {
+        uint256 lastClaimed = lastClaimedFeePerShare[commitment];
+        uint256 feeGrowth = feePerShare - lastClaimed;
+        claimable = (lpShares * feeGrowth) / FEE_PRECISION;
+        if (claimable > accumulatedLPFees) claimable = accumulatedLPFees;
+    }
+
+    /// @notice Get LP commitment info
+    function getLPCommitmentInfo(uint256 commitment) external view returns (
+        uint256 shares,
+        uint256 depositTime,
+        uint256 lastClaimed,
+        bool isLocked
+    ) {
+        shares = lpCommitmentShares[commitment];
+        depositTime = lpDepositTime[commitment];
+        lastClaimed = lastClaimedFeePerShare[commitment];
+        isLocked = block.timestamp < depositTime + LP_LOCK_PERIOD;
+    }
+
+    // ============ Supply Tracking View Functions ============
+
+    /// @notice Get the circulating R00T supply (tokens bought from AMM)
+    /// @return Amount of R00T tokens that have been bought (not in AMM reserve)
+    /// @dev R00T tokens are held as private commitments in tokenPool
+    function getCirculatingSupply() external view returns (uint256) {
+        return TOTAL_SUPPLY - tokenReserve;
+    }
+
+    /// @notice Get R00T supply breakdown
+    /// @return inReserve R00T tokens available for trading in AMM
+    /// @return inCirculation R00T tokens bought (held as commitments)
+    /// @return ethInPool ETH currently in the pool
+    function getSupplyBreakdown() external view returns (
+        uint256 inReserve,
+        uint256 inCirculation,
+        uint256 ethInPool
+    ) {
+        inReserve = tokenReserve;
+        inCirculation = TOTAL_SUPPLY - tokenReserve;
+        ethInPool = ethReserve;
+    }
+
+    /// @notice Get market cap in ETH (circulating supply * current price)
+    /// @return marketCap in wei
+    function getMarketCap() external view returns (uint256 marketCap) {
+        uint256 circulating = TOTAL_SUPPLY - tokenReserve;
+        // Price = ETH per R00T token
+        if (tokenReserve == 0) return 0;
+        uint256 pricePerToken = (ethReserve * 1e18) / tokenReserve;
+        marketCap = (circulating * pricePerToken) / 1e18;
+    }
+
+    /// @notice Get fully diluted valuation in ETH
+    /// @return fdv in wei
+    function getFDV() external view returns (uint256 fdv) {
+        if (tokenReserve == 0) return 0;
+        uint256 pricePerToken = (ethReserve * 1e18) / tokenReserve;
+        fdv = (TOTAL_SUPPLY * pricePerToken) / 1e18;
+    }
+
+    // ============ Project Pool Routing (ETH → $R00T → Project Token) ============
+
+    /// @notice Register a project pool for routing and authorize it in tokenPool
+    /// @dev Called by LaunchpadGovernance when a new project is approved
+    ///      SECURITY FIX (Audit Vuln 1): Newly registered pools must wait POOL_REGISTRATION_COOLDOWN
+    ///      before accepting atomic swaps. This provides a 24-hour window for the community to
+    ///      detect and respond to potentially malicious pool registrations.
+    /// @param pool Address of the ZkProjectPool pool
+    function registerProjectPool(address pool) external onlyLaunchpad {
+        if (pool == address(0)) revert ZeroAddress();
+        if (isProjectPool[pool]) revert PoolAlreadyRegistered();
+
+        projectPools.push(pool);
+        isProjectPool[pool] = true;
+
+        // SECURITY FIX (Audit Vuln 1): Record registration time for cooldown enforcement
+        poolRegistrationTime[pool] = block.timestamp;
+
+        // Authorize the project pool to insert commitments into tokenPool (R00T pool)
+        // This allows the pool to create R00T commitments when users remove liquidity
+        tokenPool.setAuthorizedCaller(pool, true);
+
+        string memory poolName = IZkAMMPair(pool).name();
+        string memory poolSymbol = IZkAMMPair(pool).symbol();
+
+        emit ProjectPoolRegistered(pool, poolName, poolSymbol);
+    }
+
+    /// @notice Get all registered project pools
+    function getProjectPools() external view returns (address[] memory) {
+        return projectPools;
+    }
+
+    /// @notice Get number of registered project pools
+    function getProjectPoolCount() external view returns (uint256) {
+        return projectPools.length;
+    }
+
+    /// @notice Get quote for ETH → Project Token swap (routed through $R00T)
+    /// @param pool Address of the ZkAMMPair pool
+    /// @param ethIn Amount of ETH input
+    /// @return hiddenOut Amount of $R00T intermediate
+    /// @return tokensOut Amount of project tokens output
+    function getETHToProjectTokenQuote(address pool, uint256 ethIn)
+        external view returns (uint256 hiddenOut, uint256 tokensOut)
+    {
+        if (!isProjectPool[pool]) revert PoolNotRegistered();
+
+        // Calculate protocol + LP fees
+        uint256 protocolFee = (ethIn * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (ethIn * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethAfterFees = ethIn - protocolFee - lpFee;
+
+        // ETH → $R00T (in this pool)
+        hiddenOut = getAmountOut(ethAfterFees, ethReserve, tokenReserve);
+
+        // $R00T → Project Token (in project pool)
+        IZkAMMPair pair = IZkAMMPair(pool);
+        tokensOut = pair.getAmountOut(hiddenOut, pair.r00tReserve(), pair.tokenReserve());
+    }
+
+    /// @notice Get quote for Project Token → ETH swap (routed through $R00T)
+    /// @param pool Address of the ZkAMMPair pool
+    /// @param tokensIn Amount of project tokens input
+    /// @return hiddenOut Amount of $R00T intermediate
+    /// @return ethOut Amount of ETH output
+    function getProjectTokenToETHQuote(address pool, uint256 tokensIn)
+        external view returns (uint256 hiddenOut, uint256 ethOut)
+    {
+        if (!isProjectPool[pool]) revert PoolNotRegistered();
+
+        // Project Token → $R00T (in project pool)
+        IZkAMMPair pair = IZkAMMPair(pool);
+        hiddenOut = pair.getAmountOut(tokensIn, pair.tokenReserve(), pair.r00tReserve());
+
+        // $R00T → ETH (in this pool)
+        uint256 rawEthOut = getAmountOut(hiddenOut, tokenReserve, ethReserve);
+
+        // Deduct protocol + LP fees
+        uint256 protocolFee = (rawEthOut * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (rawEthOut * LP_FEE_BPS) / FEE_DENOMINATOR;
+        ethOut = rawEthOut - protocolFee - lpFee;
+    }
+
+    /// @notice Buy project tokens with ETH (atomic: ETH → R00T commitment → Project Token)
+    /// @dev Performs an atomic swap: ETH buys R00T, R00T is immediately spent to buy ProjectTokens.
+    ///      Creates a R00T commitment for audit trail, then atomically spends it in the project pool.
+    ///      This is NOT privacy-preserving (deterministic commitment), but provides single-tx UX.
+    ///      For full privacy, use the two-step process: buyPrivate() then swapRootForToken().
+    /// @param pool Address of the ZkProjectPool pool
+    /// @param minTokensOut Minimum project tokens to receive (slippage protection)
+    /// @param projectTokenCommitment Commitment for received project tokens
+    /// @param deadline Transaction deadline
+    /// @param encryptedNote Encrypted note for project token recovery
+    /// @param userEntropy User-provided randomness for enhanced privacy on L2s
+    /// @dev SECURITY FIX (Audit Vuln 5): Added userEntropy parameter to improve privacy on L2s
+    ///      where blockhash and prevrandao may have weaker entropy (centralized sequencers).
+    ///      Frontend should generate this as: keccak256(abi.encodePacked(crypto.randomBytes(32)))
+    function swapETHForProjectToken(
+        address pool,
+        uint256 minTokensOut,
+        uint256 projectTokenCommitment,
+        uint256 deadline,
+        bytes calldata encryptedNote,
+        bytes32 userEntropy
+    ) external payable nonReentrant notExpired(deadline) {
+        // SECURITY FIX: Validate commitment is within SNARK scalar field
+        if (projectTokenCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CHECKS
+        if (msg.value == 0) revert NoETH();
+        if (!isProjectPool[pool]) revert PoolNotRegistered();
+        if (projectTokenCommitment == 0) revert ZeroAmount();
+
+        // SECURITY FIX (Audit Vuln 1): Enforce pool registration cooldown
+        // This prevents instant griefing by malicious pools that could selectively revert
+        // to learn commitment values or block legitimate users. The 24-hour cooldown
+        // provides time for the community to detect and respond to malicious registrations.
+        if (block.timestamp < poolRegistrationTime[pool] + POOL_REGISTRATION_COOLDOWN) {
+            revert PoolCooldownNotMet();
+        }
+
+        // Step 1: Calculate ETH → R00T (same as buyPrivate)
+        uint256 protocolFee = (msg.value * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (msg.value * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethAfterFees = msg.value - protocolFee - lpFee;
+
+        uint256 r00tAmount = getAmountOut(ethAfterFees, ethReserve, tokenReserve);
+        if (r00tAmount == 0) revert ZeroAmount();
+
+        // Step 2: Create unpredictable R00T commitment for audit trail
+        // SECURITY FIX (Vuln 2): Added atomicSwapNonce AND blockhash to prevent front-running attacks
+        // Use hash(pool, blockhash(block.number - 1), msg.sender, r00tAmount, projectTokenCommitment, nonce, userEntropy)
+        // The blockhash of the previous block is not known to mempool observers until the current block
+        // is mined, making the commitment value truly unpredictable before inclusion
+        // SECURITY FIX: Also include block.prevrandao (RANDAO) for additional entropy post-merge
+        // SECURITY FIX (Audit Vuln 5): Added userEntropy for enhanced privacy on L2s with weak randomness
+        uint256 currentNonce = atomicSwapNonce++;
+        uint256 r00tCommitment = uint256(keccak256(abi.encodePacked(
+            pool,
+            blockhash(block.number - 1),  // SECURITY FIX: Previous blockhash is unknown to mempool observers
+            block.prevrandao,              // SECURITY FIX: RANDAO provides additional entropy
+            userEntropy,                   // SECURITY FIX (Audit Vuln 5): User-provided randomness for L2 privacy
+            msg.sender,
+            r00tAmount,
+            projectTokenCommitment,
+            currentNonce
+        ))) % SNARK_SCALAR_FIELD;
+
+        // Compute nullifier for this commitment
+        uint256 r00tNullifier = uint256(keccak256(abi.encodePacked(
+            r00tCommitment, "nullifier"
+        ))) % SNARK_SCALAR_FIELD;
+
+        // Step 3: EFFECTS - Update ZkAMMv3 reserve state FIRST
+        // These are internal state changes that will revert atomically if the call fails
+        ethReserve += ethAfterFees;
+        tokenReserve -= r00tAmount;  // R00T leaves this pool to project pool
+        accumulatedProtocolFees += protocolFee;
+
+        // Distribute LP fees
+        // SECURITY FIX (Audit Vuln 2): Only distribute if fee is large enough to avoid rounding to zero
+        if (totalLPShares > 0 && lpFee >= MIN_LP_FEE_FOR_DISTRIBUTION) {
+            uint256 feeIncrement = (lpFee * FEE_PRECISION) / totalLPShares;
+            if (feeIncrement > 0) {
+                feePerShare += feeIncrement;
+                accumulatedLPFees += lpFee;
+            } else {
+                accumulatedProtocolFees += lpFee;
+            }
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Step 4: Mark nullifier as spent locally BEFORE external call (prevents reentrancy)
+        nullifiers[r00tNullifier] = true;
+
+        // Step 5: INTERACTIONS - Atomic call to project pool
+        // SECURITY FIX (Audit Vuln 3): Call external contract BEFORE inserting commitment
+        // If this call reverts, the entire transaction reverts atomically
+        // This ensures no orphaned R00T commitment if the project pool fails
+        uint256 tokensOut = IZkProjectPool(pool).atomicSwapFromR00T(
+            r00tAmount,
+            r00tNullifier,
+            minTokensOut,
+            projectTokenCommitment,
+            encryptedNote
+        );
+
+        // Step 6: Insert R00T commitment AFTER successful external call
+        // SECURITY FIX (Audit Vuln 3): This ensures commitment is only created if swap succeeds
+        // The commitment serves as an audit trail that the R00T was legitimately spent
+        uint256 rootLeafIndex = tokenPool.insert(r00tCommitment);
+
+        // Emit events
+        // SECURITY FIX: Use placeholder note instead of empty string to prevent fingerprinting
+        // Atomic swaps with empty notes are identifiable, reducing anonymity set
+        // The placeholder looks like a real encrypted note but is derived from commitment
+        bytes memory placeholderNote = abi.encodePacked(
+            keccak256(abi.encodePacked("atomic_swap_placeholder", r00tCommitment, block.timestamp))
+        );
+        emit NewCommitment(r00tCommitment, rootLeafIndex, placeholderNote);
+        emit NullifierSpent(r00tNullifier);
+        emit SwapETHForProjectToken(pool, msg.value, r00tAmount, tokensOut);
+    }
+
+    /// @notice Get project pool info
+    /// @param pool Address of the ZkAMMPair pool
+    function getProjectPoolInfo(address pool) external view returns (
+        string memory poolName,
+        string memory poolSymbol,
+        uint256 r00tReserve,
+        uint256 projectTokenReserve,
+        address projectTokenPool
+    ) {
+        if (!isProjectPool[pool]) revert PoolNotRegistered();
+        IZkAMMPair pair = IZkAMMPair(pool);
+        return (
+            pair.name(),
+            pair.symbol(),
+            pair.r00tReserve(),
+            pair.tokenReserve(),
+            pair.projectTokenPool()
+        );
+    }
+
+    // ============ Admin Functions ============
+
+    /// @notice Lock all verifiers permanently (cannot be unlocked)
+    /// @dev SECURITY FIX (Vuln 2): Once locked, verifiers cannot be changed
+    ///      This should be called after all verifiers are properly configured
+    ///      Prevents a compromised owner from replacing verifiers with malicious ones
+    event VerifiersPermanentlyLocked();
+
+    function lockVerifiers() external onlyOwner {
+        verifiersLocked = true;
+        emit VerifiersPermanentlyLocked();
+    }
+
+    function setSellVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(sellVerifier);
+        sellVerifier = ISellVerifier(_newVerifier);
+        emit VerifierUpdated("sell", oldVerifier, _newVerifier);
+    }
+
+    function setTransferVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(transferVerifier);
+        transferVerifier = ITransferVerifier(_newVerifier);
+        emit VerifierUpdated("transfer", oldVerifier, _newVerifier);
+    }
+
+    function setWithdrawVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(withdrawVerifier);
+        withdrawVerifier = IWithdrawVerifier(_newVerifier);
+        emit VerifierUpdated("withdraw", oldVerifier, _newVerifier);
+    }
+
+    function setAddLiquidityVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(addLiquidityVerifier);
+        addLiquidityVerifier = IAddLiquidityVerifier(_newVerifier);
+        emit VerifierUpdated("addLiquidity", oldVerifier, _newVerifier);
+    }
+
+    function setRemoveLiquidityVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(removeLiquidityVerifier);
+        removeLiquidityVerifier = IRemoveLiquidityVerifier(_newVerifier);
+        emit VerifierUpdated("removeLiquidity", oldVerifier, _newVerifier);
+    }
+
+    function setClaimLPFeesVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(claimLPFeesVerifier);
+        claimLPFeesVerifier = IClaimLPFeesVerifier(_newVerifier);
+        emit VerifierUpdated("claimLPFees", oldVerifier, _newVerifier);
+    }
+
+    function setSwapVerifier(address _newVerifier) external onlyOwner {
+        if (verifiersLocked) revert VerifiersLocked();  // SECURITY FIX (Vuln 2)
+        if (_newVerifier == address(0)) revert ZeroAddress();
+        address oldVerifier = address(swapVerifier);
+        swapVerifier = ISwapVerifier(_newVerifier);
+        emit VerifierUpdated("swap", oldVerifier, _newVerifier);
+    }
+
+    // ============ Launchpad Timelock State ============
+    // SECURITY FIX (Audit Vuln 2): Launchpad change now requires 48-hour timelock
+    // Launchpad has significant privileges (pool registration, tokenPool authorization)
+    // Timelock prevents instant takeover if owner key is compromised
+
+    /// @notice Pending launchpad address for timelock
+    address public pendingLaunchpad;
+    /// @notice Timelock expiry for pending launchpad change
+    uint256 public launchpadTimelockExpiry;
+
+    // Launchpad timelock events
+    event LaunchpadChangeProposed(address indexed currentLaunchpad, address indexed pendingLaunchpad, uint256 effectiveTime);
+    event LaunchpadChangeCompleted(address indexed previousLaunchpad, address indexed newLaunchpad);
+    event LaunchpadChangeCancelled(address indexed pendingLaunchpad);
+
+    /// @notice Propose new launchpad address (starts 48-hour timelock)
+    /// @dev SECURITY FIX (Audit Vuln 2): Timelock prevents instant launchpad replacement
+    ///      Launchpad has significant privileges including pool registration and tokenPool authorization
+    /// @param _launchpad New launchpad address
+    function proposeLaunchpad(address _launchpad) external onlyOwner {
+        if (_launchpad == address(0)) revert ZeroAddress();
+        pendingLaunchpad = _launchpad;
+        launchpadTimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
+        emit LaunchpadChangeProposed(launchpad, _launchpad, launchpadTimelockExpiry);
+    }
+
+    /// @notice Execute pending launchpad change after timelock expires
+    /// @dev SECURITY FIX (Audit Vuln 2): Automatically authorizes new launchpad in tokenPool
+    function executeLaunchpadChange() external onlyOwner {
+        if (pendingLaunchpad == address(0)) revert NoPendingChange();
+        if (block.timestamp < launchpadTimelockExpiry) revert TimelockNotExpired();
+
+        address oldLaunchpad = launchpad;
+        launchpad = pendingLaunchpad;
+
+        // SECURITY FIX: Authorize new launchpad in tokenPool so it can process R00T claims
+        // This is needed for LaunchpadGovernance.processR00tClaim() to work
+        tokenPool.setAuthorizedCaller(launchpad, true);
+
+        // Clear pending state
+        pendingLaunchpad = address(0);
+        launchpadTimelockExpiry = 0;
+
+        emit LaunchpadChangeCompleted(oldLaunchpad, launchpad);
+    }
+
+    /// @notice Cancel pending launchpad change
+    function cancelLaunchpadChange() external onlyOwner {
+        if (pendingLaunchpad == address(0)) revert NoPendingChange();
+        address cancelled = pendingLaunchpad;
+        pendingLaunchpad = address(0);
+        launchpadTimelockExpiry = 0;
+        emit LaunchpadChangeCancelled(cancelled);
+    }
+
+    /// @notice Set launchpad for the first time (no timelock for initial setup)
+    /// @dev SECURITY: Only works when launchpad is not yet set. After initial setup,
+    ///      all changes must go through proposeLaunchpad() + executeLaunchpadChange() with 48h timelock.
+    /// @param _launchpad Address of the launchpad governance contract
+    function setLaunchpadInitial(address _launchpad) external onlyOwner {
+        if (launchpad != address(0)) revert("Launchpad already set - use proposeLaunchpad()");
+        if (_launchpad == address(0)) revert ZeroAddress();
+
+        launchpad = _launchpad;
+
+        // Authorize launchpad in tokenPool so it can process R00T claims
+        tokenPool.setAuthorizedCaller(_launchpad, true);
+
+        emit LaunchpadChangeCompleted(address(0), _launchpad);
+    }
+
+    /// @notice Legacy function - reverts with helpful message
+    /// @dev SECURITY FIX (Audit Vuln 2): Launchpad change now requires timelock
+    function setLaunchpad(address) external pure {
+        revert("Use proposeLaunchpad() + executeLaunchpadChange() with 48h timelock");
+    }
+
+    // ============ Timelocked Admin Functions (SECURITY FIX Audit Vulns 1,2,4) ============
+    // All critical admin changes require 48-hour timelock to prevent instant takeover
+
+    /// @notice Propose new Railgun proxy address (starts 48-hour timelock)
+    /// @dev SECURITY FIX (Audit Vuln 4): Timelock prevents instant malicious proxy replacement
+    /// @param _railgunProxy Address of the new Railgun proxy contract
+    function proposeRailgunProxy(address _railgunProxy) external onlyOwner {
+        if (railgunProxyLocked) revert RailgunProxyAlreadyLocked();
+        if (_railgunProxy == address(0)) revert ZeroAddress();
+
+        pendingRailgunProxy = _railgunProxy;
+        railgunProxyTimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
+
+        emit RailgunProxyChangeProposed(address(railgunProxy), _railgunProxy, railgunProxyTimelockExpiry);
+    }
+
+    /// @notice Execute pending Railgun proxy change after timelock expires
+    function executeRailgunProxyChange() external onlyOwner {
+        if (pendingRailgunProxy == address(0)) revert NoPendingChange();
+        if (block.timestamp < railgunProxyTimelockExpiry) revert TimelockNotExpired();
+
+        address oldProxy = address(railgunProxy);
+        railgunProxy = IRailgunProxy(pendingRailgunProxy);
+
+        // Clear pending state
+        pendingRailgunProxy = address(0);
+        railgunProxyTimelockExpiry = 0;
+
+        emit RailgunProxyChangeCompleted(oldProxy, address(railgunProxy));
+    }
+
+    /// @notice Lock Railgun proxy permanently (cannot be changed after this)
+    /// @dev SECURITY FIX (Audit Vuln 4): Call this after initial setup to prevent future changes
+    function lockRailgunProxy() external onlyOwner {
+        if (address(railgunProxy) == address(0)) revert RailgunNotConfigured();
+        railgunProxyLocked = true;
+        emit RailgunProxyLocked(address(railgunProxy));
+    }
+
+    /// @notice Propose new treasury address (starts 48-hour timelock)
+    /// @dev SECURITY FIX (Audit Vuln 2): Timelock prevents instant fee redirection
+    /// @param _newTreasury Address of the new treasury
+    function proposeTreasury(address _newTreasury) external onlyOwner {
+        if (_newTreasury == address(0)) revert ZeroAddress();
+
+        pendingTreasury = _newTreasury;
+        treasuryTimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
+
+        emit TreasuryChangeProposed(treasury, _newTreasury, treasuryTimelockExpiry);
+    }
+
+    /// @notice Execute pending treasury change after timelock expires
+    function executeTreasuryChange() external onlyOwner {
+        if (pendingTreasury == address(0)) revert NoPendingChange();
+        if (block.timestamp < treasuryTimelockExpiry) revert TimelockNotExpired();
+
+        address oldTreasury = treasury;
+        treasury = pendingTreasury;
+
+        // Clear pending state
+        pendingTreasury = address(0);
+        treasuryTimelockExpiry = 0;
+
+        emit TreasuryChangeCompleted(oldTreasury, treasury);
+        emit TreasuryUpdated(oldTreasury, treasury);
+    }
+
+    /// @notice Cancel pending treasury change
+    function cancelTreasuryChange() external onlyOwner {
+        if (pendingTreasury == address(0)) revert NoPendingChange();
+        address cancelled = pendingTreasury;
+        pendingTreasury = address(0);
+        treasuryTimelockExpiry = 0;
+        emit TreasuryChangeCancelled(cancelled);
+    }
+
+    /// @notice Propose new owner address (starts 48-hour timelock)
+    /// @dev SECURITY FIX (Audit Vuln 1): Timelock prevents instant ownership takeover
+    /// @param _newOwner Address of the new owner
+    function proposeOwnership(address _newOwner) external onlyOwner {
+        if (_newOwner == address(0)) revert ZeroAddress();
+
+        pendingOwner = _newOwner;
+        ownerTimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
+
+        emit OwnershipTransferProposed(owner, _newOwner, ownerTimelockExpiry);
+    }
+
+    /// @notice Execute pending ownership transfer after timelock expires
+    /// @dev Can be called by either current owner or pending owner
+    function executeOwnershipTransfer() external {
+        if (pendingOwner == address(0)) revert NoPendingChange();
+        if (block.timestamp < ownerTimelockExpiry) revert TimelockNotExpired();
+        // Allow either current owner or pending owner to execute
+        if (msg.sender != owner && msg.sender != pendingOwner) revert Unauthorized();
+
+        address oldOwner = owner;
+        owner = pendingOwner;
+
+        // Clear pending state
+        pendingOwner = address(0);
+        ownerTimelockExpiry = 0;
+
+        emit OwnershipTransferCompleted(oldOwner, owner);
+    }
+
+    /// @notice Cancel pending ownership transfer
+    function cancelOwnershipTransfer() external onlyOwner {
+        if (pendingOwner == address(0)) revert NoPendingChange();
+        address cancelled = pendingOwner;
+        pendingOwner = address(0);
+        ownerTimelockExpiry = 0;
+        emit OwnershipTransferCancelled(cancelled);
+    }
+
+    /// @notice Legacy function - reverts with helpful message
+    /// @dev SECURITY FIX (Audit Vuln 1): Ownership transfer now requires timelock
+    function transferOwnership(address) external pure {
+        revert("Use proposeOwnership() + executeOwnershipTransfer() with 48h timelock");
+    }
+
+    /// @notice Legacy function - reverts with helpful message
+    /// @dev SECURITY FIX (Audit Vuln 2): Treasury change now requires timelock
+    function setTreasury(address) external pure {
+        revert("Use proposeTreasury() + executeTreasuryChange() with 48h timelock");
+    }
+
+    /// @notice Legacy function - reverts with helpful message
+    /// @dev SECURITY FIX (Audit Vuln 4): Railgun proxy change now requires timelock
+    function setRailgunProxy(address) external pure {
+        revert("Use proposeRailgunProxy() + executeRailgunProxyChange() with 48h timelock");
+    }
+
+    /// @notice Emergency function to add liquidity (owner only, for bootstrapping)
+    /// @dev SECURITY FIX (Audit Vuln 2): Can only be called BEFORE bootstrapping
+    ///      After bootstrap, use bootstrapLiquidity() or addLiquidityPrivate() instead
+    ///      This prevents owner from manipulating reserves to affect AMM pricing
+    function addLiquidityOwner() external payable onlyOwner {
+        // SECURITY FIX (Audit Vuln 2): Only allow before bootstrapping
+        // After bootstrap, unilateral ETH addition would break AMM pricing invariant
+        if (bootstrapped) revert AlreadyBootstrapped();
+        if (msg.value == 0) revert NoETH();
+        ethReserve += msg.value;
+    }
+
+    // ============ Emergency Functions (2-of-3 Multisig) ============
+    // SECURITY: These functions require 2 of 3 emergency signers to approve
+    // This protects against single wallet compromise draining the protocol
+
+    /// @notice Get the signer index for an address (0, 1, 2) or revert if not a signer
+    /// @dev Returns the index in emergencySigners array
+    function _getSignerIndex(address signer) internal view returns (uint8) {
+        for (uint8 i = 0; i < 3; i++) {
+            if (emergencySigners[i] == signer) return i;
+        }
+        revert NotEmergencySigner();
+    }
+
+    /// @notice Check if 2-of-3 approval is met, record approval, and return whether to execute
+    /// @dev Handles approval tracking, expiration, and execution logic
+    /// @param actionHash Unique hash identifying the action and its parameters
+    /// @return shouldExecute True if 2 approvals reached and action should execute
+    function _checkAndRecordApproval(bytes32 actionHash) internal returns (bool shouldExecute) {
+        // Verify signers are configured
+        if (emergencySigners[0] == address(0)) revert EmergencySignersNotSet();
+
+        // Get caller's signer index (reverts if not a signer)
+        uint8 signerIndex = _getSignerIndex(msg.sender);
+        uint8 signerBit = uint8(1 << signerIndex); // 1, 2, or 4
+
+        // Check if previous approvals expired
+        uint256 approvalTime = emergencyApprovalTimestamp[actionHash];
+        if (approvalTime != 0 && block.timestamp > approvalTime + EMERGENCY_APPROVAL_EXPIRY) {
+            // Reset expired approvals
+            emergencyApprovals[actionHash] = 0;
+            emergencyApprovalTimestamp[actionHash] = 0;
+            emit EmergencyApprovalReset(actionHash);
+        }
+
+        // Get current approvals bitmap
+        uint8 currentApprovals = emergencyApprovals[actionHash];
+
+        // Check if this signer already approved (idempotent - just return current state)
+        if (currentApprovals & signerBit != 0) {
+            // Already approved, check if we have 2 approvals
+            return _countBits(currentApprovals) >= 2;
+        }
+
+        // Record this approval
+        currentApprovals |= signerBit;
+        emergencyApprovals[actionHash] = currentApprovals;
+
+        // Set timestamp if this is the first approval
+        if (emergencyApprovalTimestamp[actionHash] == 0) {
+            emergencyApprovalTimestamp[actionHash] = block.timestamp;
+        }
+
+        uint8 approvalCount = _countBits(currentApprovals);
+        emit EmergencyApproval(actionHash, msg.sender, approvalCount);
+
+        // Execute if we have 2 or more approvals
+        if (approvalCount >= 2) {
+            // Clear approvals after execution to prevent replay
+            emergencyApprovals[actionHash] = 0;
+            emergencyApprovalTimestamp[actionHash] = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// @notice Count set bits in a uint8 (for counting approvals)
+    function _countBits(uint8 n) internal pure returns (uint8 count) {
+        while (n != 0) {
+            count += n & 1;
+            n >>= 1;
+        }
+    }
+
+    /// @notice Emergency withdraw ETH (requires 2-of-3 signers)
+    /// @dev SECURITY: Two of three emergency signers must call with identical parameters.
+    ///      First signer's call records approval and stores params.
+    ///      Second signer can call this OR use confirmEmergencyAction(actionHash).
+    ///      Approvals expire after 24 hours to prevent stale approvals.
+    /// @param amount Amount of ETH to withdraw
+    /// @param recipient Address to receive ETH
+    function emergencyWithdrawETH(uint256 amount, address payable recipient) external nonReentrant {
+        if (recipient == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (amount > ethReserve) revert InsufficientETH();
+
+        // Create unique action hash
+        bytes32 actionHash = keccak256(abi.encodePacked("emergencyWithdrawETH", amount, recipient));
+
+        // Store action details so second signer can use confirmEmergencyAction()
+        if (pendingEmergencyActions[actionHash].actionType == 0) {
+            pendingEmergencyActions[actionHash] = PendingEmergencyAction({
+                actionType: 1, // withdrawETH
+                amount: amount,
+                recipient: recipient,
+                signerIndex: 0,
+                newSigner: address(0)
+            });
+        }
+
+        // Check 2-of-3 approval (reverts if caller not a signer)
+        if (!_checkAndRecordApproval(actionHash)) {
+            // First approval recorded, waiting for second signer
+            return;
+        }
+
+        // 2-of-3 reached - execute withdrawal
+        _executeEmergencyWithdrawETH(actionHash, amount, recipient);
+    }
+
+    /// @notice Internal execution of ETH withdrawal
+    function _executeEmergencyWithdrawETH(bytes32 actionHash, uint256 amount, address recipient) internal {
+        // Clear pending action
+        delete pendingEmergencyActions[actionHash];
+
+        // Update state first (CEI pattern)
+        ethReserve -= amount;
+
+        // Transfer ETH
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        if (!success) revert TransferFailed();
+
+        emit EmergencyWithdrawal(recipient, amount, 0);
+    }
+
+    /// @notice Emergency withdraw all liquidity (requires 2-of-3 signers)
+    /// @dev SECURITY: Two of three emergency signers must call with identical parameters.
+    ///      Withdraws all ETH. Token reserve stays intact (virtual tokens).
+    /// @param recipient Address to receive ETH
+    function emergencyWithdrawAll(address payable recipient) external nonReentrant {
+        if (recipient == address(0)) revert ZeroAddress();
+
+        uint256 ethAmount = ethReserve;
+        if (ethAmount == 0) revert NoETH();
+
+        // Create unique action hash (includes current ethReserve to prevent approval for different amounts)
+        bytes32 actionHash = keccak256(abi.encodePacked("emergencyWithdrawAll", recipient, ethAmount));
+
+        // Store action details so second signer can use confirmEmergencyAction()
+        if (pendingEmergencyActions[actionHash].actionType == 0) {
+            pendingEmergencyActions[actionHash] = PendingEmergencyAction({
+                actionType: 2, // withdrawAll
+                amount: ethAmount,
+                recipient: recipient,
+                signerIndex: 0,
+                newSigner: address(0)
+            });
+        }
+
+        // Check 2-of-3 approval (reverts if caller not a signer)
+        if (!_checkAndRecordApproval(actionHash)) {
+            // First approval recorded, waiting for second signer
+            return;
+        }
+
+        // 2-of-3 reached - execute withdrawal
+        _executeEmergencyWithdrawAll(actionHash, recipient);
+    }
+
+    /// @notice Internal execution of full ETH withdrawal
+    function _executeEmergencyWithdrawAll(bytes32 actionHash, address recipient) internal {
+        // Clear pending action
+        delete pendingEmergencyActions[actionHash];
+
+        uint256 ethAmount = ethReserve;
+
+        // Update state first (CEI pattern)
+        ethReserve = 0;
+
+        // Transfer ETH
+        (bool success, ) = payable(recipient).call{value: ethAmount}("");
+        if (!success) revert TransferFailed();
+
+        emit EmergencyWithdrawal(recipient, ethAmount, 0);
+    }
+
+    /// @notice Simple confirm function - second signer just calls this with the action hash
+    /// @dev First signer calls the actual function (emergencyWithdrawETH, etc) with params.
+    ///      Second signer can either call the same function OR just call this with the hash.
+    ///      The hash is emitted in EmergencyApproval event when first signer calls.
+    /// @param actionHash The action hash to confirm (from EmergencyApproval event)
+    function confirmEmergencyAction(bytes32 actionHash) external nonReentrant {
+        PendingEmergencyAction storage action = pendingEmergencyActions[actionHash];
+        if (action.actionType == 0) revert NoPendingAction();
+
+        // Check 2-of-3 approval (reverts if caller not a signer)
+        if (!_checkAndRecordApproval(actionHash)) {
+            // Still waiting for more approvals
+            return;
+        }
+
+        // 2-of-3 reached - execute based on action type
+        if (action.actionType == 1) {
+            // Verify amount is still valid
+            if (action.amount > ethReserve) revert InsufficientETH();
+            _executeEmergencyWithdrawETH(actionHash, action.amount, action.recipient);
+        } else if (action.actionType == 2) {
+            // For withdrawAll, re-check ethReserve matches
+            if (action.amount != ethReserve) revert InsufficientETH(); // Reserve changed
+            _executeEmergencyWithdrawAll(actionHash, action.recipient);
+        } else if (action.actionType == 3) {
+            _executeSetEmergencySigner(actionHash, action.signerIndex, action.newSigner);
+        }
+    }
+
+    /// @notice Cancel/reset pending emergency approvals for a specific action
+    /// @dev Any emergency signer can cancel pending approvals (e.g., if parameters were wrong)
+    /// @param actionHash The action hash to cancel approvals for
+    function cancelEmergencyApproval(bytes32 actionHash) external {
+        // Must be an emergency signer to cancel
+        _getSignerIndex(msg.sender);
+
+        // Clear all state for this action
+        emergencyApprovals[actionHash] = 0;
+        emergencyApprovalTimestamp[actionHash] = 0;
+        delete pendingEmergencyActions[actionHash];
+
+        emit EmergencyApprovalReset(actionHash);
+    }
+
+    /// @notice View function to check approval status for an action
+    /// @param actionHash The action hash to check
+    /// @return approvalBitmap Bitmap of which signers have approved (bit 0=signer0, bit 1=signer1, bit 2=signer2)
+    /// @return approvalCount Number of approvals (0, 1, 2, or 3)
+    /// @return isExpired Whether the approvals have expired
+    /// @return expiresAt Timestamp when approvals expire (0 if no approvals)
+    function getEmergencyApprovalStatus(bytes32 actionHash) external view returns (
+        uint8 approvalBitmap,
+        uint8 approvalCount,
+        bool isExpired,
+        uint256 expiresAt
+    ) {
+        approvalBitmap = emergencyApprovals[actionHash];
+        approvalCount = _countBits(approvalBitmap);
+        uint256 approvalTime = emergencyApprovalTimestamp[actionHash];
+        if (approvalTime != 0) {
+            expiresAt = approvalTime + EMERGENCY_APPROVAL_EXPIRY;
+            isExpired = block.timestamp > expiresAt;
+        }
+    }
+
+    // ============ Emergency Signer Management ============
+    // NOTE: Initial emergency signers are set in the constructor and active from block 0.
+    // Use setEmergencySigner() to replace individual signers (requires 2-of-3 approval).
+
+    /// @notice Replace a single emergency signer (requires 2-of-3 current signers)
+    /// @dev SECURITY: Changing signers also requires 2-of-3 approval to prevent single compromised
+    ///      wallet from adding malicious signers.
+    ///      Second signer can use confirmEmergencyAction(actionHash) instead of calling this.
+    /// @param index Index of signer to replace (0, 1, or 2)
+    /// @param newSigner New signer address
+    function setEmergencySigner(uint8 index, address newSigner) external nonReentrant {
+        if (index > 2) revert InvalidProof();
+        if (newSigner == address(0)) revert ZeroAddress();
+        // Ensure new signer is not already a signer
+        for (uint8 i = 0; i < 3; i++) {
+            if (emergencySigners[i] == newSigner) revert InvalidProof();
+        }
+
+        // Create unique action hash for this signer change
+        bytes32 actionHash = keccak256(abi.encodePacked("setEmergencySigner", index, newSigner));
+
+        // Store action details so second signer can use confirmEmergencyAction()
+        if (pendingEmergencyActions[actionHash].actionType == 0) {
+            pendingEmergencyActions[actionHash] = PendingEmergencyAction({
+                actionType: 3, // setSigner
+                amount: 0,
+                recipient: address(0),
+                signerIndex: index,
+                newSigner: newSigner
+            });
+        }
+
+        // Check 2-of-3 approval
+        if (!_checkAndRecordApproval(actionHash)) {
+            // First approval recorded, waiting for second signer
+            return;
+        }
+
+        // 2-of-3 reached - execute signer change
+        _executeSetEmergencySigner(actionHash, index, newSigner);
+    }
+
+    /// @notice Internal execution of signer change
+    function _executeSetEmergencySigner(bytes32 actionHash, uint8 index, address newSigner) internal {
+        // Clear pending action
+        delete pendingEmergencyActions[actionHash];
+
+        address oldSigner = emergencySigners[index];
+        emergencySigners[index] = newSigner;
+
+        emit EmergencySignerUpdated(index, oldSigner, newSigner);
+    }
+
+    /// @notice Get all emergency signers
+    function getEmergencySigners() external view returns (address[3] memory) {
+        return emergencySigners;
+    }
+
+    /// @notice Check if an address is an emergency signer
+    function isEmergencySigner(address addr) external view returns (bool) {
+        return emergencySigners[0] == addr || emergencySigners[1] == addr || emergencySigners[2] == addr;
+    }
+
+    /// @notice View pending action details (so second signer knows what they're confirming)
+    /// @param actionHash The action hash to check
+    /// @return actionType 1=withdrawETH, 2=withdrawAll, 3=setSigner, 0=no pending action
+    /// @return amount ETH amount for withdrawals
+    /// @return recipient Recipient address
+    /// @return signerIndex Index for setSigner action
+    /// @return newSigner New signer address for setSigner action
+    function getPendingEmergencyAction(bytes32 actionHash) external view returns (
+        uint8 actionType,
+        uint256 amount,
+        address recipient,
+        uint8 signerIndex,
+        address newSigner
+    ) {
+        PendingEmergencyAction storage action = pendingEmergencyActions[actionHash];
+        return (action.actionType, action.amount, action.recipient, action.signerIndex, action.newSigner);
+    }
+
+    /// @notice Receive ETH - restricted to owner only to prevent accidental sends
+    receive() external payable {
+        if (msg.sender != owner) revert Unauthorized();
+        ethReserve += msg.value;
+    }
+
+    // ============ ETH Accounting Sync Functions ============
+    // SECURITY FIX (Vuln 5): Handle force-sent ETH (selfdestruct, coinbase transactions)
+
+    /// @notice Emitted when ETH accounting is synced due to force-sent ETH
+    event ETHAccountingSynced(uint256 previousReserve, uint256 actualBalance, uint256 surplus);
+
+    /// @notice Get any ETH surplus from force-sent transactions
+    /// @dev Force-sent ETH (via selfdestruct or coinbase) increases balance without updating ethReserve
+    /// @return surplus The amount of ETH in contract that exceeds ethReserve tracking
+    function getETHSurplus() public view returns (uint256 surplus) {
+        uint256 actualBalance = address(this).balance;
+        surplus = actualBalance > ethReserve ? actualBalance - ethReserve : 0;
+    }
+
+    /// @notice Sync ETH accounting to handle force-sent ETH
+    /// @dev SECURITY FIX (Vuln 5): Allows owner to reconcile ethReserve with actual balance
+    ///      Force-sent ETH (selfdestruct, coinbase) bypasses receive() and doesn't update ethReserve.
+    ///      This creates a permanent accounting mismatch. This function fixes it by:
+    ///      1. Detecting surplus (actual balance > tracked reserve)
+    ///      2. Adding surplus to accumulatedProtocolFees (owner can collect it)
+    ///      3. Updating ethReserve to match actual balance
+    ///      The surplus goes to protocol fees rather than LP reserves to prevent manipulation.
+    function syncETHAccounting() external onlyOwner {
+        uint256 actualBalance = address(this).balance;
+
+        // Only sync if there's a positive surplus (actual > tracked)
+        // If actual < tracked, something is very wrong and needs investigation
+        if (actualBalance <= ethReserve) return;
+
+        uint256 surplus = actualBalance - ethReserve;
+        uint256 previousReserve = ethReserve;
+
+        // Add surplus to protocol fees (not LP reserves to prevent manipulation)
+        accumulatedProtocolFees += surplus;
+
+        // Update reserve to match actual balance
+        ethReserve = actualBalance;
+
+        emit ETHAccountingSynced(previousReserve, actualBalance, surplus);
+    }
+}

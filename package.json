@@ -1,0 +1,38 @@
+{
+  "name": "r00t-fund",
+  "version": "0.1.0",
+  "private": true,
+  "description": "r00t.fund — Private launchpad for regenerative projects, verified by Chainlink CRE",
+  "workspaces": [
+    "circuits",
+    "sdk",
+    "relayer",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "circuits:compile": "./scripts/compile-circuits.sh",
+    "circuits:verifiers": "./scripts/generate-verifiers.sh",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test",
+    "deploy:testnet": "cd contracts && forge script script/Deploy.s.sol --rpc-url base-sepolia --broadcast"
+  },
+  "devDependencies": {
+    "chalk": "4",
+    "circomlibjs": "^0.1.7",
+    "cli-table3": "^0.6.5",
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@types/qrcode": "^1.5.6",
+    "qrcode": "^1.5.4"
+  }
+}

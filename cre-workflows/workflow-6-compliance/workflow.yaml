@@ -1,0 +1,23 @@
+# Workflow 6: Compliant Private Transfers (ACE Pattern)
+# Prize Track: Privacy ($16k) — extends W1 with Chainlink ACE compliance
+name: compliant-private-transfers
+description: >
+  Privacy-preserving compliant transfers using Chainlink ACE (Anonymous Compliant Exchange)
+  pattern. CRE DON verifies compliance via PolicyEngine + ConfidentialHTTPClient sanctions
+  screening before authorizing private ZK-SNARK commitments in the AMM.
+
+triggers:
+  - type: evmLogTrigger
+    contract: "${COMPLIANT_PRIVATE_VAULT_ADDRESS}"
+    event: "PrivateTransferRequested(uint256,uint8,bytes32,bytes32,uint256,uint256)"
+    network: sepolia
+
+capabilities:
+  - ConfidentialHTTPClient
+  - EVMClient
+  - vaultDonSecrets
+
+target:
+  contract: "${COMPLIANT_PRIVATE_VAULT_ADDRESS}"
+  network: sepolia
+  function: "authorizeTransfer"

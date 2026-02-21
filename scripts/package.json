@@ -1,0 +1,25 @@
+{
+  "name": "@r00t-fund/scripts",
+  "version": "1.0.0",
+  "description": "ZkAMM trading scripts and market maker",
+  "type": "module",
+  "scripts": {
+    "mm": "tsx market-maker.ts",
+    "mm:simple": "tsx market-maker-simple.ts",
+    "test:buy-sell": "tsx test-buy-sell.ts",
+    "watch": "tsx event-watcher.ts"
+  },
+  "dependencies": {
+    "@types/blessed": "^0.1.27",
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "ethers": "^6.9.0",
+    "poseidon-lite": "^0.3.0",
+    "snarkjs": "^0.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

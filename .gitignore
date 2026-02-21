@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Circuits build artifacts
+circuits/build/
+*.r1cs
+*.sym
+*.wasm
+*.zkey
+*.wtns
+*.json
+!package.json
+!tsconfig.json
+!tsconfig.node.json
+!turbo.json
+!railway.json
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Environment — catch ALL .env variants
+.env
+.env.*
+!.env.example
+.env.local
+.env.*.local
+.env.sepolia
+.env.tenderly
+.env.agents
+secrets.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Turbo
+.turbo/
+
+# Misc
+*.pem
+
+# Claude context folders
+.context/
+contracts/.context/

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "VITE_CHAIN_ID",
+    "VITE_RPC_URL",
+    "VITE_INDEXER_URL",
+    "VITE_ZKAMM_ADDRESS",
+    "VITE_ZKAMM_PAIR_ADDRESS",
+    "VITE_ZKAMM_ROUTER_ADDRESS",
+    "VITE_ZKAMM_ADMIN_ADDRESS",
+    "VITE_TOKEN_POOL_ADDRESS",
+    "VITE_LP_POOL_ADDRESS",
+    "VITE_ROOT_TOKEN_ADDRESS",
+    "VITE_NULLIFIER_REGISTRY_ADDRESS",
+    "VITE_LAUNCHPAD_ADDRESS",
+    "VITE_TOKEN_FACTORY_ADDRESS",
+    "VITE_POOL_FACTORY_ADDRESS",
+    "VITE_POOL_ROUTER_ADDRESS",
+    "VITE_TOKEN_NAME",
+    "VITE_TOKEN_SYMBOL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    }
+  }
+}

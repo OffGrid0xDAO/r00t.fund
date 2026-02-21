@@ -1,0 +1,20 @@
+# Workflow 2: Regenerative Proof of Reserve
+# Prize Track: DeFi & Tokenization ($20k)
+name: regenerative-proof-of-reserve
+description: >
+  Custom Chainlink-compatible Proof of Reserve data feed for ReFi reserves.
+  Aggregates on-chain TVL, environmental impact metrics, and reserve health.
+
+triggers:
+  - type: cron
+    schedule: "*/30 * * * *"  # Every 30 minutes
+
+capabilities:
+  - HTTPClient
+  - EVMClient
+  - ConsensusAggregationByFields
+
+target:
+  contract: "${REGEN_PROOF_OF_RESERVE_ADDRESS}"
+  network: sepolia
+  function: "receiveReport"

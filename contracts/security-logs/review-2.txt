@@ -1,0 +1,78 @@
+Now I have a comprehensive understanding of the codebase. Let me compile my security findings based on my thorough review of all the contracts and knowledge base patterns.
+
+---
+
+# Security Audit Report: HideMyCoin Solidity Smart Contracts
+
+## Executive Summary
+
+After conducting a thorough security-focused audit of the Solidity smart contracts in this branch, I have identified **one medium-severity vulnerability** with high confidence. The codebase demonstrates mature security practices with extensive use of ReentrancyGuard, CEI pattern, timelocks, and SNARK scalar field validation. Many potential vulnerabilities have already been addressed with documented security fixes.
+
+---
+
+# Vuln 1: `ZkProjectPool.sol:698-708` - LP Share Rounding Exploitation via Repeated Small Deposits
+
+* **Severity**: Medium  
+* **Category**: precision_errors, fund_mismanagement
+* **KB Reference**: [fv-sol-2-c3-rounding.md] - Rounding-based value extraction similar to LP share calculation
+* **Description**: The LP share calculation in `addLiquidity()` uses integer division which rounds down. The rounding check at lines 704-708 allows up to 0.05% rounding loss, but this is checked per-deposit. An attacker can repeatedly deposit amounts just above `MIN_LP_DEPOSIT` (1e15 wei) to accumulate rounding benefits over time. Each deposit the attacker gets slightly more LP share value than they contributed due to rounding in their favor.
+
+```solidity
+// ZkProjectPool.sol:698-708
+uint256 lpShares = (r00tAmount * totalLPShares) / r00tReserve;
+if (lpShares == 0) revert InvalidLPShares();
+
+// SECURITY FIX (Audit Vuln 4): Stricter rounding check to prevent LP share exploitation
+// Ensure rounding loss is minimal (max 0.05% instead of 0.1%)
+uint256 expectedProduct = r00tAmount * totalLPShares;
+uint256 actualProduct = lpShares * r00tReserve;
+// Allow 0.05% rounding loss: actualProduct >= expectedProduct * 9995 / 10000
+require(actualProduct * 10000 >= expectedProduct * 9995, "Rounding loss too high");
+```
+
+* **Exploit Scenario**: 
+  1. Attacker makes 1000+ small deposits at `MIN_LP_DEPOSIT` amount (1e15 wei each)
+  2. Each deposit accumulates a tiny rounding advantage (up to 0.05% per deposit)
+  3. Over many deposits, attacker accumulates meaningful extra LP shares (up to 50% of deposited value over 1000 deposits if maximally exploiting rounding)
+  4. Attacker withdraws LP, extracting value from other LPs who absorbed the cumulative rounding losses
+  
+* **Recommendation**: Either:
+  1. Increase `MIN_LP_DEPOSIT` significantly (e.g., to 1e18) to make repeated small deposits economically infeasible
+  2. Track cumulative rounding error per depositor and enforce an aggregate limit
+  3. Implement a "round down on user benefit" approach: `lpShares = (r00tAmount * totalLPShares - 1) / r00tReserve + 1` for deposits
+  
+* **Confidence**: 8/10
+
+---
+
+## Additional Observations (Not Vulnerabilities)
+
+The following are observations about the codebase security posture. While not vulnerabilities requiring immediate action, they represent areas where the code has implemented appropriate mitigations:
+
+### Well-Implemented Security Patterns
+
+1. **ReentrancyGuard**: Consistently applied across all external functions with ETH transfers or state modifications (ZkAMMv3, ZkProjectPool, ZkAMMPair)
+
+2. **CEI Pattern**: Checks-Effects-Interactions pattern is properly followed throughout. State updates occur before external calls.
+
+3. **SNARK Scalar Field Validation**: All ZK public inputs are validated to be less than `SNARK_SCALAR_FIELD` to prevent nullifier aliasing attacks.
+
+4. **Timelock Administration**: All critical admin functions (ownership transfer, verifier updates, treasury changes) require 48-hour timelocks, providing community time to respond to compromised keys.
+
+5. **Verifier Locking**: The `lockVerifiers()` pattern prevents post-deployment verifier replacement attacks.
+
+6. **Emergency Fund Recovery**: Emergency claim processing after 30-day delays ensures funds cannot be permanently locked.
+
+7. **NullifierRegistry Cooldown**: 24-hour cooldown for newly authorized pools prevents instant griefing attacks.
+
+### Design Considerations
+
+- The cross-pool R00T nullifier tracking via `NullifierRegistry` properly prevents double-spending across multiple project pools.
+- The snapshot-based voting (using `proposalSnapshotRoot`) prevents flash vote attacks.
+- The pending R00T claim system properly handles the architectural constraint of pools not having direct R00T custody.
+
+---
+
+## Conclusion
+
+The codebase shows strong security awareness with extensive documented security fixes addressing reentrancy, access control, scalar field validation, and administrative privilege escalation. The one medium-severity issue identified relates to cumulative rounding exploitation in LP share calculations, which could allow value extraction through repeated small deposits. This should be addressed before production deployment.

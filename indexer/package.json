@@ -1,0 +1,25 @@
+{
+  "name": "@r00t-fund/indexer",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "start:optimized": "tsx scripts/start-optimized.ts",
+    "find-activity": "tsx scripts/find-first-activity.ts",
+    "codegen": "ponder codegen"
+  },
+  "dependencies": {
+    "@ponder/core": "^0.7.17",
+    "circomlibjs": "^0.1.7",
+    "hono": "^4.11.4",
+    "tsx": "^4.21.0",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

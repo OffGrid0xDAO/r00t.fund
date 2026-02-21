@@ -1,0 +1,40 @@
+All vulnerabilities have been fixed. Here's a summary of the changes:
+
+## Security Fixes Applied
+
+### Vuln 2: CEI Violation in `ZkProjectPool.sol:atomicSwapFromR00T` (HIGH)
+**File:** `src/ZkProjectPool.sol:1398-1433`
+
+**Fix:** Reordered the function to follow the Checks-Effects-Interactions (CEI) pattern:
+- Moved `nullifierRegistry.markSpent()` to AFTER all state updates
+- Added clear comments documenting the CEI pattern sections
+- The external call to `nullifierRegistry` now happens after reserves, fees, and LP state are all updated
+
+**Before:** External call happened before state updates, allowing potential reentrancy
+**After:** All state updates complete before any external calls
+
+---
+
+### Vuln 3: Missing SNARK Scalar Field Validation in `LaunchpadGovernanceV2.sol:setClaimCommitment` (MEDIUM)
+**File:** `src/LaunchpadGovernanceV2.sol:440-443`
+
+**Fix:** Added validation to reject commitments >= SNARK_SCALAR_FIELD:
+```solidity
+if (outputCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
+```
+
+This prevents users from setting unspendable commitments that would lock their R00T refunds forever.
+
+---
+
+### Vuln 4: Missing SNARK Scalar Field Validation in `LaunchpadGovernance.sol:setClaimCommitment` (MEDIUM)
+**File:** `src/LaunchpadGovernance.sol:717-720`
+
+**Fix:** Added the same validation as Vuln 3:
+```solidity
+if (outputCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
+```
+
+---
+
+All fixes compile successfully. The test file has pre-existing compilation issues unrelated to these security fixes.
