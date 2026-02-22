@@ -124,19 +124,21 @@
   <!-- CRE Forwarder to WorldIDGatekeeper doc (routed below Worldcoin API box) -->
   <path d="M265,590 L460,590 L460,350 L680,350 L680,215 L735,215" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowRight)"/>
 
-  <!-- World ID info box -->
-  <rect x="510" y="410" width="160" height="105" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
-  <text x="530" y="435" fill="#1a1a1a" font-size="13" font-weight="600">World ID Bridge</text>
-  <text x="530" y="455" fill="#6B7280" font-size="10">Sybil resistance on</text>
-  <text x="530" y="468" fill="#6B7280" font-size="10">any EVM chain</text>
-  <!-- Orb icon (circle) -->
-  <circle cx="540" cy="490" r="7" fill="none" stroke="#0847F7" stroke-width="1.5"/>
-  <circle cx="540" cy="490" r="2.5" fill="#0847F7"/>
-  <text x="553" y="494" fill="#1a1a1a" font-size="10">Orb</text>
-  <!-- Device icon (square) -->
-  <rect x="597" y="483" width="14" height="14" rx="2" fill="none" stroke="#6837EE" stroke-width="1.5"/>
-  <rect x="601" y="487" width="6" height="6" rx="1" fill="#6837EE"/>
-  <text x="617" y="494" fill="#1a1a1a" font-size="10">Device</text>
+  <!-- World ID info box with illustration -->
+  <rect x="460" y="370" width="200" height="215" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="560" y="393" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="600">World ID Bridge</text>
+  <!-- World ID illustration -->
+  <image href="worldid-illustration.svg" x="470" y="400" width="180" height="102" preserveAspectRatio="xMidYMid meet"/>
+  <text x="560" y="520" text-anchor="middle" fill="#6B7280" font-size="10">Sybil resistance on any EVM chain</text>
+  <!-- Orb icon -->
+  <circle cx="515" cy="548" r="7" fill="none" stroke="#0847F7" stroke-width="1.5"/>
+  <circle cx="515" cy="548" r="2.5" fill="#0847F7"/>
+  <text x="528" y="552" fill="#1a1a1a" font-size="10">Orb</text>
+  <!-- Device icon -->
+  <rect x="570" y="541" width="14" height="14" rx="2" fill="none" stroke="#6837EE" stroke-width="1.5"/>
+  <rect x="574" y="545" width="6" height="6" rx="1" fill="#6837EE"/>
+  <text x="590" y="552" fill="#1a1a1a" font-size="10">Device</text>
+  <text x="560" y="575" text-anchor="middle" fill="#6B7280" font-size="9" font-style="italic">via CRE W8 → any chain</text>
 
   <!-- Tenderly full logo -->
   <g transform="translate(725,560) scale(0.13)">

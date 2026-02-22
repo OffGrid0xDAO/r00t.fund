@@ -3,16 +3,31 @@
  * Prize Track: Privacy ($16k) -- extends W1 with Anonymous Compliant Exchange
  *
  * Implements the Chainlink ACE (Anonymous Compliant Exchange) pattern adapted
- * for R00t.fund's ZK-SNARK privacy infrastructure:
+ * for R00t.fund's ZK-SNARK privacy infrastructure. This workflow acts as the
+ * Identity Manager — the compliance gate that users MUST pass before any ETH
+ * can enter the private ZK system (ZkAMM).
  *
- * 1. Cron trigger checks for pending transfer requests in CompliantPrivateVault
- * 2. CRE reads R00tPolicyEngine via EVMClient (off-chain eth_call)
- * 3. If compliant: CRE calls authorizeTransfer() via report + writeReport
- * 4. If denied: CRE calls denyTransfer() via report + writeReport
+ * Correct Flow (compliance BEFORE ZkAMM access):
+ * 1. User calls requestDeposit() on CompliantPrivateVault — ETH held in escrow
+ * 2. CRE W6 polls for pending requests (ACE "Present")
+ * 3. CRE reads R00tPolicyEngine (ACE "Verify" — sanctions, KYC, jurisdiction,
+ *    amount limits, daily volume)
+ * 4. CRE calls authorizeTransfer() or denyTransfer() (ACE "Write")
+ * 5. If authorized → Vault inserts commitment into ZkAMMPair Merkle tree
+ *    (via insertCommitmentFromCRE) — user now has private ZK commitment
+ * 6. If denied → ETH refunded to user, no ZkAMM access
+ *
+ * The ZkAMM (buyPrivate, depositPublic, addLiquidity) is the DESTINATION
+ * after compliance clears — users cannot bypass the vault to access it directly.
+ *
+ * ACE Flow:
+ * 1. Present  — User submits deposit with address hash (privacy-preserving ID)
+ * 2. Verify   — CRE reads R00tPolicyEngine to check compliance
+ * 3. Write    — CRE calls authorizeTransfer() or denyTransfer() on-chain
  *
  * Privacy Guarantees:
  * - Only address hashes (never raw addresses) used in compliance checks
- * - On-chain: only sees "transfer authorized/denied" -- no identity linkage
+ * - On-chain: only sees "transfer authorized/denied" — no identity linkage
  * - ZK proofs ensure commitment ownership without revealing user identity
  *
  * Trigger: CronCapability (every 60 seconds)
@@ -71,7 +86,10 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
-  // ---- Step 1: Read pending requests from CompliantPrivateVault ----
+  // ---- Step 1: Read pending requests from CompliantPrivateVault (ACE "Present") ----
+  // Users call requestDeposit() on the vault to begin the compliance flow.
+  // ETH is held in escrow — it does NOT enter the ZkAMM until compliance clears.
+  // This CRE workflow polls for pending requests and processes them.
   // Read nextRequestId to know how many requests exist
   const nextRequestIdCallData = encodeFunctionData({
     abi: CompliantPrivateVaultABI,
@@ -159,7 +177,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
     const requestId = BigInt(i)
 
-    // ---- Step 2: Check compliance via PolicyEngine (EVMClient eth_call) ----
+    // ---- Step 2: Verify compliance via PolicyEngine (ACE "Verify" step) ----
     let policyAllowed = false
     let policyReason = 'PolicyEngine unavailable'
 
@@ -195,7 +213,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
     processedCount++
 
-    // ---- Step 3: Authorize or Deny ----
+    // ---- Step 3: Authorize or Deny (ACE "Write" step) ----
     if (policyAllowed) {
       // Authorize the transfer
       const authorizeData = encodeFunctionData({
