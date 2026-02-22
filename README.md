@@ -382,6 +382,7 @@ A Chainlink-compatible Proof of Reserve data feed where **TVL includes verified 
 4. Fetches carbon prices from EU ETS, SENDECO2, ClimateTrade, Toucan BCT
 5. Computes: `Total TVL = ETH reserve + shorts collateral + verified carbon credit value`
 6. Publishes via `AggregatorV3Interface` (latestRoundData) for standard Chainlink consumption
+7. Scans `R00TShorts` for liquidatable positions (`isLiquidatable`, `calculatePnL`) and batch-executes liquidations via `LiquidationExecutor` — conditional, only when underwater positions exist
 
 **Key CRE patterns:** `CronCapability`, `EVMClient.callContract`, `HTTPClient`, `runtime.report`, `EVMClient.writeReport`
 

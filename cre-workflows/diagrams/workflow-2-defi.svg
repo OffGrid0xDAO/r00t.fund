@@ -163,8 +163,8 @@
   <!-- CONNECTION PATHS -->
   <!-- ZkAMMPair doc to Chain Read step 2: horizontal at y=194 -->
   <path d="M735,220 L340,220" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
-  <!-- R00TShorts doc to Chain Read step 3: L-shape from y=330 to y=274 -->
-  <path d="M735,330 L460,330 L460,274 L340,274" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
+  <!-- R00TShorts doc to Chain Read step 3: routed around Carbon Market APIs box -->
+  <path d="M735,330 L680,330 L680,274 L340,274" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
   <!-- Carbon Market APIs compartment to HTTP Fetch step 4 -->
   <path d="M485,354 L340,354" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
   <!-- CRE Forwarder to RegenProofOfReserve doc: L-shape going right and up -->

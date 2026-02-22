@@ -112,18 +112,18 @@ export const LAUNCHPAD_ABI = [
     outputs: [{ type: 'uint256' }],
   },
   {
-    name: 'getActiveProposals',
+    name: 'getLiveProjectCount',
     type: 'function',
     stateMutability: 'view',
     inputs: [],
-    outputs: [{ type: 'uint256[]' }],
+    outputs: [{ type: 'uint256' }],
   },
   {
-    name: 'getLiveProjects',
+    name: 'deployedAMMs',
     type: 'function',
     stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address[]' }],
+    inputs: [{ name: 'index', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
   },
   {
     name: 'MIN_VOTES_FOR_QUORUM',

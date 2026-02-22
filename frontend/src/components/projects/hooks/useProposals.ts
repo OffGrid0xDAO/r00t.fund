@@ -30,7 +30,7 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
 
     const fetchData = async () => {
       try {
-        const [count, _activeIds, liveAddrs] = await Promise.all([
+        const [count, liveCount] = await Promise.all([
           publicClient.readContract({
             address: launchpadAddress as `0x${string}`,
             abi: LAUNCHPAD_ABI,
@@ -39,14 +39,27 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
           publicClient.readContract({
             address: launchpadAddress as `0x${string}`,
             abi: LAUNCHPAD_ABI,
-            functionName: 'getActiveProposals',
-          }),
-          publicClient.readContract({
-            address: launchpadAddress as `0x${string}`,
-            abi: LAUNCHPAD_ABI,
-            functionName: 'getLiveProjects',
+            functionName: 'getLiveProjectCount',
           }),
         ]);
+
+        // Fetch each deployed AMM address by index
+        const liveAddrs: string[] = [];
+        const ammPromises = [];
+        for (let i = 0; i < Number(liveCount); i++) {
+          ammPromises.push(
+            publicClient.readContract({
+              address: launchpadAddress as `0x${string}`,
+              abi: LAUNCHPAD_ABI,
+              functionName: 'deployedAMMs',
+              args: [BigInt(i)],
+            })
+          );
+        }
+        const ammResults = await Promise.all(ammPromises);
+        for (const addr of ammResults) {
+          liveAddrs.push(addr as string);
+        }
 
         const proposalPromises = [];
         for (let i = 0; i < Number(count); i++) {
@@ -81,7 +94,7 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
         }));
 
         setProposals(formattedProposals);
-        setLiveProjects([...liveAddrs]);
+        setLiveProjects(liveAddrs);
       } catch (err) {
         console.error('Failed to fetch launchpad data:', err);
       }

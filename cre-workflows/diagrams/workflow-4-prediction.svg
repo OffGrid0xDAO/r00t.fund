@@ -24,7 +24,7 @@
 
   <g transform="translate(0,70)">
   <!-- CRE WORKFLOW BOX -->
-  <rect x="30" y="30" width="385" height="730" rx="0" fill="#8AA6F9" fill-opacity="0.12" stroke="#0847F7" stroke-width="2"/>
+  <rect x="30" y="30" width="385" height="640" rx="0" fill="#8AA6F9" fill-opacity="0.12" stroke="#0847F7" stroke-width="2"/>
   <rect x="30" y="30" width="385" height="52" fill="#0847F7"/>
   <g transform="translate(45,36) scale(0.14)">
     <path d="M123.5 0L0 70.9726V212.918L123.5 283.89L247 212.918V70.9726L123.5 0ZM194.679 182.837L123.523 223.728L52.3663 182.837V101.054L123.523 60.1621L194.679 101.054V182.837Z" fill="white"/>
@@ -59,40 +59,33 @@
 
   <line x1="230" y1="412" x2="230" y2="458" stroke="#0847F7" stroke-width="1.5" marker-end="url(#arrowDown)"/>
 
-  <!-- Step 5: Compute -->
-  <text x="118" y="490" fill="#6B7280" font-size="11" font-style="italic" text-anchor="end">outcome</text>
+  <!-- Step 5: Chain Write -->
+  <text x="118" y="490" fill="#6B7280" font-size="11" font-style="italic" text-anchor="end">resolution</text>
   <rect x="125" y="466" width="210" height="36" rx="4" fill="white" stroke="#0847F7" stroke-width="1.5"/>
-  <text x="230" y="490" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="500">Compute</text>
+  <text x="230" y="490" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="500">Chain Write</text>
 
-  <line x1="230" y1="502" x2="230" y2="548" stroke="#0847F7" stroke-width="1.5" marker-end="url(#arrowDown)"/>
-
-  <!-- Step 6: Chain Write -->
-  <text x="118" y="580" fill="#6B7280" font-size="11" font-style="italic" text-anchor="end">resolution</text>
-  <rect x="125" y="556" width="210" height="36" rx="4" fill="white" stroke="#0847F7" stroke-width="1.5"/>
-  <text x="230" y="580" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="500">Chain Write</text>
-
-  <line x1="230" y1="592" x2="230" y2="640" stroke="#0847F7" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrowDown)"/>
+  <line x1="230" y1="502" x2="230" y2="550" stroke="#0847F7" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrowDown)"/>
 
   <!-- CRE Forwarder: doc with fold + Chainlink badge -->
-  <path d="M213,655 L249,655 L249,718 L201,718 L201,667 Z" fill="white" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round"/>
-  <path d="M201,667 L213,667 L213,655" fill="#e5e7eb" stroke="#1a1a1a" stroke-width="1.2" stroke-linejoin="round"/>
-  <text x="225" y="700" text-anchor="middle" fill="#1a1a1a" font-size="13">&lt;/&gt;</text>
-  <circle cx="249" cy="655" r="14" fill="white" stroke="#1a1a1a" stroke-width="1.4"/>
-  <g transform="translate(241,646) scale(0.065)">
+  <path d="M213,565 L249,565 L249,628 L201,628 L201,577 Z" fill="white" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="M201,577 L213,577 L213,565" fill="#e5e7eb" stroke="#1a1a1a" stroke-width="1.2" stroke-linejoin="round"/>
+  <text x="225" y="610" text-anchor="middle" fill="#1a1a1a" font-size="13">&lt;/&gt;</text>
+  <circle cx="249" cy="565" r="14" fill="white" stroke="#1a1a1a" stroke-width="1.4"/>
+  <g transform="translate(241,556) scale(0.065)">
     <path d="M123.5 0L0 70.9726V212.918L123.5 283.89L247 212.918V70.9726L123.5 0ZM194.679 182.837L123.523 223.728L52.3663 182.837V101.054L123.523 60.1621L194.679 101.054V182.837Z" fill="#0847F7"/>
   </g>
-  <text x="230" y="738" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="600">CRE Forwarder</text>
+  <text x="230" y="648" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="600">CRE Forwarder</text>
 
   <!-- ENVIRONMENTAL APIs COMPARTMENT (off-chain HTTP) -->
-  <rect x="490" y="260" width="180" height="85" rx="8" fill="#EFF6FF" fill-opacity="0.5" stroke="#0847F7" stroke-width="1.5" stroke-dasharray="6,4"/>
-  <text x="510" y="282" fill="#0847F7" font-size="13" font-weight="600">Environmental APIs</text>
-  <circle cx="510" cy="302" r="4" fill="#0847F7"/>
-  <text x="522" y="306" fill="#1a1a1a" font-size="11">Copernicus NDVI</text>
-  <circle cx="510" cy="322" r="4" fill="#22C55E"/>
-  <text x="522" y="326" fill="#1a1a1a" font-size="11">Weather / Soil sensors</text>
+  <rect x="490" y="190" width="180" height="85" rx="8" fill="#EFF6FF" fill-opacity="0.5" stroke="#0847F7" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="510" y="212" fill="#0847F7" font-size="13" font-weight="600">Environmental APIs</text>
+  <circle cx="510" cy="232" r="4" fill="#0847F7"/>
+  <text x="522" y="236" fill="#1a1a1a" font-size="11">Copernicus NDVI</text>
+  <circle cx="510" cy="252" r="4" fill="#22C55E"/>
+  <text x="522" y="256" fill="#1a1a1a" font-size="11">Weather / Soil sensors</text>
 
   <!-- CHAIN REGION (on-chain, Tenderly testnet) -->
-  <rect x="690" y="160" width="460" height="320" rx="8" fill="#F5F3FF" fill-opacity="0.35" stroke="#6837EE" stroke-width="2" stroke-dasharray="8,5"/>
+  <rect x="690" y="200" width="460" height="360" rx="8" fill="#F5F3FF" fill-opacity="0.35" stroke="#6837EE" stroke-width="2" stroke-dasharray="8,5"/>
 
   <!-- RegenPredictionMarket.sol (read + write) -->
   <rect x="830" y="300" width="260" height="85" rx="6" fill="white" stroke="#e5e7eb" stroke-width="1.5"/>
@@ -115,10 +108,10 @@
   <!-- CONNECTION PATHS -->
   <!-- RegenPredictionMarket doc to Chain Read step 2: L-shape -->
   <path d="M735,342 L460,342 L460,214 L340,214" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
-  <!-- Environmental APIs compartment to HTTP Fetch step 3: horizontal -->
-  <path d="M485,304 L460,304 L460,304 L340,304" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
+  <!-- Environmental APIs compartment to HTTP Fetch step 3: L-shape down -->
+  <path d="M490,240 L420,240 L420,304 L340,304" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowLeft)"/>
   <!-- CRE Forwarder to RegenPredictionMarket doc: L-shape going right and up -->
-  <path d="M265,680 L460,680 L460,355 L735,355" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowRight)"/>
+  <path d="M265,595 L460,595 L460,355 L735,355" fill="none" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#arrowRight)"/>
 
   <!-- Outcomes Legend -->
   <rect x="730" y="430" width="380" height="85" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
@@ -131,7 +124,7 @@
   <text x="1003" y="493" fill="#1a1a1a" font-size="11">UNRESOLVED</text>
 
   <!-- Tenderly full logo -->
-  <g transform="translate(725,560) scale(0.13)">
+  <g transform="translate(848,580) scale(0.1)">
     <path d="M174.71,239.01v107.34l-88.28-49.28v-83.15c-.03-56.72-17.73-91.51-40.1-117.23C23.97,70.98.32,51.19.32,51.19l93.59,54.04c26.71,15.31,80.77,61.1,80.8,133.78Z" fill="#6837ee"/>
     <path d="M93.91,105.24L.32,51.19,87.5,0l71.97,41.94c49.1,28.58,88.15,30.89,121.69,24.59,33.53-6.3,65.51-16.16,65.51-16.16l-94.15,52.91c-26.72,15.29-95.69,38.59-158.61,1.96Z" fill="#cfc0ff"/>
     <path d="M252.52,103.27l94.15-52.91v100.92l-72.52,40.99c-49.45,27.98-71.07,60.5-82.47,92.59-11.4,32.08-16.97,61.49-16.97,61.49v-107.34c.18-30.73,14.44-99.88,77.81-135.74Z" fill="#9273ff"/>
@@ -144,6 +137,6 @@
     <path d="M1258.16,239.23V59.54h39.9v179.69h-39.9Z" fill="#191919"/>
     <path d="M1410.95,101.21h43.15l-69.75,185.6h-43.74l20.1-45.51-52.61-140.08h43.15l29.55,94.87,30.14-94.87Z" fill="#191919"/>
   </g>
-  <text x="835" y="618" text-anchor="middle" fill="#191919" font-size="15" font-weight="600">Custom Testnet</text>
+  <text x="920" y="635" text-anchor="middle" fill="#191919" font-size="13" font-weight="600">Custom Testnet</text>
   </g>
 </svg>
