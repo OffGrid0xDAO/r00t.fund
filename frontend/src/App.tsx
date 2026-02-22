@@ -9,7 +9,6 @@ import { RootLogo } from './components/ui/RootLogo';
 import { ToastProvider } from './components/ui/Toast';
 import { AppBackground } from './components/AppBackground';
 import { usePrivateWallet } from './hooks/usePrivateWallet';
-import { useRailgunBuy } from './hooks/useRailgunBuy';
 import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
 import { CONTRACTS, TOKEN, NETWORK } from './config';
@@ -158,11 +157,9 @@ function NavPill({
 function WalletButton({
   address,
   onDisconnect,
-  hasRailgun,
 }: {
   address: string;
   onDisconnect: () => void;
-  hasRailgun: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -186,9 +183,6 @@ function WalletButton({
       >
         <div className="relative">
           <div className="w-3 h-3 rounded-full bg-[var(--success)]" />
-          {hasRailgun && (
-            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent-secondary)]" />
-          )}
         </div>
         <span className="font-mono text-sm text-[var(--text-primary)]">
           {address.slice(0, 6)}...{address.slice(-4)}
@@ -287,9 +281,6 @@ function App() {
   const { connect, connectors } = useConnect();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-
-  const { hasRailgunWallet } = useRailgunBuy(CONTRACTS.zkAMM);
-
 
   // Centralized wallet session management (viewing key lifecycle)
   const session = useWalletSession();

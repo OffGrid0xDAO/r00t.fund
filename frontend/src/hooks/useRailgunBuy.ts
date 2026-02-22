@@ -1,126 +1,42 @@
 /**
- * useRailgunBuy - Anonymous Buying via Railgun
+ * useRailgunBuy - Stubbed out (Railgun is Arbitrum-only, not available on Tenderly VNet)
  *
- * This hook provides complete in-app anonymous token purchasing.
- * Re-exports the useAnonymousBuy hook with a compatible interface.
- *
- * Two modes:
- * 1. Quick Private: Direct buyPrivate (tokens private, tx visible)
- * 2. Full Anonymous: Shield ETH → Unshield+Swap via cross-contract call (complete privacy)
+ * Returns no-op stubs so consumers compile without changes.
  */
 
-import { useAnonymousBuy } from './useAnonymousBuy';
-
-/**
- * Complete hook for anonymous buying via Railgun
- * This is a re-export of useAnonymousBuy with the interface SwapPanel expects
- */
-export function useRailgunBuy(zkAMMAddress: string) {
-  const {
-    // State
-    isLoading,
-    error,
-    progress,
-    isConnected,
-    hasWallet,
-    isEngineReady,
-    shieldedBalance,
-    railgunAddress,
-    mnemonic,
-    hasRailgunWallet,
-    walletId,
-
-    // Balance from callbacks (the correct way per Railgun docs)
-    spendableWethBalance,
-    pendingWethBalance,
-
-    // Scan state
-    scanProgress,
-    scanPhase,
-    isScanComplete,
-    scanError,
-
-    // Actions
-    executeAnonymousBuy,
-    buyQuickPrivate,
-    shieldETH,
-    initializeEngine,
-    getOrCreateWallet,
-    exportWallet,
-    copyMnemonicToClipboard,
-    openRailway,
-    clearAndResync,
-
-    // Info
-    shieldFeePercent,
-    unshieldFeePercent,
-  } = useAnonymousBuy(zkAMMAddress);
-
-  // Map executeAnonymousBuy to buyAnonymous for backward compatibility
-  const buyAnonymous = async (params: {
-    ethAmount: string;
-    viewingKey: string;
-    railgunAddress?: string;
-    onProgress?: (step: string, percent: number) => void;
-    slippageBps?: number;
-  }) => {
-    return executeAnonymousBuy(params.ethAmount, params.viewingKey, params.onProgress, params.slippageBps);
-  };
-
-  // Wrap buyQuickPrivate to match expected interface
-  const buyQuickPrivateWrapped = async (params: {
-    ethAmount: string;
-    viewingKey: string;
-    onProgress?: (step: string, percent: number) => void;
-    slippageBps?: number;
-  }) => {
-    return buyQuickPrivate(params.ethAmount, params.viewingKey, params.onProgress, params.slippageBps);
-  };
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function useRailgunBuy(_zkAMMAddress: string) {
   return {
-    // State
-    isLoading,
-    error,
-    progress,
-    isConnected,
-    hasWallet,
-    isRailgunReady: isEngineReady,
-    isInitializing: isLoading,
-    shieldedBalance,
-    shieldPrivateKey: null, // Not used anymore - managed internally
-
-    // Balance from callbacks (the correct way per Railgun docs)
-    spendableWethBalance, // Spendable WETH in Railgun
-    pendingWethBalance,   // Pending WETH (shields waiting for POI)
-
-    // Railgun wallet info
-    railgunAddress,
-    mnemonic, // 12-word seed phrase for export to Railway
-    hasRailgunWallet,
-    walletId, // Used for balance queries in useRailgun
-
-    // Scan state - for UI progress display
-    scanProgress,
-    scanPhase, // 'txid' or 'utxo'
-    isScanComplete,
-    scanError,
-
-    // Actions
-    buyAnonymous,
-    buyQuickPrivate: buyQuickPrivateWrapped,
-    initRailgun: initializeEngine,
-    openRailway,
-    shieldETH,
-
-    // New actions for wallet export
-    getOrCreateWallet,
-    exportWallet,
-    copyMnemonicToClipboard,
-    clearAndResync, // Clear database and resync
-
-    // Info
-    shieldFeePercent,
-    unshieldFeePercent,
+    isLoading: false,
+    error: null,
+    progress: '',
+    isConnected: false,
+    hasWallet: false,
+    isRailgunReady: false,
+    isInitializing: false,
+    shieldedBalance: 0n,
+    shieldPrivateKey: null,
+    spendableWethBalance: 0n,
+    pendingWethBalance: 0n,
+    railgunAddress: null,
+    mnemonic: null,
+    hasRailgunWallet: false,
+    walletId: null,
+    scanProgress: 0,
+    scanPhase: null,
+    isScanComplete: false,
+    scanError: null,
+    buyAnonymous: async () => ({ success: false, error: 'Railgun disabled on Tenderly VNet' }),
+    buyQuickPrivate: async () => ({ success: false, error: 'Railgun disabled on Tenderly VNet' }),
+    initRailgun: async () => {},
+    openRailway: () => {},
+    shieldETH: async () => {},
+    getOrCreateWallet: async () => {},
+    exportWallet: async () => {},
+    copyMnemonicToClipboard: async () => {},
+    clearAndResync: async () => {},
+    shieldFeePercent: 0,
+    unshieldFeePercent: 0,
   };
 }
 
