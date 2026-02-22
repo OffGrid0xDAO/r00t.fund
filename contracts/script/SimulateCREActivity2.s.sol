@@ -55,7 +55,7 @@ contract SimulateCREActivity2Script is Script {
         bytes32 user2Hash = keccak256(abi.encodePacked(address(0xBEEF), bytes32("salt_user_2")));
         bytes32 user3Hash = keccak256(abi.encodePacked(address(0xCAFE), bytes32("salt_user_3")));
 
-        uint256 commitment2 = uint256(keccak256("test_deposit_commitment_2")) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 commitment2 = uint256(keccak256(abi.encodePacked("test_deposit_commitment_r2_2", block.timestamp))) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
         uint256 reqId2 = cv.requestDeposit{value: 0.02 ether}(commitment2, user2Hash, "");
         txCount++;
         console.log("  Deposit request 2: 0.02 ETH (user2, STANDARD)");
@@ -64,7 +64,7 @@ contract SimulateCREActivity2Script is Script {
         txCount++;
         console.log("  Authorized: Request", reqId2);
 
-        uint256 commitment3 = uint256(keccak256("test_deposit_commitment_3")) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 commitment3 = uint256(keccak256(abi.encodePacked("test_deposit_commitment_r2_3", block.timestamp))) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
         uint256 reqId3 = cv.requestDeposit{value: 0.005 ether}(commitment3, user3Hash, "");
         txCount++;
         console.log("  Deposit request 3: 0.005 ETH (user3, BASIC)");

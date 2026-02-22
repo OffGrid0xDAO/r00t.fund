@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount } from 'wagmi';
 import { ProjectDetailModal } from './ProjectDetailModal';
@@ -6,11 +6,18 @@ import { AnimatedTabs } from './ui/AnimatedTabs';
 import { useProposals } from './projects/hooks/useProposals';
 import { useWorldIdVerification } from './projects/hooks/useWorldIdVerification';
 import { useCreDataFeeds } from './projects/hooks/useCreDataFeeds';
+import { useProofOfReserve } from './projects/hooks/useProofOfReserve';
+import { useAIOrchestrator } from './projects/hooks/useAIOrchestrator';
+import { useProtocolHealth } from './projects/hooks/useProtocolHealth';
+import { usePolicyEngine } from './projects/hooks/usePolicyEngine';
+import { useCompliantVault } from './projects/hooks/useCompliantVault';
+import { useConfidentialFunding } from './projects/hooks/useConfidentialFunding';
 import { ProposalList } from './projects/proposals/ProposalList';
 import { VoteModal } from './projects/proposals/VoteModal';
 import { LiveProjectList } from './projects/live/LiveProjectList';
 import { CreateProposalWizard } from './projects/wizard/CreateProposalWizard';
-import type { CommitmentsResult, TabType } from './projects/types';
+import { CONTRACTS } from '../config';
+import type { CommitmentsResult, TabType, CreWorkflowStatus } from './projects/types';
 
 interface ProjectsPanelProps {
   launchpadAddress: string;
@@ -69,10 +76,49 @@ export function ProjectsPanel({
 
   const worldId = useWorldIdVerification({ worldIdGatekeeperAddress });
 
+  // CRE Workflow hooks — data feeds + protocol monitoring
   const { report, summary } = useCreDataFeeds({
-    contractAddress: undefined, // Will be set when a specific data feed contract is known
+    contractAddress: CONTRACTS.serraEstrela,
     enabled: liveProjects.length > 0,
   });
+  const proofOfReserve = useProofOfReserve();
+  const aiOrchestrator = useAIOrchestrator();
+  const protocolHealth = useProtocolHealth();
+  const policyEngine = usePolicyEngine();
+  const compliantVault = useCompliantVault();
+  const confidentialFunding = useConfidentialFunding();
+
+  // Aggregate CRE workflow status for UI display
+  const creWorkflowStatus = useMemo<CreWorkflowStatus>(() => ({
+    serraEstrela: { active: !!report, lastUpdate: report?.timestamp ?? 0 },
+    proofOfReserve: {
+      active: !!proofOfReserve.data,
+      backingRatio: proofOfReserve.data?.backingRatio ?? 0,
+      tvl: proofOfReserve.data?.totalTVL ?? 0n,
+    },
+    aiOrchestrator: {
+      active: !!aiOrchestrator.analysis,
+      riskLevel: aiOrchestrator.analysis?.riskLevel ?? 0,
+      safeToTrade: aiOrchestrator.safeToTrade ?? true,
+    },
+    predictionMarket: { active: true, openMarkets: 0 },
+    protocolHealth: {
+      active: !!protocolHealth.report,
+      riskLevel: protocolHealth.report?.overallRiskLevel ?? 0,
+    },
+    policyEngine: {
+      active: !!policyEngine.stats,
+      totalAttestations: policyEngine.stats?.totalAttestations ?? 0,
+    },
+    compliantVault: {
+      active: !!compliantVault.stats,
+      totalRequests: compliantVault.stats?.totalRequests ?? 0,
+    },
+    confidentialFunding: {
+      active: confidentialFunding.verifiedCount > 0,
+      verifiedProposals: confidentialFunding.verifiedCount,
+    },
+  }), [report, proofOfReserve.data, aiOrchestrator.analysis, aiOrchestrator.safeToTrade, protocolHealth.report, policyEngine.stats, compliantVault.stats, confidentialFunding.verifiedCount]);
 
   const tabs = [
     { id: 'proposals' as const, label: '_proposals' },
@@ -171,6 +217,7 @@ export function ProjectsPanel({
               proposals={proposals}
               report={report}
               summary={summary}
+              creWorkflowStatus={creWorkflowStatus}
               onSelectProject={setSelectedProject}
               onTradeProject={onTradeProject}
             />

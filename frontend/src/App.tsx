@@ -287,11 +287,7 @@ function App() {
 
   const [selectedToken, setSelectedToken] = useState<string>(CONTRACTS.zkAMM);
   const [availableTokens, setAvailableTokens] = useState<TokenOption[]>(DEMO_TOKENS);
-  const [portfolioInitialTab, setPortfolioInitialTab] = useState<'overview' | 'transfer' | 'withdraw' | 'railgun' | undefined>(undefined);
-  const handleNavigateToShield = useCallback(() => {
-    setPortfolioInitialTab('railgun');
-    setActiveTab('_portfolio');
-  }, []);
+  const [portfolioInitialTab] = useState<'overview' | 'transfer' | 'withdraw' | undefined>(undefined);
 
   const handleEnterApp = useCallback(() => {
     localStorage.setItem('hasVisited', 'true');
@@ -428,7 +424,6 @@ function App() {
               <WalletButton
                 address={address}
                 onDisconnect={session.disconnect}
-                hasRailgun={hasRailgunWallet}
               />
             ) : (
               <GlowButton onClick={() => connect({ connector: connectors[0] })} variant="primary">
@@ -656,7 +651,6 @@ function App() {
                                 removeCommitment={removeCommitment}
                                 fetchAllOnChainCommitments={fetchAllOnChainCommitments}
                                 session={session}
-                                onNavigateToShield={handleNavigateToShield}
                                 resetWallet={resetWallet}
                                 scan={scan}
                               />
@@ -719,7 +713,7 @@ function App() {
                   <span className="font-mono text-xs">
                     <span className="text-[var(--accent)]">ACTIVE</span>
                     <span className="opacity-40 mx-2">·</span>
-                    <span>Railgun + ZK proofs enabled</span>
+                    <span>ZK proofs + Chainlink CRE</span>
                   </span>
                 </p>
               </motion.div>

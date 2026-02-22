@@ -46,6 +46,15 @@ const SEPOLIA_CONTRACTS = {
   poolRouter: '0x4b89761B1FB4532499B37aCA664A6E34aCC4F7fA',
   shortsContract: '0xE76cb3eb5253f3cFaEEab29bF44F27af9c66dF6C',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
+  // CRE Workflow Contracts
+  serraEstrela: '0x...',
+  confidentialFundingVault: '0x...',
+  regenProofOfReserve: '0x...',
+  aiAgentOrchestrator: '0x...',
+  regenPredictionMarket: '0x...',
+  protocolHealthMonitor: '0x...',
+  policyEngine: '0x...',
+  compliantPrivateVault: '0x...',
 } as const;
 
 // Tenderly VNet fallback addresses (CRE contracts deployed here)
@@ -64,6 +73,15 @@ const TENDERLY_CONTRACTS = {
   poolRouter: '0x97300a37b7a5f550fb9975655d355174e57fa416',
   shortsContract: '0xb2d888F6F030269BD07d1F84cfa535103F1Fe8fb',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
+  // CRE Workflow Contracts
+  serraEstrela: '0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B',
+  confidentialFundingVault: '0x6840B8F438610217265fEBF084E578537c9AA361',
+  regenProofOfReserve: '0x47Cbc90f86992004c57BCC25D8c25012cFcc8E21',
+  aiAgentOrchestrator: '0xE9D7284DDBF635B35e0C3bCB9d9d0F607D08F824',
+  regenPredictionMarket: '0xC8BeE963FB020F41AAf26d79c1BB043C291865e1',
+  protocolHealthMonitor: '0x50F8beE2E560F2335B268d0b6dC64F7153cC852d',
+  policyEngine: '0x89b493be4262D6786Be6D1b595BD5E829CFd152e',
+  compliantPrivateVault: '0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49',
 } as const;
 
 // Arbitrum mainnet fallback addresses (update when deployed)
@@ -82,6 +100,15 @@ const ARBITRUM_CONTRACTS = {
   poolRouter: '0x...',
   shortsContract: '0x...',
   worldIdGatekeeper: '0x...',
+  // CRE Workflow Contracts
+  serraEstrela: '0x...',
+  confidentialFundingVault: '0x...',
+  regenProofOfReserve: '0x...',
+  aiAgentOrchestrator: '0x...',
+  regenPredictionMarket: '0x...',
+  protocolHealthMonitor: '0x...',
+  policyEngine: '0x...',
+  compliantPrivateVault: '0x...',
 } as const;
 
 // Select the right fallback based on network
@@ -118,6 +145,16 @@ export const CONTRACTS = {
 
   // World ID Gatekeeper for sybil-resistant proposal creation (CRE W8)
   worldIdGatekeeper: import.meta.env.VITE_WORLD_ID_GATEKEEPER_ADDRESS || FALLBACK.worldIdGatekeeper,
+
+  // CRE Workflow Contracts
+  serraEstrela: import.meta.env.VITE_SERRA_ESTRELA_ADDRESS || FALLBACK.serraEstrela,
+  confidentialFundingVault: import.meta.env.VITE_CONFIDENTIAL_FUNDING_VAULT_ADDRESS || FALLBACK.confidentialFundingVault,
+  regenProofOfReserve: import.meta.env.VITE_REGEN_PROOF_OF_RESERVE_ADDRESS || FALLBACK.regenProofOfReserve,
+  aiAgentOrchestrator: import.meta.env.VITE_AI_AGENT_ORCHESTRATOR_ADDRESS || FALLBACK.aiAgentOrchestrator,
+  regenPredictionMarket: import.meta.env.VITE_REGEN_PREDICTION_MARKET_ADDRESS || FALLBACK.regenPredictionMarket,
+  protocolHealthMonitor: import.meta.env.VITE_PROTOCOL_HEALTH_MONITOR_ADDRESS || FALLBACK.protocolHealthMonitor,
+  policyEngine: import.meta.env.VITE_R00T_POLICY_ENGINE_ADDRESS || FALLBACK.policyEngine,
+  compliantPrivateVault: import.meta.env.VITE_COMPLIANT_PRIVATE_VAULT_ADDRESS || FALLBACK.compliantPrivateVault,
 } as const;
 
 // External contract addresses (Arbitrum mainnet)

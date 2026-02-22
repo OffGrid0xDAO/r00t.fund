@@ -15,13 +15,6 @@ import { ZKAMM_ABI } from '../abis/zkAMM';
 import { TRADE_COMPLETE_EVENT } from './PriceChart';
 import { usePageVisibility } from '../hooks/usePageVisibility';
 
-const formatBalance = (balance: bigint): string => {
-  const formatted = Number(formatEther(balance));
-  if (formatted === 0) return '0';
-  if (formatted < 0.0001) return '<0.0001';
-  return formatted.toFixed(4);
-};
-
 const SIGN_MESSAGE = 'Sign this message to access your r00t.fund private balance.\n\nThis signature is used to derive your viewing key locally.\nIt never leaves your browser.';
 
 
@@ -115,7 +108,6 @@ interface SwapPanelProps {
     treeState?: { filledSubtrees: bigint[]; root: bigint };
   }>;
   session?: WalletSession;
-  onNavigateToShield?: () => void;
   resetWallet?: () => void;
   scan?: () => Promise<void>;
 }
@@ -184,51 +176,6 @@ const TokenLogo = ({ symbol, glowing = false, address }: { symbol: string; glowi
 };
 
 // Privacy Mode Toggle
-const PrivacyToggle = ({ mode, onToggle }: { mode: 'quick' | 'anonymous'; onToggle: () => void }) => (
-  <motion.div
-    className="relative p-1 rounded-md border border-[var(--border)]"
-    style={{ background: 'var(--bg-secondary)' }}
-  >
-    <div className="flex relative">
-      <motion.div
-        className="absolute inset-y-1 rounded"
-        style={{
-          background: 'var(--accent)',
-        }}
-        animate={{
-          left: mode === 'quick' ? '4px' : '50%',
-          right: mode === 'quick' ? '50%' : '4px',
-        }}
-        transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
-      />
-      <button
-        onClick={() => mode !== 'quick' && onToggle()}
-        className={`relative z-10 flex-1 px-4 py-2 rounded font-mono text-xs transition-colors ${mode === 'quick' ? 'text-white' : 'text-[var(--text-muted)]'
-          }`}
-      >
-        <span className="flex items-center justify-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          quick
-        </span>
-      </button>
-      <button
-        onClick={() => mode !== 'anonymous' && onToggle()}
-        className={`relative z-10 flex-1 px-4 py-2 rounded font-mono text-xs transition-colors ${mode === 'anonymous' ? 'text-white' : 'text-[var(--text-muted)]'
-          }`}
-      >
-        <span className="flex items-center justify-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-          anon
-        </span>
-      </button>
-    </div>
-  </motion.div>
-);
-
 // Swap Input Card — Premium financial input
 const SwapInput = ({
   label,
@@ -392,7 +339,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, availableTokens, selectedToken, onBuySuccess, onSellSuccess, removeCommitment: _removeCommitment, fetchAllOnChainCommitments, session, onNavigateToShield, resetWallet, scan }: SwapPanelProps) {
+export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, availableTokens, selectedToken, onBuySuccess, onSellSuccess, removeCommitment: _removeCommitment, fetchAllOnChainCommitments, session, resetWallet, scan }: SwapPanelProps) {
   const { isConnected, address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient, isLoading: isWalletLoading, refetch: refetchWallet } = useWalletClient();
@@ -407,9 +354,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const isOnCorrectChain = chainId === CHAIN.id;
   const handleSwitchToCorrectChain = useCallback(() => switchChain({ chainId: CHAIN.id }), [switchChain]);
 
-  const { isLoading: isBuyLoading, progress: buyProgress, buyAnonymous, buyQuickPrivate, shieldedBalance } = useRailgunBuy(zkAMMAddress);
-  const [privacyMode, setPrivacyMode] = useState<'quick' | 'anonymous'>('quick');
-  const togglePrivacyMode = useCallback(() => setPrivacyMode(prev => prev === 'quick' ? 'anonymous' : 'quick'), []);
+  const { isLoading: isBuyLoading, progress: buyProgress, buyQuickPrivate } = useRailgunBuy(zkAMMAddress);
 
   useEffect(() => {
     if (isConnected && !walletClient && !isWalletLoading) refetchWallet();
@@ -708,8 +653,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
     setIsLoading(true); setError(null); setTxHash(null); setTokensReceived(null);
     try {
       const currentViewingKey = await ensureViewingKey();
-      const buyFn = privacyMode === 'anonymous' ? buyAnonymous : buyQuickPrivate;
-      const result = await buyFn({ ethAmount: inputAmount, viewingKey: currentViewingKey, onProgress: () => { }, slippageBps: slippageTolerance });
+      const result = await buyQuickPrivate({ ethAmount: inputAmount, viewingKey: currentViewingKey, onProgress: () => { }, slippageBps: slippageTolerance });
       if (result.success) {
         if (result.txHash) setTxHash(result.txHash);
         if (result.tokensReceived) setTokensReceived(result.tokensReceived);
@@ -933,7 +877,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           </h2>
           <p className="text-xs font-mono text-[var(--text-muted)] mt-1">
             {direction === 'buy'
-              ? privacyMode === 'anonymous' ? '// fully untraceable via Railgun' : '// ZK commitments — only you see balance'
+              ? '// ZK commitments — only you see balance'
               : '// sell privately — ETH to any address'}
           </p>
         </div>
@@ -1008,66 +952,9 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
             </AnimatePresence>
           </div>
 
-          {direction === 'buy' && isConnected && (
-            <div className="hidden sm:block">
-              <PrivacyToggle mode={privacyMode} onToggle={togglePrivacyMode} />
-            </div>
-          )}
         </div>
       </motion.div>
 
-      {/* Mobile Privacy Toggle — visible only on small screens */}
-      {direction === 'buy' && isConnected && (
-        <div className="block sm:hidden">
-          <PrivacyToggle mode={privacyMode} onToggle={togglePrivacyMode} />
-        </div>
-      )}
-
-      {/* Anonymous Mode Info */}
-      <AnimatePresence>
-        {direction === 'buy' && privacyMode === 'anonymous' && isConnected && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className="p-4 rounded-lg border"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent)08 0%, var(--accent-secondary)05 100%)',
-                borderColor: 'var(--accent)30',
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-mono text-[var(--accent)] mb-1 flex items-center gap-2">
-                    <motion.span
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="w-2 h-2 rounded-full bg-[var(--accent)]"
-                    />
-                    shielded balance
-                  </p>
-                  <p className="text-lg font-mono font-bold text-[var(--text-primary)]">
-                    {formatBalance(shieldedBalance)} <span className="text-sm text-[var(--text-muted)]">WETH</span>
-                  </p>
-                </div>
-                {shieldedBalance === 0n && onNavigateToShield && (
-                  <GlowButton onClick={onNavigateToShield} variant="primary" size="sm">
-                    Shield First
-                  </GlowButton>
-                )}
-              </div>
-              {shieldedBalance === 0n && (
-                <p className="text-xs text-[var(--warning)] mt-2">
-                  Shield ETH first, wait ~1 hour for POI verification
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Sell Warning */}
       <AnimatePresence>
@@ -1393,17 +1280,17 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           loading={isLoading || isBuyLoading}
           fullWidth
           size="lg"
-          variant={privacyMode === 'anonymous' && direction === 'buy' ? 'primary' : 'primary'}
+          variant="primary"
         >
           <span className="flex items-center justify-center gap-2">
             {isLoading || isBuyLoading ? (
-              buyProgress.step || 'processing...'
+              buyProgress || 'processing...'
             ) : direction === 'buy' ? (
               <>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={privacyMode === 'anonymous' ? "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" : "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                {privacyMode === 'anonymous' ? 'buy_anonymous()' : 'buy_private()'}
+                buy_private()
               </>
             ) : (
               <>
@@ -1432,9 +1319,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
             className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
           />
           {direction === 'buy'
-            ? privacyMode === 'anonymous'
-              ? 'shields to Railgun → buy via relayer → no wallet link'
-              : 'tokens stored as ZK commitments — fully private'
+            ? 'tokens stored as ZK commitments — fully private'
             : 'uses zk proofs — nobody sees what you spend'}
         </p>
       </motion.div>
