@@ -207,7 +207,7 @@ export const SERRA_ESTRELA_ABI = [
   },
 ] as const;
 
-export const WORLD_ID_APP_ID = import.meta.env.VITE_WORLD_ID_APP_ID || 'app_staging_r00t_fund';
+export const WORLD_ID_APP_ID = import.meta.env.VITE_WORLD_ID_APP_ID || 'app_48f9975905cb184e98b13e654cddde87';
 export const WORLD_ID_ACTION = import.meta.env.VITE_WORLD_ID_ACTION || 'create-proposal';
 
 // Default species presets for Serra da Estrela

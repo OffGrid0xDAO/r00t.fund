@@ -48,6 +48,7 @@ const configSchema = z.object({
   worldIdGatekeeperAddress: z.string(),
   worldcoinAppId: z.string(),
   worldcoinActionId: z.string(),
+  worldcoinApiKey: z.string().optional(),
   gasLimit: z.string(),
 })
 
@@ -171,12 +172,17 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
         action: config.worldcoinActionId,
       })
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (config.worldcoinApiKey) {
+        headers['Authorization'] = `Bearer ${config.worldcoinApiKey}`
+      }
+
       const httpResponse = httpClient.sendRequest(runtime, {
         method: 'POST',
         url: verifyUrl,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: verifyBody,
       }).result()
 
