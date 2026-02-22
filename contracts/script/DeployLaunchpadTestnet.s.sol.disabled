@@ -8,8 +8,8 @@ import "../src/LaunchpadGovernance.sol";
 /// @notice Deploy LaunchpadGovernance for testnet
 /// @dev Required environment variables:
 ///      - PRIVATE_KEY: Deployer private key
-///      - ROOT_POOL: Address of $HIDDEN TokenPool (from ZkAMMv3)
-///      - ZK_AMM_V3: Address of ZkAMMv3 contract
+///      - ROOT_POOL: Address of $HIDDEN TokenPool (from ZkAMM)
+///      - ZK_AMM_V3: Address of ZkAMM contract
 ///      - NULLIFIER_REGISTRY: Address of global NullifierRegistry
 ///      - PLATFORM_TREASURY: Address of platform treasury
 ///      - VOTE_VERIFIER: Address of vote proof verifier

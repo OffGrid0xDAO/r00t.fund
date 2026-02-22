@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IR00TShorts.sol";
 
-/// @title IZkAMMv3PairForShorts
-/// @notice Extended interface for shorts integration with ZkAMMv3Pair
-interface IZkAMMv3PairForShorts {
+/// @title IZkAMMPairForShorts
+/// @notice Extended interface for shorts integration with ZkAMMPair
+interface IZkAMMPairForShorts {
     function getReserves() external view returns (uint256 ethReserve, uint256 tokenReserve);
     function MIN_LIQUIDITY() external view returns (uint256);
 
@@ -58,8 +58,8 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
     // ============ Immutables ============
 
-    /// @notice ZkAMMv3Pair contract for actual swaps
-    IZkAMMv3PairForShorts public immutable pair;
+    /// @notice ZkAMMPair contract for actual swaps
+    IZkAMMPairForShorts public immutable pair;
 
     /// @notice ROOT token for shorting
     IERC20 public immutable rootToken;
@@ -99,7 +99,7 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     // ============ Constructor ============
 
     /// @notice Initialize the shorts contract
-    /// @param _pair ZkAMMv3Pair contract address
+    /// @param _pair ZkAMMPair contract address
     /// @param _rootToken ROOT token address
     /// @param _treasury Treasury address for fee collection
     constructor(address _pair, address _rootToken, address _treasury) Ownable(msg.sender) {
@@ -107,7 +107,7 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         if (_rootToken == address(0)) revert ZeroAddress();
         if (_treasury == address(0)) revert ZeroAddress();
 
-        pair = IZkAMMv3PairForShorts(_pair);
+        pair = IZkAMMPairForShorts(_pair);
         rootToken = IERC20(_rootToken);
         treasury = _treasury;
         maxOpenInterestBps = DEFAULT_MAX_OPEN_INTEREST_BPS;

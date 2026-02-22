@@ -1,5 +1,5 @@
-// ZkAMMv3Pair ABI — Key view functions for CRE workflows
-export const ZkAMMv3PairABI = [
+// ZkAMMPair ABI — Key view functions for CRE workflows
+export const ZkAMMPairABI = [
   // Reserve state
   {
     type: "function",

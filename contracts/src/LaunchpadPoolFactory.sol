@@ -8,8 +8,8 @@ import {NullifierRegistry} from "./NullifierRegistry.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @notice Interface for ZkAMMv3 (main pool) for registering project pools
-interface IZkAMMv3Factory {
+/// @notice Interface for ZkAMM (main pool) for registering project pools
+interface IZkAMMFactory {
     function registerProjectPool(address pool) external;
 }
 
@@ -33,8 +33,8 @@ contract LaunchpadPoolFactory {
     /// @notice LaunchpadGovernance contract (only caller allowed)
     address public immutable governance;
 
-    /// @notice Main ZkAMMv3 contract
-    address public zkAMMv3;
+    /// @notice Main ZkAMM contract
+    address public zkAMM;
 
     /// @notice Main R00T token pool
     TokenPool public immutable r00tPool;
@@ -50,10 +50,10 @@ contract LaunchpadPoolFactory {
 
     // ============ Timelock State (SECURITY FIX Vuln 1) ============
 
-    /// @notice Pending ZkAMMv3 address for timelock
-    address public pendingZkAMMv3;
-    /// @notice Timelock expiry for pending ZkAMMv3 change
-    uint256 public zkAMMv3TimelockExpiry;
+    /// @notice Pending ZkAMM address for timelock
+    address public pendingZkAMM;
+    /// @notice Timelock expiry for pending ZkAMM change
+    uint256 public zkAMMTimelockExpiry;
 
     /// @notice Pending NullifierRegistry address for timelock
     address public pendingNullifierRegistry;
@@ -83,9 +83,9 @@ contract LaunchpadPoolFactory {
     );
 
     // Timelock events (SECURITY FIX Vuln 1)
-    event ZkAMMv3ChangeProposed(address indexed current, address indexed pending, uint256 effectiveTime);
-    event ZkAMMv3ChangeCompleted(address indexed previous, address indexed newAddress);
-    event ZkAMMv3ChangeCancelled(address indexed cancelled);
+    event ZkAMMChangeProposed(address indexed current, address indexed pending, uint256 effectiveTime);
+    event ZkAMMChangeCompleted(address indexed previous, address indexed newAddress);
+    event ZkAMMChangeCancelled(address indexed cancelled);
     event NullifierRegistryChangeProposed(address indexed current, address indexed pending, uint256 effectiveTime);
     event NullifierRegistryChangeCompleted(address indexed previous, address indexed newAddress);
     event NullifierRegistryChangeCancelled(address indexed cancelled);
@@ -121,19 +121,19 @@ contract LaunchpadPoolFactory {
 
     constructor(
         address _governance,
-        address _zkAMMv3,
+        address _zkAMM,
         address _r00tPool,
         address _nullifierRegistry,
         address _platformTreasury
     ) {
         if (_governance == address(0)) revert ZeroAddress();
-        if (_zkAMMv3 == address(0)) revert ZeroAddress();
+        if (_zkAMM == address(0)) revert ZeroAddress();
         if (_r00tPool == address(0)) revert ZeroAddress();
         if (_nullifierRegistry == address(0)) revert ZeroAddress();
         if (_platformTreasury == address(0)) revert ZeroAddress();
 
         governance = _governance;
-        zkAMMv3 = _zkAMMv3;
+        zkAMM = _zkAMM;
         r00tPool = TokenPool(_r00tPool);
         nullifierRegistry = NullifierRegistry(_nullifierRegistry);
         platformTreasury = _platformTreasury;
@@ -213,11 +213,11 @@ contract LaunchpadPoolFactory {
         // Step 5: Authorize pool in r00tPool for R00T claims
         r00tPool.setAuthorizedCaller(poolAddress, true);
 
-        // Step 6: Register pool with ZkAMMv3
-        IZkAMMv3Factory(zkAMMv3).registerProjectPool(poolAddress);
+        // Step 6: Register pool with ZkAMM
+        IZkAMMFactory(zkAMM).registerProjectPool(poolAddress);
 
-        // Step 7: Set ZkAMMv3 as authorized atomic swapper
-        pool.setAuthorizedAtomicSwapper(zkAMMv3);
+        // Step 7: Set ZkAMM as authorized atomic swapper
+        pool.setAuthorizedAtomicSwapper(zkAMM);
 
         emit PoolDeployed(
             params.proposalId,
@@ -244,30 +244,30 @@ contract LaunchpadPoolFactory {
 
     // ============ Admin Functions (SECURITY FIX Vuln 1: All require 48h timelock) ============
 
-    // --- ZkAMMv3 timelock ---
-    function proposeZkAMMv3(address _zkAMMv3) external onlyOwner {
-        if (_zkAMMv3 == address(0)) revert ZeroAddress();
-        pendingZkAMMv3 = _zkAMMv3;
-        zkAMMv3TimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
-        emit ZkAMMv3ChangeProposed(zkAMMv3, _zkAMMv3, zkAMMv3TimelockExpiry);
+    // --- ZkAMM timelock ---
+    function proposeZkAMM(address _zkAMM) external onlyOwner {
+        if (_zkAMM == address(0)) revert ZeroAddress();
+        pendingZkAMM = _zkAMM;
+        zkAMMTimelockExpiry = block.timestamp + ADMIN_TIMELOCK;
+        emit ZkAMMChangeProposed(zkAMM, _zkAMM, zkAMMTimelockExpiry);
     }
 
-    function acceptZkAMMv3() external onlyOwner {
-        if (pendingZkAMMv3 == address(0)) revert NoPendingChange();
-        if (block.timestamp < zkAMMv3TimelockExpiry) revert TimelockNotExpired();
-        address previous = zkAMMv3;
-        zkAMMv3 = pendingZkAMMv3;
-        pendingZkAMMv3 = address(0);
-        zkAMMv3TimelockExpiry = 0;
-        emit ZkAMMv3ChangeCompleted(previous, zkAMMv3);
+    function acceptZkAMM() external onlyOwner {
+        if (pendingZkAMM == address(0)) revert NoPendingChange();
+        if (block.timestamp < zkAMMTimelockExpiry) revert TimelockNotExpired();
+        address previous = zkAMM;
+        zkAMM = pendingZkAMM;
+        pendingZkAMM = address(0);
+        zkAMMTimelockExpiry = 0;
+        emit ZkAMMChangeCompleted(previous, zkAMM);
     }
 
-    function cancelZkAMMv3Proposal() external onlyOwner {
-        if (pendingZkAMMv3 == address(0)) revert NoPendingChange();
-        address cancelled = pendingZkAMMv3;
-        pendingZkAMMv3 = address(0);
-        zkAMMv3TimelockExpiry = 0;
-        emit ZkAMMv3ChangeCancelled(cancelled);
+    function cancelZkAMMProposal() external onlyOwner {
+        if (pendingZkAMM == address(0)) revert NoPendingChange();
+        address cancelled = pendingZkAMM;
+        pendingZkAMM = address(0);
+        zkAMMTimelockExpiry = 0;
+        emit ZkAMMChangeCancelled(cancelled);
     }
 
     // --- NullifierRegistry timelock ---

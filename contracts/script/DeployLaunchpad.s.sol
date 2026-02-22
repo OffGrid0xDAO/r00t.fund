@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {LaunchpadGovernanceV2} from "../src/LaunchpadGovernanceV2.sol";
+import {LaunchpadGovernance} from "../src/LaunchpadGovernance.sol";
 import {ProjectTokenFactory} from "../src/factories/ProjectTokenFactory.sol";
 import {ProjectPoolFactory} from "../src/factories/ProjectPoolFactory.sol";
 import {ZkProjectPoolRouter} from "../src/ZkProjectPoolRouter.sol";
@@ -46,9 +46,9 @@ contract DeployLaunchpadScript is Script {
         console.log("\nStep 4: Deploying ProjectTokenFactory...");
         ProjectTokenFactory tokenFactory = new ProjectTokenFactory(deployer);
 
-        // Step 5: Deploy LaunchpadGovernanceV2
-        console.log("\nStep 5: Deploying LaunchpadGovernanceV2...");
-        LaunchpadGovernanceV2 launchpad = new LaunchpadGovernanceV2(
+        // Step 5: Deploy LaunchpadGovernance
+        console.log("\nStep 5: Deploying LaunchpadGovernance...");
+        LaunchpadGovernance launchpad = new LaunchpadGovernance(
             TOKEN_POOL,
             address(tokenFactory),
             address(poolFactory),
@@ -58,7 +58,7 @@ contract DeployLaunchpadScript is Script {
             address(voteVerifier),
             address(pledgeVerifier)
         );
-        console.log("  LaunchpadGovernanceV2:", address(launchpad));
+        console.log("  LaunchpadGovernance:", address(launchpad));
 
         // Step 6: Redeploy TokenFactory with correct governance
         tokenFactory = new ProjectTokenFactory(address(launchpad));
@@ -74,12 +74,12 @@ contract DeployLaunchpadScript is Script {
         console.log("\n========================================");
         console.log("   DEPLOYMENT COMPLETE");
         console.log("========================================\n");
-        console.log("LaunchpadGovernanceV2:", address(launchpad));
+        console.log("LaunchpadGovernance:", address(launchpad));
         console.log("ProjectTokenFactory:", address(tokenFactory));
         console.log("ProjectPoolFactory:", address(poolFactory));
         console.log("ZkProjectPoolRouter:", address(poolRouter));
         console.log("\nMANUAL STEPS:");
-        console.log("1. ZkAMMv3.setLaunchpad(launchpad)");
+        console.log("1. ZkAMM.setLaunchpad(launchpad)");
         console.log("2. NullifierRegistry.setGovernance(launchpad)");
     }
 }

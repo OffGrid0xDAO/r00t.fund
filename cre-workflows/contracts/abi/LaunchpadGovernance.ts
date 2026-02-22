@@ -1,5 +1,5 @@
-// LaunchpadGovernanceV2 ABI — Key functions for CRE workflows
-export const LaunchpadGovernanceV2ABI = [
+// LaunchpadGovernance ABI — Key functions for CRE workflows
+export const LaunchpadGovernanceABI = [
   {
     type: "function",
     name: "proposalCount",

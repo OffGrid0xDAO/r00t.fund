@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, formatUnits, keccak256, toBytes } from 'viem';
+import { IDKitWidget, VerificationLevel, type ISuccessResult } from '@worldcoin/idkit';
 import { ProjectDetailModal } from './ProjectDetailModal';
 import { GlowButton } from './ui/GlowButton';
 import { AnimatedTabs } from './ui/AnimatedTabs';
@@ -54,6 +55,8 @@ interface ProjectsPanelProps {
   }>;
   // Function to fetch all on-chain commitments for merkle tree
   fetchAllOnChainCommitments?: () => Promise<CommitmentsResult>;
+  // World ID Gatekeeper address (optional — if not set, World ID gate is disabled)
+  worldIdGatekeeperAddress?: string;
 }
 
 // Status enum matching contract
@@ -190,6 +193,40 @@ const LAUNCHPAD_ABI = [
     outputs: [{ type: 'uint256' }],
   },
 ] as const;
+
+// World ID Gatekeeper ABI (minimal — only functions we call from frontend)
+const WORLD_ID_GATEKEEPER_ABI = [
+  {
+    name: 'isVerified',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    name: 'requestVerification',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'nullifierHash', type: 'bytes32' },
+      { name: 'merkleRoot', type: 'bytes32' },
+      { name: 'proof', type: 'uint256[8]' },
+      { name: 'verificationLevel', type: 'string' },
+    ],
+    outputs: [{ name: 'requestId', type: 'uint256' }],
+  },
+  {
+    name: 'appId',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+] as const;
+
+// World ID configuration — update with real Worldcoin app credentials
+const WORLD_ID_APP_ID = import.meta.env.VITE_WORLD_ID_APP_ID || 'app_staging_r00t_fund';
+const WORLD_ID_ACTION = import.meta.env.VITE_WORLD_ID_ACTION || 'create-proposal';
 
 type TabType = 'proposals' | 'live' | 'create';
 
@@ -401,6 +438,7 @@ export function ProjectsPanel({
   onTradeProject,
   commitments = [],
   fetchAllOnChainCommitments,
+  worldIdGatekeeperAddress,
 }: ProjectsPanelProps) {
   void _hiddenPoolAddress; // Using CONTRACTS.zkAMMPair instead
   const { isConnected, address } = useAccount();
@@ -412,6 +450,12 @@ export function ProjectsPanel({
   const zkProver = useZkProver();
 
   const [activeTab, setActiveTab] = useState<TabType>('proposals');
+
+  // World ID verification state
+  const [worldIdVerified, setWorldIdVerified] = useState(false);
+  const [worldIdPending, setWorldIdPending] = useState(false);
+  const [worldIdError, setWorldIdError] = useState<string | null>(null);
+  const worldIdEnabled = !!worldIdGatekeeperAddress && worldIdGatekeeperAddress !== '0x0000000000000000000000000000000000000000';
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [liveProjects, setLiveProjects] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -520,6 +564,81 @@ export function ProjectsPanel({
     const interval = window.setInterval(fetchData, 60000); // Reduced from 15s to 60s
     return () => window.clearInterval(interval);
   }, [publicClient, launchpadAddress, isPageVisible]);
+
+  // Check World ID verification status
+  useEffect(() => {
+    if (!publicClient || !address || !worldIdEnabled) return;
+
+    const checkVerification = async () => {
+      try {
+        const verified = await publicClient.readContract({
+          address: worldIdGatekeeperAddress as `0x${string}`,
+          abi: WORLD_ID_GATEKEEPER_ABI,
+          functionName: 'isVerified',
+          args: [address],
+        });
+        setWorldIdVerified(verified as boolean);
+      } catch (err) {
+        console.error('Failed to check World ID status:', err);
+      }
+    };
+
+    checkVerification();
+
+    // Poll while pending
+    if (worldIdPending) {
+      const interval = window.setInterval(checkVerification, 5000);
+      return () => window.clearInterval(interval);
+    }
+  }, [publicClient, address, worldIdGatekeeperAddress, worldIdEnabled, worldIdPending]);
+
+  // Handle successful World ID verification from IDKit
+  const handleWorldIdSuccess = useCallback(async (result: ISuccessResult) => {
+    if (!walletClient || !publicClient || !address || !worldIdEnabled) return;
+
+    setWorldIdPending(true);
+    setWorldIdError(null);
+
+    try {
+      // IDKit returns: merkle_root, nullifier_hash, proof, verification_level
+      const nullifierHash = result.nullifier_hash as `0x${string}`;
+      const merkleRoot = result.merkle_root as `0x${string}`;
+
+      // Parse the proof string into 8 uint256 values
+      // IDKit returns proof as a hex-encoded ABI-packed string
+      const proofStr = result.proof;
+      const proofBigInts: bigint[] = [];
+      // The proof is ABI-encoded as uint256[8]
+      const cleanProof = proofStr.startsWith('0x') ? proofStr.slice(2) : proofStr;
+      for (let i = 0; i < 8; i++) {
+        const chunk = cleanProof.slice(i * 64, (i + 1) * 64);
+        proofBigInts.push(chunk ? BigInt('0x' + chunk) : 0n);
+      }
+      while (proofBigInts.length < 8) proofBigInts.push(0n);
+
+      const proof = proofBigInts.slice(0, 8) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+
+      const verificationLevel = result.verification_level === 'orb' ? 'orb' : 'device';
+
+      // Submit proof on-chain to WorldIDGatekeeper
+      const hash = await walletClient.writeContract({
+        address: worldIdGatekeeperAddress as `0x${string}`,
+        abi: WORLD_ID_GATEKEEPER_ABI,
+        functionName: 'requestVerification',
+        args: [nullifierHash, merkleRoot, proof, verificationLevel],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      // Poll for CRE to process the verification
+      // The useEffect above will pick up the polling
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('World ID submission failed:', error);
+      setWorldIdError(error.message || 'Failed to submit World ID proof');
+      setWorldIdPending(false);
+    }
+  }, [walletClient, publicClient, address, worldIdGatekeeperAddress, worldIdEnabled]);
 
   const handleCreateProposal = async () => {
     if (!walletClient || !publicClient || !address) return;
@@ -960,6 +1079,82 @@ export function ProjectsPanel({
               </motion.div>
             ) : (
               <>
+                {/* World ID Verification Gate */}
+                {worldIdEnabled && !worldIdVerified && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                        style={{ background: 'var(--glow-secondary)', color: 'var(--bg-primary)' }}>
+                        ID
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-[var(--text-primary)]">Verify Your Humanity</h3>
+                        <p className="text-xs text-[var(--text-muted)] font-mono">
+                          // world_id_required
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-[var(--text-secondary)] mb-4">
+                      To create a regeneration proposal, verify you are a unique human via World ID.
+                      This prevents sybil attacks while preserving your privacy.
+                    </p>
+
+                    {worldIdError && (
+                      <div className="p-2 rounded-lg text-xs mb-3"
+                        style={{ background: 'var(--error)', opacity: 0.2, color: 'var(--error)' }}>
+                        {worldIdError}
+                      </div>
+                    )}
+
+                    {worldIdPending ? (
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] font-mono">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                          className="w-4 h-4 border-2 border-current border-t-transparent rounded-full"
+                        />
+                        // awaiting_cre_verification...
+                      </div>
+                    ) : (
+                      <IDKitWidget
+                        app_id={WORLD_ID_APP_ID as `app_${string}`}
+                        action={WORLD_ID_ACTION}
+                        verification_level={VerificationLevel.Orb}
+                        onSuccess={handleWorldIdSuccess}
+                      >
+                        {({ open }: { open: () => void }) => (
+                          <GlowButton onClick={open} variant="primary" size="sm" className="w-full">
+                            verify_with_world_id()
+                          </GlowButton>
+                        )}
+                      </IDKitWidget>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* World ID Verified Badge */}
+                {worldIdEnabled && worldIdVerified && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-3 rounded-lg flex items-center gap-2"
+                    style={{
+                      background: 'var(--success)',
+                      opacity: 0.15,
+                      border: '1px solid var(--success)',
+                    }}
+                  >
+                    <span className="text-sm font-mono" style={{ color: 'var(--success)' }}>
+                      // verified_human
+                    </span>
+                  </motion.div>
+                )}
+
                 {/* Project Name */}
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
                   <p className="text-xs font-mono text-[var(--text-muted)] mb-1.5">
@@ -1136,13 +1331,13 @@ export function ProjectsPanel({
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
                   <GlowButton
                     onClick={handleCreateProposal}
-                    disabled={isLoading || !formData.name || !formData.symbol || !formData.pledgeAmount}
+                    disabled={isLoading || !formData.name || !formData.symbol || !formData.pledgeAmount || (worldIdEnabled && !worldIdVerified)}
                     variant="primary"
                     size="lg"
                     loading={isLoading}
                     className="w-full"
                   >
-                    create_proposal()
+                    {worldIdEnabled && !worldIdVerified ? 'world_id_required()' : 'create_proposal()'}
                   </GlowButton>
                 </motion.div>
 

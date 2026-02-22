@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/ZkAMMv3Router.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMRouter.sol";
+import "../src/ZkAMMAdmin.sol";
 
 /// @title UpgradeRouter
-/// @notice Deploy new ZkAMMv3Router with removeLiquidity reserve update fix and upgrade Admin
+/// @notice Deploy new ZkAMMRouter with removeLiquidity reserve update fix and upgrade Admin
 /// @dev Run: forge script script/UpgradeRouter.s.sol --rpc-url sepolia --broadcast
 /// @dev BUGFIX: removeLiquidityPrivate was calling updateReserves(ethOut, tokensOut, false)
 ///      which INCREASED tokenReserve instead of decreasing it. Now uses two calls:
@@ -22,7 +22,7 @@ contract UpgradeRouterScript is Script {
 
         console.log("");
         console.log("=====================================================");
-        console.log("   Upgrade ZkAMMv3Router (Sepolia)                   ");
+        console.log("   Upgrade ZkAMMRouter (Sepolia)                   ");
         console.log("=====================================================");
         console.log("");
         console.log("Deployer:", deployer);
@@ -30,7 +30,7 @@ contract UpgradeRouterScript is Script {
         console.log("Pair:", pairAddress);
         console.log("");
 
-        ZkAMMv3Admin admin = ZkAMMv3Admin(adminAddress);
+        ZkAMMAdmin admin = ZkAMMAdmin(adminAddress);
         address oldRouter = admin.router();
         console.log("Old Router:", oldRouter);
 
@@ -38,8 +38,8 @@ contract UpgradeRouterScript is Script {
 
         // Step 1: Deploy new Router with tokensOut parameter fix
         console.log("");
-        console.log("Step 1: Deploying new ZkAMMv3Router...");
-        ZkAMMv3Router newRouter = new ZkAMMv3Router(pairAddress, adminAddress);
+        console.log("Step 1: Deploying new ZkAMMRouter...");
+        ZkAMMRouter newRouter = new ZkAMMRouter(pairAddress, adminAddress);
         console.log("  New Router:", address(newRouter));
 
         // Step 2: Propose router upgrade (subject to timelock)

@@ -142,7 +142,7 @@ For each fix:
 
 CONSTRAINTS:
 - Do NOT change ADMIN_TIMELOCK or EMERGENCY_APPROVAL_EXPIRY constants
-- ZkAMMv3Router must stay under 24,576 bytes (EIP-170)
+- ZkAMMRouter must stay under 24,576 bytes (EIP-170)
 - Do NOT modify .sol.bak or .disabled files
 
 Here are the findings:
@@ -166,11 +166,11 @@ ${REVIEW_CONTENT}"
 
     echo ""
     echo -e "${CYAN}[Step 5] Contract sizes:${NC}"
-    (cd contracts && forge build --sizes 2>&1 | grep -E "ZkAMMv3Router|ZkAMMv3Admin|ZkAMMv3Pair|R00TShorts|ZkProjectPoolCore") || true
+    (cd contracts && forge build --sizes 2>&1 | grep -E "ZkAMMRouter|ZkAMMAdmin|ZkAMMPair|R00TShorts|ZkProjectPoolCore") || true
     echo ""
 
     # Check Router size
-    ROUTER_SIZE=$(cd contracts && forge build --sizes 2>&1 | grep "ZkAMMv3Router" | awk '{print $4}' | tr -d ',' || echo "0")
+    ROUTER_SIZE=$(cd contracts && forge build --sizes 2>&1 | grep "ZkAMMRouter" | awk '{print $4}' | tr -d ',' || echo "0")
     if [[ -n "$ROUTER_SIZE" ]] && [[ "$ROUTER_SIZE" -gt 0 ]] && [[ "$ROUTER_SIZE" -gt 24576 ]]; then
         echo -e "${RED}ROUTER EXCEEDS EIP-170 LIMIT (${ROUTER_SIZE} > 24576)!${NC}"
         exit 1

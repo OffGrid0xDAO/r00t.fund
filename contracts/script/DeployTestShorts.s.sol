@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "../src/TestRootToken.sol";
-import "../src/ZkAMMv3Pair.sol";
-import "../src/ZkAMMv3Router.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMPair.sol";
+import "../src/ZkAMMRouter.sol";
+import "../src/ZkAMMAdmin.sol";
 import "../src/R00TShorts.sol";
 
 // Verifiers (reuse existing)
@@ -66,7 +66,7 @@ contract DeployTestShortsScript is Script {
         uint64 currentNonce = vm.getNonce(deployer);
         address predictedAdmin = vm.computeCreateAddress(deployer, currentNonce + 1);
 
-        ZkAMMv3Pair pair = new ZkAMMv3Pair(
+        ZkAMMPair pair = new ZkAMMPair(
             predictedAdmin, // admin will be deployed next
             address(token),
             "tROOT",
@@ -84,7 +84,7 @@ contract DeployTestShortsScript is Script {
         address signer2 = address(uint160(uint256(keccak256("signer2"))));
         address signer3 = address(uint160(uint256(keccak256("signer3"))));
 
-        ZkAMMv3Admin admin = new ZkAMMv3Admin(
+        ZkAMMAdmin admin = new ZkAMMAdmin(
             address(pair),
             address(sellVerifier),
             address(transferVerifier),
@@ -100,7 +100,7 @@ contract DeployTestShortsScript is Script {
         // Step 5: Deploy Router
         console.log("");
         console.log("Step 5: Deploying Router...");
-        ZkAMMv3Router router = new ZkAMMv3Router(address(pair), address(admin));
+        ZkAMMRouter router = new ZkAMMRouter(address(pair), address(admin));
         console.log("  Router:", address(router));
 
         // Step 6: Configure Admin

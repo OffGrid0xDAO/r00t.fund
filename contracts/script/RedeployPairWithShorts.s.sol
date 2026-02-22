@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "../src/RootToken.sol";
-import "../src/ZkAMMv3Pair.sol";
-import "../src/ZkAMMv3Router.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMPair.sol";
+import "../src/ZkAMMRouter.sol";
+import "../src/ZkAMMAdmin.sol";
 import "../src/R00TShorts.sol";
 
 // Core Verifiers
@@ -74,7 +74,7 @@ contract RedeployPairWithShortsScript is Script {
         uint64 adminNonce = vm.getNonce(deployer);
         address predictedPairAddress = vm.computeCreateAddress(deployer, adminNonce + 1);
 
-        ZkAMMv3Admin admin = new ZkAMMv3Admin(
+        ZkAMMAdmin admin = new ZkAMMAdmin(
             predictedPairAddress,
             sellVerifier,
             transferVerifier,
@@ -92,7 +92,7 @@ contract RedeployPairWithShortsScript is Script {
         console.log("");
         console.log("Step 3: Deploying Pair...");
 
-        ZkAMMv3Pair pair = new ZkAMMv3Pair(
+        ZkAMMPair pair = new ZkAMMPair(
             address(admin),
             ROOT_TOKEN,
             "r00t",
@@ -110,7 +110,7 @@ contract RedeployPairWithShortsScript is Script {
         console.log("");
         console.log("Step 4: Deploying Router...");
 
-        ZkAMMv3Router router = new ZkAMMv3Router(
+        ZkAMMRouter router = new ZkAMMRouter(
             address(pair),
             address(admin)
         );

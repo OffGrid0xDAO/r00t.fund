@@ -1,19 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "./interfaces/IZkAMMv3Pair.sol";
+import "./interfaces/IZkAMMPair.sol";
 import "./interfaces/IZkProjectPool.sol";
 import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier} from "./interfaces/IVerifier.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-/// @notice Interface for ZkAMMPair (project token pools)
-interface IZkAMMPair {
-    function r00tReserve() external view returns (uint256);
-    function tokenReserve() external view returns (uint256);
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external view returns (uint256);
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
-}
 
 /// @notice Interface for Railgun proxy
 interface IRailgunProxy {
@@ -26,7 +17,7 @@ interface IRailgunProxy {
 }
 
 /// @notice Interface for Admin contract
-interface IZkAMMv3Admin {
+interface IZkAMMAdmin {
     function owner() external view returns (address);
     function treasury() external view returns (address);
     function launchpad() external view returns (address);
@@ -41,11 +32,11 @@ interface IZkAMMv3Admin {
     function mergeVerifier() external view returns (IMergeVerifier);
 }
 
-/// @title ZkAMMv3Router
+/// @title ZkAMMRouter
 /// @author r00t.fund
-/// @notice Router contract for ZkAMMv3 - handles proof verification and user interactions
-/// @dev Uses ZkAMMv3Pair for state, ZkAMMv3Admin for admin functions. This separation reduces contract size.
-contract ZkAMMv3Router is ReentrancyGuard {
+/// @notice Router contract for ZkAMM - handles proof verification and user interactions
+/// @dev Uses ZkAMMPair for state, ZkAMMAdmin for admin functions. This separation reduces contract size.
+contract ZkAMMRouter is ReentrancyGuard {
     // ============ Constants ============
 
     uint256 public constant FEE_BPS = 100;
@@ -58,8 +49,8 @@ contract ZkAMMv3Router is ReentrancyGuard {
 
     // ============ Immutables ============
 
-    IZkAMMv3Pair public immutable pair;
-    IZkAMMv3Admin public immutable admin;
+    IZkAMMPair public immutable pair;
+    IZkAMMAdmin public immutable admin;
 
     // ============ Project Pool Registry ============
 
@@ -133,8 +124,8 @@ contract ZkAMMv3Router is ReentrancyGuard {
 
     constructor(address _pair, address _admin) {
         if (_pair == address(0) || _admin == address(0)) revert ZeroAddress();
-        pair = IZkAMMv3Pair(_pair);
-        admin = IZkAMMv3Admin(_admin);
+        pair = IZkAMMPair(_pair);
+        admin = IZkAMMAdmin(_admin);
     }
 
     // ============ Buy Functions ============

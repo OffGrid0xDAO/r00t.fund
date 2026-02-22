@@ -2,7 +2,7 @@
  * Workflow 5: Protocol Health Monitor
  * Prize Track: Risk & Compliance ($16k)
  *
- * CRE Workflow that reads extensive on-chain state from ZkAMMv3Pair and R00TShorts
+ * CRE Workflow that reads extensive on-chain state from ZkAMMPair and R00TShorts
  * to compute composite risk scores and push health reports on-chain.
  * Supports automated circuit breaker triggers.
  *
@@ -28,7 +28,7 @@ import {
   zeroAddress,
 } from 'viem'
 import { z } from 'zod'
-import { ZkAMMv3PairABI } from '../contracts/abi/ZkAMMv3Pair'
+import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 import { R00TShortsABI } from '../contracts/abi/R00TShorts'
 import { ProtocolHealthMonitorABI } from '../contracts/abi/ProtocolHealthMonitor'
 
@@ -102,12 +102,12 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
-  // ---- Step 1: Read ZkAMMv3Pair state ----
-  const ethReserve = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMv3PairABI, 'ethReserve')
-  const tokenReserve = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMv3PairABI, 'tokenReserve')
-  const totalLPShares = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMv3PairABI, 'totalLPShares')
-  const protocolFees = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMv3PairABI, 'accumulatedProtocolFees')
-  const lpFees = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMv3PairABI, 'accumulatedLPFees')
+  // ---- Step 1: Read ZkAMMPair state ----
+  const ethReserve = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMPairABI, 'ethReserve')
+  const tokenReserve = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMPairABI, 'tokenReserve')
+  const totalLPShares = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMPairABI, 'totalLPShares')
+  const protocolFees = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMPairABI, 'accumulatedProtocolFees')
+  const lpFees = readUint256(runtime, evmClient, config.zkammPairAddress, ZkAMMPairABI, 'accumulatedLPFees')
 
   // ---- Step 2: Read R00TShorts state ----
   const totalOpenInterest = readUint256(runtime, evmClient, config.r00tShortsAddress, R00TShortsABI, 'totalOpenInterest')

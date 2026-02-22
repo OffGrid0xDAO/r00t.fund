@@ -74,10 +74,10 @@ contract ConfidentialFundingVault is R00tCREReceiver {
     /// @notice Count of projects registered in Portuguese MVC
     uint256 public ptMvcProjectCount;
 
-    /// @notice LaunchpadGovernanceV2 address
+    /// @notice LaunchpadGovernance address
     address public governance;
 
-    /// @notice ZkAMMv3Pair address (for commitment insertion)
+    /// @notice ZkAMMPair address (for commitment insertion)
     address public zkAMMPair;
 
     // ============ Events ============
@@ -135,7 +135,7 @@ contract ConfidentialFundingVault is R00tCREReceiver {
     // ============ CRE Callback ============
 
     /// @notice Receive an environmental impact attestation from the CRE DON
-    /// @param proposalId LaunchpadGovernanceV2 proposal ID
+    /// @param proposalId LaunchpadGovernance proposal ID
     /// @param impactScore Verified environmental impact score (0-1000)
     /// @param attestationHash Hash of the encrypted attestation data
     /// @param encryptedAttestation Encrypted environmental attestation (from ConfidentialHTTPClient)

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "./interfaces/IZkAMMv3Pair.sol";
+import "./interfaces/IZkAMMPair.sol";
 import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier} from "./interfaces/IVerifier.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title ZkAMMv3Admin
+/// @title ZkAMMAdmin
 /// @author r00t.fund
-/// @notice Admin, timelock, and emergency functions for ZkAMMv3
+/// @notice Admin, timelock, and emergency functions for ZkAMM
 /// @dev Separated from Router to reduce contract size below 24KB limit
-contract ZkAMMv3Admin is ReentrancyGuard {
+contract ZkAMMAdmin is ReentrancyGuard {
     // ============ Constants ============
 
     uint256 public constant ADMIN_TIMELOCK = 1 minutes; // TESTNET: Changed from 48 hours for testing
@@ -17,7 +17,7 @@ contract ZkAMMv3Admin is ReentrancyGuard {
 
     // ============ Immutables ============
 
-    IZkAMMv3Pair public immutable pair;
+    IZkAMMPair public immutable pair;
 
     // ============ Router (set after deployment) ============
 
@@ -168,7 +168,7 @@ contract ZkAMMv3Admin is ReentrancyGuard {
         if (_emergencySigner0 == address(0) || _emergencySigner1 == address(0) || _emergencySigner2 == address(0)) revert ZeroAddress();
         if (_emergencySigner0 == _emergencySigner1 || _emergencySigner1 == _emergencySigner2 || _emergencySigner0 == _emergencySigner2) revert InvalidProof();
 
-        pair = IZkAMMv3Pair(_pair);
+        pair = IZkAMMPair(_pair);
 
         sellVerifier = ISellVerifier(_sellVerifier);
         transferVerifier = ITransferVerifier(_transferVerifier);

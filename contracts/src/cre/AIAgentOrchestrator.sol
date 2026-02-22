@@ -118,7 +118,7 @@ contract AIAgentOrchestrator is R00tCREReceiver {
     }
 
     /// @notice Receive a governance advisory from the CRE DON
-    /// @param proposalId LaunchpadGovernanceV2 proposal ID
+    /// @param proposalId LaunchpadGovernance proposal ID
     /// @param recommendation Vote recommendation (0-2)
     /// @param confidence Confidence level (0-10000)
     /// @param reasoningHash Hash of reasoning text

@@ -257,14 +257,14 @@ contract ZkProjectPoolImpl is ReentrancyGuard, Initializable {
         return (amountIn * reserveOut) / (reserveIn + amountIn);
     }
 
-    // ============ Atomic Swap (from ZkAMMv3) ============
-    /// @notice Receive R00T atomically from ZkAMMv3 (no proof required - trusted call)
-    /// @dev SECURITY NOTE: This function trusts that the authorizedAtomicSwapper (ZkAMMv3) has:
+    // ============ Atomic Swap (from ZkAMM) ============
+    /// @notice Receive R00T atomically from ZkAMM (no proof required - trusted call)
+    /// @dev SECURITY NOTE: This function trusts that the authorizedAtomicSwapper (ZkAMM) has:
     ///      1. Verified a valid ZK proof for the R00T commitment being spent
     ///      2. Marked the nullifier in its local r00tNullifiers mapping
     ///      3. Updated its own ethReserve to reflect the R00T spent
-    ///      The r00tAmount parameter is trusted because only ZkAMMv3 can call this function,
-    ///      and ZkAMMv3 calculates it from verified ZK proof public inputs.
+    ///      The r00tAmount parameter is trusted because only ZkAMM can call this function,
+    ///      and ZkAMM calculates it from verified ZK proof public inputs.
     ///      SECURITY FIX (Vuln 3): Added additional logging for off-chain monitoring
     function atomicSwapFromR00T(
         uint256 r00tAmount,
@@ -981,7 +981,7 @@ contract ZkProjectPoolImpl is ReentrancyGuard, Initializable {
     }
 
     // ============ Admin Functions ============
-    /// @notice Set the authorized atomic swapper (ZkAMMv3) - can only be set once
+    /// @notice Set the authorized atomic swapper (ZkAMM) - can only be set once
     /// @dev SECURITY FIX (Vuln 2): Only callable by governance, and only once.
     ///      Once set, the atomic swapper cannot be changed to prevent compromised governance
     ///      from redirecting atomic swaps to a malicious contract.

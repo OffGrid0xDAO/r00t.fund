@@ -236,7 +236,7 @@ contract ZkProjectPoolRouter is ReentrancyGuard {
     // ============ Atomic Swap Functions ============
 
     /// @notice Perform atomic swap from R00T to project token
-    /// @dev Only callable by the authorized atomic swapper (ZkAMMv3)
+    /// @dev Only callable by the authorized atomic swapper (ZkAMM)
     /// @param pool The ZkProjectPoolCore address
     /// @param r00tAmount Amount of R00T being swapped
     /// @param r00tNullifier Nullifier for the R00T commitment
@@ -307,7 +307,7 @@ contract ZkProjectPoolRouter is ReentrancyGuard {
 
     /// @notice Set authorized atomic swapper on a pool (governance only)
     /// @param pool The ZkProjectPoolCore address
-    /// @param swapper The authorized swapper address (ZkAMMv3)
+    /// @param swapper The authorized swapper address (ZkAMM)
     function setAuthorizedAtomicSwapper(address pool, address swapper) external {
         if (pool == address(0)) revert ZeroAddress();
         if (msg.sender != IZkProjectPoolCore(pool).governance()) revert Unauthorized();

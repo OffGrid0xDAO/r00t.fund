@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "../src/RootToken.sol";
-import "../src/ZkAMMv3Pair.sol";
-import "../src/ZkAMMv3Router.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMPair.sol";
+import "../src/ZkAMMRouter.sol";
+import "../src/ZkAMMAdmin.sol";
 import "../src/NullifierRegistry.sol";
 import "../src/R00TShorts.sol";
 
@@ -24,7 +24,7 @@ import "../src/verifiers/RealVoteVerifier.sol";
 import "../src/verifiers/RealPledgeVerifier.sol";
 
 // Launchpad
-import "../src/LaunchpadGovernanceV2.sol";
+import "../src/LaunchpadGovernance.sol";
 import "../src/factories/ProjectTokenFactory.sol";
 import "../src/factories/ProjectPoolFactory.sol";
 import "../src/ZkProjectPoolRouter.sol";
@@ -38,6 +38,7 @@ import "../src/cre/AIAgentOrchestrator.sol";
 import "../src/cre/RegenPredictionMarket.sol";
 import "../src/cre/ProtocolHealthMonitor.sol";
 import "../src/cre/SerraEstrelaNativeForest.sol";
+import "../src/cre/WorldIDGatekeeper.sol";
 
 /// @title DeployTenderlyVNet
 /// @notice Full system + CRE deployment to Tenderly Virtual TestNet
@@ -45,7 +46,7 @@ import "../src/cre/SerraEstrelaNativeForest.sol";
 ///   Phase 1: Core ZkAMM system (token, verifiers, admin, pair, router)
 ///   Phase 2: Launchpad (governance, factories, pool router)
 ///   Phase 3: R00TShorts
-///   Phase 4: All 7 CRE workflow contracts
+///   Phase 4: All 8 CRE workflow contracts
 ///   Phase 5: Wire CRE contracts into core system (authorize callbacks)
 ///
 /// Usage:
@@ -111,7 +112,7 @@ contract DeployTenderlyVNetScript is Script {
         uint64 adminNonce = vm.getNonce(deployer);
         address predictedPairAddress = vm.computeCreateAddress(deployer, adminNonce + 1);
 
-        ZkAMMv3Admin admin = new ZkAMMv3Admin(
+        ZkAMMAdmin admin = new ZkAMMAdmin(
             predictedPairAddress,
             sellVerifier,
             transferVerifier,
@@ -125,7 +126,7 @@ contract DeployTenderlyVNetScript is Script {
 
         // Step 5: Pair
         console.log("Step 5: Deploying Pair...");
-        ZkAMMv3Pair pair = new ZkAMMv3Pair(
+        ZkAMMPair pair = new ZkAMMPair(
             address(admin),
             address(rootToken),
             "r00t",
@@ -136,7 +137,7 @@ contract DeployTenderlyVNetScript is Script {
 
         // Step 6: Router
         console.log("Step 6: Deploying Router...");
-        ZkAMMv3Router router = new ZkAMMv3Router(
+        ZkAMMRouter router = new ZkAMMRouter(
             address(pair),
             address(admin)
         );
@@ -177,7 +178,7 @@ contract DeployTenderlyVNetScript is Script {
         ProjectPoolFactory poolFactory = new ProjectPoolFactory(address(poolRouter));
         ProjectTokenFactory tempTokenFactory = new ProjectTokenFactory(deployer);
 
-        LaunchpadGovernanceV2 launchpad = new LaunchpadGovernanceV2(
+        LaunchpadGovernance launchpad = new LaunchpadGovernance(
             address(pair.tokenPool()),
             address(tempTokenFactory),
             address(poolFactory),
@@ -192,7 +193,7 @@ contract DeployTenderlyVNetScript is Script {
         launchpad.setTokenFactory(address(tokenFactory));
         poolFactory.setGovernanceInitial(address(launchpad));
         admin.setLaunchpadInitial(address(launchpad));
-        console.log("  LaunchpadGovernanceV2:", address(launchpad));
+        console.log("  LaunchpadGovernance:", address(launchpad));
 
         // ==========================================
         // PHASE 3: R00TShorts
@@ -263,6 +264,13 @@ contract DeployTenderlyVNetScript is Script {
         );
         console.log("  SerraEstrelaNativeForest:", address(serraDaEstrela));
 
+        // W8: WorldIDGatekeeper
+        console.log("Deploying W8: WorldIDGatekeeper...");
+        WorldIDGatekeeper worldIdGatekeeper = new WorldIDGatekeeper(
+            donForwarder, deployer, "app_staging_r00t_fund"
+        );
+        console.log("  WorldIDGatekeeper:", address(worldIdGatekeeper));
+
         // ==========================================
         // PHASE 5: Wire CRE into Core System
         // ==========================================
@@ -276,6 +284,10 @@ contract DeployTenderlyVNetScript is Script {
         // Set health monitor on admin (no timelock needed)
         admin.setHealthMonitor(address(healthMonitor));
         console.log("  ProtocolHealthMonitor set on Admin");
+
+        // Set World ID gatekeeper on launchpad (initial setup — no timelock)
+        launchpad.setWorldIdGatekeeper(address(worldIdGatekeeper));
+        console.log("  WorldIDGatekeeper set on LaunchpadGovernance");
 
         console.log("");
         console.log("  NOTE: CRE callback authorization requires timelock.");
@@ -317,6 +329,7 @@ contract DeployTenderlyVNetScript is Script {
         console.log("  W6 PolicyEngine:         ", address(policyEngine));
         console.log("  W6 CompliantVault:        ", address(vault));
         console.log("  W7 SerraEstrelaDataFeed: ", address(serraDaEstrela));
+        console.log("  W8 WorldIDGatekeeper:    ", address(worldIdGatekeeper));
         console.log("");
         console.log("DON Forwarder (test):      ", donForwarder);
         console.log("");

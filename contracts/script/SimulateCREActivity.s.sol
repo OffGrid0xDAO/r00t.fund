@@ -91,7 +91,20 @@ interface ICompliantPrivateVault {
     function getVaultStats() external view returns (uint256, uint256, uint256, uint256, uint256, uint256);
 }
 
-interface IZkAMMv3Pair {
+interface IWorldIDGatekeeper {
+    function requestVerification(
+        bytes32 nullifierHash, bytes32 merkleRoot,
+        uint256[8] calldata proof, string calldata verificationLevel
+    ) external returns (uint256);
+    function receiveVerificationResult(
+        uint256 requestId, bool verified, string calldata reason
+    ) external;
+    function isVerified(address user) external view returns (bool);
+    function totalVerified() external view returns (uint256);
+    function totalPending() external view returns (uint256);
+}
+
+interface IZkAMMPair {
     function ethReserve() external view returns (uint256);
     function tokenReserve() external view returns (uint256);
 }
@@ -111,6 +124,7 @@ contract SimulateCREActivityScript is Script {
         address policyEngine = vm.envAddress("R00T_POLICY_ENGINE_ADDRESS");
         address compliantVault = vm.envAddress("COMPLIANT_PRIVATE_VAULT_ADDRESS");
         address zkammPair = vm.envAddress("ZKAMM_PAIR_ADDRESS");
+        address worldIdGatekeeper = vm.envAddress("WORLD_ID_GATEKEEPER_ADDRESS");
 
         console.log("");
         console.log("==========================================================");
@@ -444,6 +458,63 @@ contract SimulateCREActivityScript is Script {
         console.log("  Bet: 0.003 ETH on NO for >50 carbon credits");
 
         // ==========================================
+        // W8: World ID Verification -- 6 transactions
+        // Simulates sybil-resistant identity verification
+        // ==========================================
+        console.log("");
+        console.log("--- W8: World ID Verification ---");
+
+        IWorldIDGatekeeper wid = IWorldIDGatekeeper(worldIdGatekeeper);
+
+        // Verification request 1: Deployer verifies as human
+        uint256[8] memory worldIdProof1;
+        worldIdProof1[0] = uint256(keccak256("worldid_proof_element_0"));
+        worldIdProof1[1] = uint256(keccak256("worldid_proof_element_1"));
+        bytes32 nullifier1 = keccak256(abi.encodePacked(deployer, "worldid_nullifier_1"));
+        bytes32 root1 = keccak256(abi.encodePacked("worldid_merkle_root_1"));
+        uint256 reqId1_wid = wid.requestVerification(nullifier1, root1, worldIdProof1, "orb");
+        txCount++;
+        console.log("  Request 1: Deployer requests orb verification");
+
+        // CRE verifies and approves
+        wid.receiveVerificationResult(reqId1_wid, true, "World ID proof verified via Worldcoin cloud API");
+        txCount++;
+        console.log("  Result 1: VERIFIED (orb level)");
+
+        // Verification request 2: Another user
+        bytes32 nullifier2_wid = keccak256(abi.encodePacked(address(0xBEEF), "worldid_nullifier_2"));
+        bytes32 root2_wid = keccak256(abi.encodePacked("worldid_merkle_root_2"));
+        uint256[8] memory worldIdProof2;
+        worldIdProof2[0] = uint256(keccak256("worldid_proof_2_element_0"));
+        uint256 reqId2_wid = wid.requestVerification(nullifier2_wid, root2_wid, worldIdProof2, "device");
+        txCount++;
+        console.log("  Request 2: User requests device verification");
+
+        // CRE verifies — device level approved
+        wid.receiveVerificationResult(reqId2_wid, true, "Device-level verification confirmed");
+        txCount++;
+        console.log("  Result 2: VERIFIED (device level)");
+
+        // Verification request 3: Suspicious user — rejected
+        bytes32 nullifier3_wid = keccak256(abi.encodePacked(address(0xDEAD), "worldid_nullifier_3"));
+        bytes32 root3_wid = keccak256(abi.encodePacked("worldid_merkle_root_3"));
+        uint256[8] memory worldIdProof3;
+        uint256 reqId3_wid = wid.requestVerification(nullifier3_wid, root3_wid, worldIdProof3, "orb");
+        txCount++;
+        console.log("  Request 3: User requests orb verification");
+
+        // CRE rejects — invalid proof
+        wid.receiveVerificationResult(reqId3_wid, false, "Invalid World ID proof: merkle root not found");
+        txCount++;
+        console.log("  Result 3: REJECTED (invalid proof)");
+
+        // Check verification status
+        bool deployerVerified = wid.isVerified(deployer);
+        uint256 totalVerifiedCount = wid.totalVerified();
+        console.log("  Deployer verified:", deployerVerified ? "true" : "false");
+        console.log("  Total verified humans:", totalVerifiedCount);
+
+        // ==========================================
         // Extra: Additional compliance deposits
         // ==========================================
         console.log("");
@@ -486,8 +557,9 @@ contract SimulateCREActivityScript is Script {
         console.log("  W1 Funding Vault:        5 attestations");
         console.log("  W6 Compliance (ACE):    16 policies + attestations + deposits");
         console.log("  W4 Prediction Markets:   8 markets + bets");
+        console.log("  W8 World ID:             6 verification requests + results");
         console.log("  -----------------------------------------");
-        console.log("  TOTAL:                  57 transactions");
+        console.log("  TOTAL:                  63 transactions");
         console.log("");
         console.log("Explorer: https://dashboard.tenderly.co/manifestordao/manifestordao/testnet/596dfbfb-e22d-4186-b982-33682540383d");
         console.log("");

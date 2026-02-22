@@ -16,7 +16,7 @@ contract MockToken is ERC20 {
     }
 }
 
-/// @notice Mock ZkAMMv3Pair for testing with REAL token swaps
+/// @notice Mock ZkAMMPair for testing with REAL token swaps
 contract MockPair {
     uint256 public ethReserve;
     uint256 public tokenReserve;

@@ -2,16 +2,28 @@
 # CRE PROJECT SETTINGS FILE -- r00t.fund
 # ==========================================================================
 # Chainlink CRE workflows for regenerative finance protocol
-# 7 workflows: Privacy, DeFi/PoR, AI, Prediction Markets, Risk, Compliance, Data Feed
+# 8 workflows: Privacy, DeFi/PoR, AI, Prediction Markets, Risk, Compliance, Data Feed, World ID
 
 # ==========================================================================
 staging-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
+      url: https://eth-sepolia.g.alchemy.com/v2/EwUWHgcUazqY-WR9tRe46
+    - chain-name: ethereum-mainnet
+      url: https://ethereum-rpc.publicnode.com
+
+# ==========================================================================
+tenderly-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
       url: https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1
+    - chain-name: ethereum-mainnet
+      url: https://ethereum-rpc.publicnode.com
 
 # ==========================================================================
 production-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
-      url: https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1
+      url: https://eth-sepolia.g.alchemy.com/v2/EwUWHgcUazqY-WR9tRe46
+    - chain-name: ethereum-mainnet
+      url: https://ethereum-rpc.publicnode.com

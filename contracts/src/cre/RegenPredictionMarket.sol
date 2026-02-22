@@ -7,7 +7,7 @@ import "./R00tCREReceiver.sol";
 /// @author r00t.fund
 /// @notice CRE-settled prediction markets for environmental milestones (Workflow 4)
 /// @dev Prize Track: Prediction Markets ($16k)
-///      Users create markets tied to LaunchpadGovernanceV2 proposals. Markets resolve
+///      Users create markets tied to LaunchpadGovernance proposals. Markets resolve
 ///      when the CRE DON fetches environmental outcome data from external APIs.
 ///      Uses constant product pricing for shares.
 contract RegenPredictionMarket is R00tCREReceiver {
@@ -19,7 +19,7 @@ contract RegenPredictionMarket is R00tCREReceiver {
     // ============ Structs ============
 
     struct Market {
-        uint256 proposalId;          // Linked LaunchpadGovernanceV2 proposal
+        uint256 proposalId;          // Linked LaunchpadGovernance proposal
         string metric;               // Environmental metric (e.g., "carbon_offset_tonnes")
         uint256 targetValue;         // Target value for positive outcome
         uint256 resolutionTime;      // Earliest time market can be resolved
@@ -124,7 +124,7 @@ contract RegenPredictionMarket is R00tCREReceiver {
     // ============ Market Functions ============
 
     /// @notice Create a new prediction market
-    /// @param proposalId LaunchpadGovernanceV2 proposal this market is linked to
+    /// @param proposalId LaunchpadGovernance proposal this market is linked to
     /// @param metric Environmental metric to track
     /// @param targetValue Target value for positive outcome
     /// @param resolutionTime Earliest time the market can be resolved

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 520" width="940" height="520" font-family="'Inter','Segoe UI',Arial,sans-serif">
+  <defs>
+    <marker id="aB" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,4 L0,8Z" fill="#375BD2"/></marker>
+    <marker id="aG" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,4 L0,8Z" fill="#94A3B8"/></marker>
+    <filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.08"/></filter>
+  </defs>
+
+  <rect width="940" height="520" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+
+  <!-- Header -->
+  <path d="M12,0 H928 Q940,0 940,12 V60 H0 V12 Q0,0 12,0Z" fill="#375BD2"/>
+  <g transform="translate(24,14)"><polygon points="16,0 29,7.5 29,24.5 16,32 3,24.5 3,7.5" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><polygon points="16,9 22,12.5 22,19.5 16,23 10,19.5 10,12.5" fill="#fff"/></g>
+  <text x="64" y="25" fill="#A5B4FC" font-size="10" font-weight="700" letter-spacing="2">CHAINLINK CRE</text>
+  <text x="64" y="46" fill="#fff" font-size="17" font-weight="700">Workflow 2 — Proof of Reserve</text>
+
+  <!-- STEP 1: Cron Trigger -->
+  <rect x="50" y="90" width="180" height="50" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="2" filter="url(#s)"/>
+  <text x="140" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#92400E">① Cron Trigger</text>
+  <text x="140" y="128" text-anchor="middle" font-size="10" fill="#78716C">Every 60 seconds</text>
+
+  <line x1="140" y1="140" x2="140" y2="170" stroke="#375BD2" stroke-width="2" marker-end="url(#aB)"/>
+
+  <!-- STEP 2: EVM Read -->
+  <rect x="50" y="175" width="180" height="50" rx="10" fill="#D1FAE5" stroke="#059669" stroke-width="2" filter="url(#s)"/>
+  <text x="140" y="197" text-anchor="middle" font-size="13" font-weight="700" fill="#065F46">② EVM Read</text>
+  <text x="140" y="213" text-anchor="middle" font-size="10" fill="#78716C">getReserves() · totalShorted()</text>
+  <line x1="230" y1="200" x2="593" y2="200" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#aG)"/>
+  <rect x="600" y="175" width="290" height="50" rx="10" fill="#F0FDF4" stroke="#059669" stroke-width="1.5" stroke-dasharray="6,4" filter="url(#s)"/>
+  <text x="745" y="197" text-anchor="middle" font-size="12" font-weight="600" fill="#065F46">ZkAMMPair · R00TShorts</text>
+  <text x="745" y="213" text-anchor="middle" font-size="10" fill="#78716C">ethereum-sepolia</text>
+
+  <line x1="140" y1="225" x2="140" y2="255" stroke="#375BD2" stroke-width="2" marker-end="url(#aB)"/>
+
+  <!-- STEP 3: HTTP Request -->
+  <rect x="50" y="260" width="180" height="50" rx="10" fill="#FFEDD5" stroke="#EA580C" stroke-width="2" filter="url(#s)"/>
+  <text x="140" y="282" text-anchor="middle" font-size="13" font-weight="700" fill="#9A3412">③ HTTP Request</text>
+  <text x="140" y="298" text-anchor="middle" font-size="10" fill="#78716C">Carbon Credit Prices</text>
+  <line x1="230" y1="285" x2="593" y2="285" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#aG)"/>
+  <rect x="600" y="260" width="290" height="50" rx="10" fill="#FFF7ED" stroke="#EA580C" stroke-width="1.5" stroke-dasharray="6,4" filter="url(#s)"/>
+  <text x="745" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#9A3412">CarbonMark API</text>
+  <text x="745" y="298" text-anchor="middle" font-size="10" fill="#78716C">REST API</text>
+
+  <line x1="140" y1="310" x2="140" y2="340" stroke="#375BD2" stroke-width="2" marker-end="url(#aB)"/>
+
+  <!-- STEP 4: Compute -->
+  <rect x="50" y="345" width="180" height="50" rx="10" fill="#E0E7FF" stroke="#4F46E5" stroke-width="2" filter="url(#s)"/>
+  <text x="140" y="367" text-anchor="middle" font-size="13" font-weight="700" fill="#3730A3">④ Off-Chain Compute</text>
+  <text x="140" y="383" text-anchor="middle" font-size="10" fill="#78716C">TVL · Backing Ratio · Short Exp.</text>
+
+  <line x1="140" y1="395" x2="140" y2="425" stroke="#375BD2" stroke-width="2" marker-end="url(#aB)"/>
+
+  <!-- STEP 5: EVM Write -->
+  <rect x="50" y="430" width="180" height="50" rx="10" fill="#D1FAE5" stroke="#059669" stroke-width="2" filter="url(#s)"/>
+  <text x="140" y="452" text-anchor="middle" font-size="13" font-weight="700" fill="#065F46">⑤ EVM Write</text>
+  <text x="140" y="468" text-anchor="middle" font-size="10" fill="#78716C">receivePoRReport()</text>
+  <line x1="230" y1="455" x2="593" y2="455" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#aG)"/>
+  <rect x="600" y="430" width="290" height="50" rx="10" fill="#F0FDF4" stroke="#059669" stroke-width="1.5" stroke-dasharray="6,4" filter="url(#s)"/>
+  <text x="745" y="452" text-anchor="middle" font-size="12" font-weight="600" fill="#065F46">RegenProofOfReserve</text>
+  <text x="745" y="468" text-anchor="middle" font-size="10" fill="#78716C">ethereum-sepolia</text>
+</svg>

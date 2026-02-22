@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/ZkAMMv3Router.sol";
+import "../src/ZkAMMRouter.sol";
 
 contract BootstrapLiquidityScript is Script {
     function run() external {
@@ -18,7 +18,7 @@ contract BootstrapLiquidityScript is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        ZkAMMv3Router(router).bootstrapLiquidity{value: 1 ether}(
+        ZkAMMRouter(router).bootstrapLiquidity{value: 1 ether}(
             lpCommitment,
             0,  // minLPShares
             block.timestamp + 1 hours,

@@ -3,11 +3,11 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "../src/R00TShorts.sol";
-import "../src/ZkAMMv3Pair.sol";
+import "../src/ZkAMMPair.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title DeployR00TShorts
-/// @notice Deploy R00TShorts contract to Sepolia and connect with existing ZkAMMv3
+/// @notice Deploy R00TShorts contract to Sepolia and connect with existing ZkAMM
 /// @dev After deployment:
 ///   1. Shorts contract is deployed
 ///   2. Admin sets shorts contract on pair

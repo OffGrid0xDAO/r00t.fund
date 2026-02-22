@@ -12,7 +12,7 @@
  * - SENDECO2 -- Spanish/Portuguese carbon credit marketplace
  *
  * The workflow:
- * 1. Reads executed proposals from LaunchpadGovernanceV2
+ * 1. Reads executed proposals from LaunchpadGovernance
  * 2. Queries carbon registries via HTTPClient
  * 3. Cross-references project data across multiple registries
  * 4. Verifies EU MRV (Measurement, Reporting, Verification) compliance
@@ -47,7 +47,7 @@ import {
   toHex,
 } from 'viem'
 import { z } from 'zod'
-import { LaunchpadGovernanceV2ABI } from '../contracts/abi/LaunchpadGovernanceV2'
+import { LaunchpadGovernanceABI } from '../contracts/abi/LaunchpadGovernance'
 import { ConfidentialFundingVaultABI } from '../contracts/abi/ConfidentialFundingVault'
 
 // ============ Config Schema ============
@@ -149,9 +149,9 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
   const httpCapability = new cre.capabilities.HTTPClient()
 
-  // ---- Step 1: Read proposal count from LaunchpadGovernanceV2 ----
+  // ---- Step 1: Read proposal count from LaunchpadGovernance ----
   const proposalCountCallData = encodeFunctionData({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'proposalCount',
   })
 
@@ -165,7 +165,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   }).result()
 
   const proposalCount = decodeFunctionResult({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'proposalCount',
     data: bytesToHex(proposalCountResult.data),
   }) as bigint
@@ -186,7 +186,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 
   // ---- Step 2: Read proposal details ----
   const getProposalCallData = encodeFunctionData({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'getProposal',
     args: [BigInt(latestProposalId)],
   })
@@ -201,7 +201,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   }).result()
 
   const proposal = decodeFunctionResult({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'getProposal',
     data: bytesToHex(proposalResult.data),
   }) as readonly [string, bigint, string, string, string, bigint, bigint, bigint, number]

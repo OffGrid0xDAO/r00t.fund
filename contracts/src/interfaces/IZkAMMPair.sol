@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title IZkAMMv3Pair
-/// @notice Interface for ZkAMMv3Pair contract
-interface IZkAMMv3Pair {
+/// @title IZkAMMPair
+/// @notice Interface for ZkAMMPair contract
+interface IZkAMMPair {
     // ============ State Modification Functions (Router Only) ============
 
     function updateReserves(uint256 ethDelta, uint256 tokenDelta, bool isEthIn) external;

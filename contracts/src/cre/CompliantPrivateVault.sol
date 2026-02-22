@@ -85,7 +85,7 @@ contract CompliantPrivateVault is R00tCREReceiver {
     /// @notice R00tPolicyEngine address
     R00tPolicyEngine public policyEngine;
 
-    /// @notice ZkAMMv3Pair address (for commitment insertion)
+    /// @notice ZkAMMPair address (for commitment insertion)
     address public zkAMMPair;
 
     /// @notice Total ETH held for pending deposits
@@ -172,7 +172,7 @@ contract CompliantPrivateVault is R00tCREReceiver {
 
     /// @notice Request a compliant private deposit (ETH → ZK commitment)
     /// @dev User sends ETH which is held in escrow until CRE authorizes the transfer.
-    ///      The commitment will be inserted into ZkAMMv3Pair's Merkle tree if approved.
+    ///      The commitment will be inserted into ZkAMMPair's Merkle tree if approved.
     /// @param commitment Poseidon commitment hash = hash(nullifier, secret, amount)
     /// @param addressHash User's privacy-preserving address hash = keccak256(address, salt)
     /// @param encryptedNote Encrypted note containing (nullifier, secret, amount)
@@ -297,7 +297,7 @@ contract CompliantPrivateVault is R00tCREReceiver {
         _recordReport();
         req.status = RequestStatus.AUTHORIZED;
 
-        // Insert commitment into ZkAMMv3Pair Merkle tree
+        // Insert commitment into ZkAMMPair Merkle tree
         uint256 leafIndex = _insertCommitment(req.commitment, req.encryptedNote);
 
         // Update accounting
@@ -447,13 +447,13 @@ contract CompliantPrivateVault is R00tCREReceiver {
 
     // ============ Internal Functions ============
 
-    /// @notice Insert commitment into ZkAMMv3Pair via insertCommitmentFromCRE
+    /// @notice Insert commitment into ZkAMMPair via insertCommitmentFromCRE
     function _insertCommitment(
         uint256 commitment,
         bytes memory encryptedNote
     ) internal returns (uint256 leafIndex) {
-        // Call ZkAMMv3Pair.insertCommitmentFromCRE()
-        // This contract must be authorized as a CRE callback in ZkAMMv3Admin
+        // Call ZkAMMPair.insertCommitmentFromCRE()
+        // This contract must be authorized as a CRE callback in ZkAMMAdmin
         (bool success, bytes memory result) = zkAMMPair.call(
             abi.encodeWithSignature(
                 "insertCommitmentFromCRE(uint256,bytes)",

@@ -1,7 +1,7 @@
 // CRE Workflow Contract ABIs
-export { ZkAMMv3PairABI } from "./ZkAMMv3Pair"
+export { ZkAMMPairABI } from "./ZkAMMPair"
 export { R00TShortsABI } from "./R00TShorts"
-export { LaunchpadGovernanceV2ABI } from "./LaunchpadGovernanceV2"
+export { LaunchpadGovernanceABI } from "./LaunchpadGovernance"
 export { RootTokenABI } from "./RootToken"
 
 // CRE Callback Contract ABIs
@@ -17,3 +17,6 @@ export { CompliantPrivateVaultABI } from "./CompliantPrivateVault"
 
 // Serra da Estrela Native Forest Restoration Data Feed
 export { SerraEstrelaNativeForestABI } from "./SerraEstrelaNativeForest"
+
+// World ID Verification (CRE-powered)
+export { WorldIDGatekeeperABI } from "./WorldIDGatekeeper"

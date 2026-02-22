@@ -412,7 +412,7 @@ export function DocsPage({ onClose }: DocsPageProps) {
                 {/* Contract diagram */}
                 <CodeBlock>
                   <Cm>{'// Contract Relationships'}</Cm>{'\n\n'}
-                  <Tx>{'ZkAMMv3Admin'}</Tx>  <Mu>{'──── manages ────▶'}</Mu>  <Tx>{'ZkAMMv3Pair'}</Tx>{'\n'}
+                  <Tx>{'ZkAMMAdmin'}</Tx>  <Mu>{'──── manages ────▶'}</Mu>  <Tx>{'ZkAMMPair'}</Tx>{'\n'}
                   <Mu>{'    │                            │'}</Mu>{'\n'}
                   <Mu>{'    │ sets router, verifiers     │ holds reserves'}</Mu>{'\n'}
                   <Mu>{'    │ CRE callback auth          │ token + LP merkle trees'}</Mu>{'\n'}
@@ -451,7 +451,7 @@ export function DocsPage({ onClose }: DocsPageProps) {
                   <p>
                     Trading happens entirely on-chain through ZK proofs. To swap, a user generates a Groth16 proof
                     demonstrating they own a commitment in the Merkle tree with sufficient balance. The proof is
-                    verified by one of 8 on-chain verifier contracts managed by ZkAMMv3Admin. On success, the old
+                    verified by one of 8 on-chain verifier contracts managed by ZkAMMAdmin. On success, the old
                     commitment is nullified and a new one is inserted with the updated balance.
                   </p>
                 </div>

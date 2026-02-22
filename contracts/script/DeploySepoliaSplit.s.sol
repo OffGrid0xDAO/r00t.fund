@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "../src/RootToken.sol";
-import "../src/ZkAMMv3Pair.sol";
-import "../src/ZkAMMv3Router.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMPair.sol";
+import "../src/ZkAMMRouter.sol";
+import "../src/ZkAMMAdmin.sol";
 import "../src/NullifierRegistry.sol";
 import "../src/R00TShorts.sol";
 
@@ -24,13 +24,13 @@ import "../src/verifiers/RealVoteVerifier.sol";
 import "../src/verifiers/RealPledgeVerifier.sol";
 
 // Launchpad
-import "../src/LaunchpadGovernanceV2.sol";
+import "../src/LaunchpadGovernance.sol";
 import "../src/factories/ProjectTokenFactory.sol";
 import "../src/factories/ProjectPoolFactory.sol";
 import "../src/ZkProjectPoolRouter.sol";
 
 /// @title DeploySepoliaSplit
-/// @notice Deploy full r00t.fund system to Sepolia (Split ZkAMMv3 + Launchpad)
+/// @notice Deploy full r00t.fund system to Sepolia (Split ZkAMM + Launchpad)
 /// @dev Deployment order:
 /// 1. ROOT token
 /// 2. All verifiers (core + launchpad)
@@ -41,7 +41,7 @@ import "../src/ZkProjectPoolRouter.sol";
 /// 7. Transfer ROOT tokens to Pair
 /// 8. NullifierRegistry
 /// 9. Pool system (ZkProjectPoolImpl, PoolDeployer, ProjectPoolFactory)
-/// 10. LaunchpadGovernanceV2 (with placeholder token factory)
+/// 10. LaunchpadGovernance (with placeholder token factory)
 /// 11. ProjectTokenFactory (with launchpad address)
 /// 12. Update launchpad with correct token factory
 /// 13. Connect everything
@@ -131,7 +131,7 @@ contract DeploySepoliaSplitScript is Script {
         // After deploying Admin (nonce), Pair will be deployed (nonce+1)
         address predictedPairAddress = vm.computeCreateAddress(deployer, adminNonce + 1);
 
-        ZkAMMv3Admin admin = new ZkAMMv3Admin(
+        ZkAMMAdmin admin = new ZkAMMAdmin(
             predictedPairAddress,       // pair (predicted)
             sellVerifier,
             transferVerifier,
@@ -150,7 +150,7 @@ contract DeploySepoliaSplitScript is Script {
         console.log("Step 5: Deploying Pair...");
 
         // Deploy Pair with minimal ETH (bootstrap will add the real liquidity)
-        ZkAMMv3Pair pair = new ZkAMMv3Pair(
+        ZkAMMPair pair = new ZkAMMPair(
             address(admin),             // admin
             address(rootToken),         // rootToken
             "r00t",                     // name
@@ -169,7 +169,7 @@ contract DeploySepoliaSplitScript is Script {
         console.log("");
         console.log("Step 6: Deploying Router...");
 
-        ZkAMMv3Router router = new ZkAMMv3Router(
+        ZkAMMRouter router = new ZkAMMRouter(
             address(pair),
             address(admin)
         );
@@ -253,12 +253,12 @@ contract DeploySepoliaSplitScript is Script {
         console.log("  Temporary TokenFactory:", address(tempTokenFactory));
 
         // ==========================================
-        // Step 12: Deploy LaunchpadGovernanceV2
+        // Step 12: Deploy LaunchpadGovernance
         // ==========================================
         console.log("");
-        console.log("Step 12: Deploying LaunchpadGovernanceV2...");
+        console.log("Step 12: Deploying LaunchpadGovernance...");
 
-        LaunchpadGovernanceV2 launchpad = new LaunchpadGovernanceV2(
+        LaunchpadGovernance launchpad = new LaunchpadGovernance(
             address(pair.tokenPool()),   // r00tPool
             address(tempTokenFactory),   // tokenFactory (temporary, will update)
             address(poolFactory),        // poolFactory
@@ -268,7 +268,7 @@ contract DeploySepoliaSplitScript is Script {
             voteVerifier,                // voteVerifier
             pledgeVerifier               // pledgeVerifier
         );
-        console.log("  LaunchpadGovernanceV2:", address(launchpad));
+        console.log("  LaunchpadGovernance:", address(launchpad));
 
         // ==========================================
         // Step 13: Deploy Real Token Factory
@@ -339,7 +339,7 @@ contract DeploySepoliaSplitScript is Script {
         console.log("  LPPool:            ", address(pair.lpPool()));
         console.log("");
         console.log("LAUNCHPAD:");
-        console.log("  LaunchpadGovernanceV2:", address(launchpad));
+        console.log("  LaunchpadGovernance:", address(launchpad));
         console.log("  ProjectTokenFactory:  ", address(tokenFactory));
         console.log("  ProjectPoolFactory:   ", address(poolFactory));
         console.log("  ZkProjectPoolRouter:  ", address(poolRouter));

@@ -7,7 +7,7 @@
  * using HTTPClient + consensus median.
  *
  * The workflow:
- * 1. Reads on-chain reserves from ZkAMMv3Pair (ethReserve, tokenReserve, totalLPShares, fees)
+ * 1. Reads on-chain reserves from ZkAMMPair (ethReserve, tokenReserve, totalLPShares, fees)
  * 2. Reads shorts state from R00TShorts (totalCollateralLocked, totalOpenInterest)
  * 3. Fetches carbon credit prices from multiple external sources
  * 4. Computes TVL, backing ratio, and impact score
@@ -38,7 +38,7 @@ import {
   zeroAddress,
 } from 'viem'
 import { z } from 'zod'
-import { ZkAMMv3PairABI } from '../contracts/abi/ZkAMMv3Pair'
+import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 import { R00TShortsABI } from '../contracts/abi/R00TShorts'
 import { RegenProofOfReserveABI } from '../contracts/abi/RegenProofOfReserve'
 
@@ -95,11 +95,11 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
   const httpCapability = new cre.capabilities.HTTPClient()
 
-  // ---- Step 1: Read on-chain reserves from ZkAMMv3Pair ----
+  // ---- Step 1: Read on-chain reserves from ZkAMMPair ----
 
   // ethReserve
   const ethReserveCallData = encodeFunctionData({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'ethReserve',
   })
   const ethReserveResult = evmClient.callContract(runtime, {
@@ -111,14 +111,14 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
   }).result()
   const ethReserve = decodeFunctionResult({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'ethReserve',
     data: bytesToHex(ethReserveResult.data),
   }) as bigint
 
   // tokenReserve
   const tokenReserveCallData = encodeFunctionData({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'tokenReserve',
   })
   const tokenReserveResult = evmClient.callContract(runtime, {
@@ -130,14 +130,14 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
   }).result()
   const tokenReserve = decodeFunctionResult({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'tokenReserve',
     data: bytesToHex(tokenReserveResult.data),
   }) as bigint
 
   // totalLPShares
   const totalLPSharesCallData = encodeFunctionData({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'totalLPShares',
   })
   const totalLPSharesResult = evmClient.callContract(runtime, {
@@ -149,14 +149,14 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
   }).result()
   const totalLPShares = decodeFunctionResult({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'totalLPShares',
     data: bytesToHex(totalLPSharesResult.data),
   }) as bigint
 
   // accumulatedProtocolFees
   const protocolFeesCallData = encodeFunctionData({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'accumulatedProtocolFees',
   })
   const protocolFeesResult = evmClient.callContract(runtime, {
@@ -168,7 +168,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
   }).result()
   const protocolFees = decodeFunctionResult({
-    abi: ZkAMMv3PairABI,
+    abi: ZkAMMPairABI,
     functionName: 'accumulatedProtocolFees',
     data: bytesToHex(protocolFeesResult.data),
   }) as bigint

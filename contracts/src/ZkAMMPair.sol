@@ -1,632 +1,895 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {TokenPool} from "./TokenPool.sol";
-import {PoseidonT3Deployer} from "./PoseidonT3.sol";
-import {NullifierRegistry} from "./NullifierRegistry.sol";
-import {ISwapVerifier, ITransferVerifier, IWithdrawVerifier} from "./interfaces/IVerifier.sol";
+import "./TokenPool.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title ZkAMMPair
 /// @author r00t.fund
-/// @notice Private AMM for project tokens paired with $R00T
-/// @dev Users swap $R00T commitments for project token commitments (both private)
-///      $R00T is the base currency for the launchpad ecosystem
-/// SECURITY FIX: Added ReentrancyGuard to prevent cross-function reentrancy attacks
+/// @notice Core state and low-level operations for ZkAMM (like UniswapV2Pair)
+/// @dev This contract holds all state (ETH + ROOT tokens) and provides low-level operations.
+///      Only the Router contract can modify state. Users interact via Router.
 contract ZkAMMPair is ReentrancyGuard {
-    // ============ Immutables ============
+    using SafeERC20 for IERC20;
+    // ============ Constants ============
 
-    /// @notice Total supply of project tokens
-    uint256 public immutable TOTAL_SUPPLY;
-
-    /// @notice AMM fee in basis points
-    uint256 public immutable FEE_BPS;
+    /// @notice Total supply of tokens (69 million with 18 decimals)
+    uint256 public constant TOTAL_SUPPLY = 69_000_000 * 1e18;
 
     /// @notice Fee denominator (10000 = 100%)
     uint256 public constant FEE_DENOMINATOR = 10000;
 
-    /// @notice Maximum allowed fee (10%)
-    uint256 public constant MAX_FEE_BPS = 1000;
+    /// @notice Minimum ETH liquidity that must remain in pool
+    uint256 public constant MIN_LIQUIDITY = 0.01 ether;
 
-    /// @notice BN254 scalar field order - all ZK public inputs must be less than this
-    /// @dev SECURITY FIX: Prevents nullifier aliasing attacks where values >= SNARK_SCALAR_FIELD
-    ///      are equivalent to their remainder mod SNARK_SCALAR_FIELD in the circuit
-    uint256 public constant SNARK_SCALAR_FIELD =
-        21888242871839275222246405745257275088548364400416034343698204186575808495617;
+    /// @notice BN254 scalar field size for SNARK commitments
+    uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
-    /// @notice Project token name
+    /// @notice LP lock period to prevent flash LP attacks (TESTNET: 1 minute)
+    uint256 public constant LP_LOCK_PERIOD = 1 minutes; // TESTNET: Changed from 24 hours for testing
+
+    /// @notice Scaling factor for fee per share calculations (1e18)
+    uint256 public constant FEE_PRECISION = 1e18;
+
+    /// @notice Minimum LP fee required before distribution
+    uint256 public constant MIN_LP_FEE_FOR_DISTRIBUTION = 1e12;
+
+    /// @notice Minimum time between fee epoch increments (7 days)
+    uint256 public constant MIN_EPOCH_DURATION = 7 days;
+
+    /// @notice Minimum claim window before epoch can be incremented (72 hours)
+    uint256 public constant MIN_CLAIM_WINDOW = 72 hours;
+
+    // ============ Immutables ============
+
+    /// @notice ROOT ERC20 token - real tokens held by this contract
+    IERC20 public immutable rootToken;
+
+    // ============ Router (set once after deployment) ============
+
+    /// @notice Router contract (only address allowed to modify state)
+    address public router;
+
+    /// @notice Admin contract (can set router once)
+    address public admin;
+
+    /// @notice Shorts contract (can modify reserves for short positions)
+    address public shortsContract;
+
+    /// @notice Token commitment merkle tree
+    TokenPool public immutable tokenPool;
+
+    /// @notice LP commitment merkle tree
+    TokenPool public immutable lpPool;
+
+    // ============ State Variables ============
+
+    /// @notice Token name
     string public name;
 
-    /// @notice Project token symbol
+    /// @notice Token symbol
     string public symbol;
 
-    /// @notice Reference to the main $R00T TokenPool (for verifying $R00T commitments)
-    TokenPool public immutable r00tPool;
+    /// @notice ETH reserve in the pool
+    uint256 public ethReserve;
 
-    /// @notice Global nullifier registry for cross-pool R00T nullifier coordination
-    /// @dev SECURITY FIX: Prevents same R00T commitment from being spent in multiple pools
-    NullifierRegistry public immutable nullifierRegistry;
-
-    /// @notice This project's token commitment pool
-    TokenPool public immutable projectTokenPool;
-
-    /// @notice Launchpad governance contract (owner)
-    address public immutable launchpad;
-
-    // ============ Verifiers ============
-
-    /// @notice Verifier for swap proofs (R00T <-> Project Token)
-    ISwapVerifier public swapVerifier;
-
-    /// @notice Verifier for transfer proofs (within project token pool)
-    ITransferVerifier public transferVerifier;
-
-    /// @notice Verifier for withdraw proofs (exit to public)
-    IWithdrawVerifier public withdrawVerifier;
-
-    /// @notice Whether verifiers have been locked (prevents upgrades after lock)
-    /// @dev SECURITY FIX (Vuln 2): Prevents launchpad from replacing verifiers with malicious ones
-    bool public verifiersLocked;
-
-    // ============ State ============
-
-    /// @notice $R00T reserve in the pool
-    uint256 public r00tReserve;
-
-    /// @notice Project token reserve in the pool
+    /// @notice Token reserve in the pool
     uint256 public tokenReserve;
 
-    /// @notice Spent nullifiers for project token pool
+    /// @notice Total LP shares issued
+    uint256 public totalLPShares;
+
+    /// @notice Accumulated fees per LP share (scaled by FEE_PRECISION)
+    uint256 public feePerShare;
+
+    /// @notice Accumulated protocol fees (in ETH)
+    uint256 public accumulatedProtocolFees;
+
+    /// @notice Accumulated LP fees awaiting claim (in ETH)
+    uint256 public accumulatedLPFees;
+
+    /// @notice Burned LP shares (from bootstrap, permanently unclaimable by LPs)
+    uint256 public burnedLPShares;
+
+    /// @notice Tracks fee-per-share already swept for burned shares
+    uint256 public lastSweptFeePerShare;
+
+    /// @notice Mapping of spent nullifier hashes (for trading)
     mapping(uint256 => bool) public nullifiers;
 
-    /// @notice Spent nullifiers for R00T swaps (SECURITY FIX: prevents double-spend)
-    mapping(uint256 => bool) public r00tNullifiers;
+    /// @notice Mapping of spent LP nullifier hashes
+    mapping(uint256 => bool) public lpNullifiers;
 
-    // ============ Pending R00T Claims System ============
-    // SECURITY FIX: Instead of creating R00T commitments directly (which requires authorization),
-    // we track pending claims that can be processed by an authorized entity
+    /// @notice Mapping of spent claim nullifiers
+    mapping(uint256 => bool) public spentClaimNullifiers;
 
-    /// @notice Structure for pending R00T claims
-    struct PendingR00tClaim {
-        uint256 amount;
-        uint256 outputCommitment;
-        bytes encryptedNote;
-        bool claimed;
-        uint256 createdAt;  // SECURITY FIX: Timestamp for emergency processing
-    }
+    /// @notice Mapping of LP commitment to LP shares
+    mapping(uint256 => uint256) public lpCommitmentShares;
 
-    /// @notice Emergency claim delay (30 days) - allows anyone to process claims if launchpad is inactive
-    /// @dev SECURITY FIX: Prevents permanent fund lock if launchpad is compromised
-    uint256 public constant EMERGENCY_CLAIM_DELAY = 30 days;
+    /// @notice Mapping of LP commitment deposit times
+    mapping(uint256 => uint256) public lpDepositTime;
 
-    /// @notice Counter for claim IDs
-    uint256 public nextClaimId;
+    /// @notice Mapping of last claimed fee per share for LP commitments
+    mapping(uint256 => uint256) public lastClaimedFeePerShare;
 
-    /// @notice Mapping of claim ID to pending claim details
-    mapping(uint256 => PendingR00tClaim) public pendingR00tClaims;
+    /// @notice Mapping of withdrawn LP commitments
+    mapping(uint256 => bool) public lpCommitmentWithdrawn;
 
-    /// @notice Total pending R00T claims
-    uint256 public totalPendingClaims;
+    /// @notice Mapping of used commitment bindings (prevents front-running)
+    mapping(bytes32 => bool) public usedCommitmentBindings;
+
+    /// @notice Current fee epoch
+    uint256 public currentFeeEpoch;
+
+    /// @notice Fee per share at the start of each epoch
+    mapping(uint256 => uint256) public feePerShareAtEpochStart;
+
+    /// @notice Timestamp of last fee epoch increment
+    uint256 public lastEpochIncrementTime;
+
+    /// @notice Whether epoch increment has been announced
+    bool public epochIncrementPending;
+
+    /// @notice Timestamp when epoch increment was announced
+    uint256 public epochIncrementAnnouncedAt;
+
+    /// @notice Timestamp of most recent LP deposit
+    uint256 public lastLPDepositTime;
+
+    /// @notice Whether initial liquidity has been bootstrapped
+    bool public bootstrapped;
+
+    /// @notice Nonce counter for atomic swap commitment uniqueness
+    uint256 public atomicSwapNonce;
 
     // ============ Events ============
 
-    /// @notice Emitted when a new project token commitment is created
     event NewCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes encryptedNote);
-
-    /// @notice Emitted when a nullifier is spent
+    event NewLPCommitment(uint256 indexed commitment, uint256 indexed leafIndex, uint256 lpShares, bytes encryptedNote);
     event NullifierSpent(uint256 indexed nullifierHash);
-
-    /// @notice Emitted on $R00T -> Project Token swap
-    event SwapR00tForToken(uint256 rootIn, uint256 tokensOut);
-
-    /// @notice Emitted on Project Token -> $R00T swap
-    event SwapTokenForR00t(uint256 tokensIn, uint256 r00tOut);
-
-    /// @notice Emitted on private transfer within project token pool
-    event PrivateTransfer(uint256 transferAmount);
-
-    /// @notice Emitted when tokens are withdrawn to public wallet
-    event PublicWithdrawal(uint256 indexed nullifierHash, address indexed recipient, uint256 amount);
-
-    /// @notice Emitted when a R00T claim is registered
-    event R00tClaimRegistered(uint256 indexed claimId, uint256 amount, uint256 outputCommitment);
-
-    /// @notice Emitted when a R00T claim is processed
-    event R00tClaimProcessed(uint256 indexed claimId, uint256 amount);
-
-    /// @notice Emitted when a R00T commitment is created in the r00tPool on behalf of this contract
-    /// @dev SECURITY FIX (Vuln 6): Using local event instead of TokenPool.NewCommitment
-    ///      to properly attribute the event source to ZkAMMPair for indexers
-    event R00tCommitmentCreated(uint256 indexed commitment, uint256 indexed leafIndex, bytes encryptedNote);
+    event LPNullifierSpent(uint256 indexed nullifierHash);
+    event ClaimNullifierSpent(uint256 indexed claimNullifier);
+    event FeeEpochIncremented(uint256 newEpoch, uint256 totalLPFees);
+    event EpochIncrementAnnounced(uint256 indexed epoch, uint256 effectiveTime);
+    event EpochIncrementCancelled(uint256 indexed epoch);
+    event LiquidityBootstrapped(uint256 ethAmount, uint256 lpShares, uint256 burnedShares);
+    event ETHAccountingSynced(uint256 previousReserve, uint256 actualBalance, uint256 surplus);
+    event PublicDeposit(uint256 indexed commitment, address indexed depositor, uint256 amount);
 
     // ============ Errors ============
 
-    error InvalidProof();
-    error NullifierAlreadySpent();
-    error UnknownMerkleRoot();
-    error SlippageExceeded();
-    error InsufficientReserve();
     error Unauthorized();
     error ZeroAddress();
-    error InvalidFee();
-    error InvalidSupply();
-    error ClaimAlreadyProcessed();
-    error InvalidClaimId();
-    error EmergencyDelayNotMet();  // SECURITY FIX: Claim too new for emergency processing
-    error InvalidScalarField();   // SECURITY FIX: Value >= SNARK_SCALAR_FIELD (nullifier aliasing)
-    error VerifiersLocked();      // SECURITY FIX (Vuln 2): Verifiers cannot be changed after lock
-    error NeverAuthorizedInR00TPool(); // SECURITY FIX (Audit Vuln 7): Pool was never authorized in r00tPool, cannot use emergency insert
+    error ZeroAmount();
+    error NullifierAlreadySpent();
+    error UnknownMerkleRoot();
+    error InsufficientLiquidity();
+    error InsufficientETH();
+    error InvalidLPShares();
+    error LPLocked();
+    error CommitmentAlreadyExists();
+    error ClaimNullifierAlreadySpent();
+    error AlreadyBootstrapped();
+    error EpochTooSoon();
+    error RecentLPDeposit();
+    error EpochIncrementNotAnnounced();
+    error ClaimWindowNotPassed();
+    error NoFeesToCollect();
+    error TransferFailed();
+    error CommitmentBindingAlreadyUsed();
+    error InvalidScalarField();
+    error InvalidDepositorBinding();
 
     // ============ Modifiers ============
 
-    modifier onlyLaunchpad() {
-        if (msg.sender != launchpad) revert Unauthorized();
+    modifier onlyRouter() {
+        if (msg.sender != router) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyRouterOrAdmin() {
+        if (msg.sender != router && msg.sender != admin) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyShorts() {
+        if (msg.sender != shortsContract) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyRouterOrShorts() {
+        if (msg.sender != router && msg.sender != shortsContract) revert Unauthorized();
         _;
     }
 
     // ============ Constructor ============
 
-    /// @notice Initialize the AMM pair
-    /// @param _name Project token name
-    /// @param _symbol Project token symbol
-    /// @param _totalSupply Total supply of project tokens
-    /// @param _feeBps AMM fee in basis points
-    /// @param _r00tPool Address of main $R00T TokenPool
-    /// @param _nullifierRegistry Global nullifier registry address
-    /// @param _initialRootReserve Initial $R00T reserve (from proposal pledge)
-    /// @param _swapVerifier Swap proof verifier
-    /// @param _transferVerifier Transfer proof verifier
-    /// @param _withdrawVerifier Withdraw proof verifier
+    /// @notice Initialize the Pair contract
+    /// @param _admin Admin contract address (can set router once)
+    /// @param _rootToken ROOT ERC20 token address
+    /// @param _name Token name
+    /// @param _symbol Token symbol
     constructor(
+        address _admin,
+        address _rootToken,
         string memory _name,
-        string memory _symbol,
-        uint256 _totalSupply,
-        uint256 _feeBps,
-        address _r00tPool,
-        address _nullifierRegistry,
-        uint256 _initialRootReserve,
-        address _swapVerifier,
-        address _transferVerifier,
-        address _withdrawVerifier
-    ) {
-        if (_totalSupply == 0) revert InvalidSupply();
-        if (_feeBps > MAX_FEE_BPS) revert InvalidFee();
-        if (_r00tPool == address(0)) revert ZeroAddress();
-        if (_nullifierRegistry == address(0)) revert ZeroAddress();
-        if (_swapVerifier == address(0) || _transferVerifier == address(0) || _withdrawVerifier == address(0)) {
-            revert ZeroAddress();
-        }
+        string memory _symbol
+    ) payable {
+        if (_admin == address(0)) revert ZeroAddress();
+        if (_rootToken == address(0)) revert ZeroAddress();
 
+        admin = _admin;
+        rootToken = IERC20(_rootToken);
         name = _name;
         symbol = _symbol;
-        TOTAL_SUPPLY = _totalSupply;
-        FEE_BPS = _feeBps;
-        r00tPool = TokenPool(_r00tPool);
-        nullifierRegistry = NullifierRegistry(_nullifierRegistry);
-        launchpad = msg.sender;
 
-        // Deploy Poseidon and create project token pool
+        // Deploy Poseidon and create merkle trees
         address poseidonAddr = PoseidonT3Deployer.deploy();
-        projectTokenPool = new TokenPool(poseidonAddr);
+        tokenPool = new TokenPool(poseidonAddr);
+        lpPool = new TokenPool(poseidonAddr);
 
         // Initialize reserves
-        r00tReserve = _initialRootReserve;
-        tokenReserve = _totalSupply;
+        tokenReserve = TOTAL_SUPPLY;
+        ethReserve = msg.value;
 
-        // Set verifiers
-        swapVerifier = ISwapVerifier(_swapVerifier);
-        transferVerifier = ITransferVerifier(_transferVerifier);
-        withdrawVerifier = IWithdrawVerifier(_withdrawVerifier);
+        // Initialize fee epoch
+        currentFeeEpoch = 1;
+        feePerShareAtEpochStart[1] = 0;
+        lastEpochIncrementTime = block.timestamp;
     }
 
-    // ============ Swap Functions ============
-
-    /// @notice Swap R00T for project tokens (buy)
-    /// @param proof ZK proof of R00T commitment ownership
-    /// @param r00tMerkleRoot Merkle root of R00T pool
-    /// @param r00tNullifierHash Nullifier to prevent double-spending R00T
-    /// @param r00tAmount Amount of R00T being spent
-    /// @param outputCommitment New commitment for project tokens
-    /// @param minTokensOut Minimum tokens to receive (slippage protection)
-    /// @param r00tChangeCommitment Commitment for remaining R00T (0 if none)
-    /// @param encryptedNote Encrypted note for project token recipient
-    /// @param r00tChangeNote Encrypted note for R00T change (if any)
-    function swapR00tForToken(
-        uint256[8] calldata proof,
-        uint256 r00tMerkleRoot,
-        uint256 r00tNullifierHash,
-        uint256 r00tAmount,
-        uint256 outputCommitment,
-        uint256 minTokensOut,
-        uint256 r00tChangeCommitment,
-        bytes calldata encryptedNote,
-        bytes calldata r00tChangeNote
-    ) external nonReentrant {
-        // SECURITY FIX: Validate all ZK public inputs are within scalar field
-        // This prevents nullifier aliasing attacks where N and N + SNARK_SCALAR_FIELD
-        // are equivalent in the circuit but different on-chain
-        if (r00tMerkleRoot >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (r00tNullifierHash >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (outputCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (r00tChangeCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-
-        // Verify R00T merkle root is known
-        if (!r00tPool.isKnownRoot(r00tMerkleRoot)) revert UnknownMerkleRoot();
-
-        // SECURITY FIX: Check BOTH local AND global nullifier tracking
-        // This prevents double-spending across multiple pools
-        if (r00tNullifiers[r00tNullifierHash]) revert NullifierAlreadySpent();
-        if (nullifierRegistry.isSpent(r00tNullifierHash)) revert NullifierAlreadySpent();
-
-        // Prepare public signals for swap verifier
-        uint256[7] memory pubSignals = [
-            r00tMerkleRoot,
-            r00tNullifierHash,
-            r00tAmount,
-            outputCommitment,
-            minTokensOut,
-            r00tChangeCommitment,
-            uint256(0) // swapBinding (computed by circuit)
-        ];
-
-        // Verify ZK proof
-        if (!swapVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
-
-        // SECURITY FIX: Mark R00T nullifier as spent LOCALLY first (CEI pattern)
-        r00tNullifiers[r00tNullifierHash] = true;
-
-        // Calculate tokens out using constant product formula
-        uint256 tokensOut = getAmountOut(r00tAmount, r00tReserve, tokenReserve);
-        if (tokensOut < minTokensOut) revert SlippageExceeded();
-        if (tokensOut > tokenReserve) revert InsufficientReserve();
-
-        // EFFECTS: Update ALL reserves BEFORE external calls (CEI pattern)
-        // SECURITY FIX (Audit Vuln 1): Moved reserve updates before nullifierRegistry.markSpent()
-        // This prevents cross-contract reentrancy from exploiting stale reserve values
-        r00tReserve += r00tAmount;
-        tokenReserve -= tokensOut;
-
-        // INTERACTIONS: External calls AFTER all state updates
-        // SECURITY FIX (Audit Vuln 1): nullifierRegistry.markSpent() now happens after reserve updates
-        nullifierRegistry.markSpent(r00tNullifierHash);
-
-        // Insert project token commitment (internal call to our own pool)
-        uint256 leafIndex = projectTokenPool.insert(outputCommitment);
-        emit NewCommitment(outputCommitment, leafIndex, encryptedNote);
-
-        emit NullifierSpent(r00tNullifierHash);
-        emit SwapR00tForToken(r00tAmount, tokensOut);
+    /// @notice Set the router address (can only be called once by admin)
+    /// @param _router Router contract address
+    function setRouter(address _router) external {
+        if (msg.sender != admin) revert Unauthorized();
+        if (router != address(0)) revert("Router already set");
+        if (_router == address(0)) revert ZeroAddress();
+        router = _router;
     }
 
-    /// @notice Swap project tokens for R00T (sell)
-    /// @param proof ZK proof of project token commitment ownership
-    /// @param tokenMerkleRoot Merkle root of project token pool
-    /// @param tokenNullifierHash Nullifier to prevent double-spending
-    /// @param tokenAmount Amount of tokens being sold
-    /// @param r00tOutputCommitment Commitment for R00T received
-    /// @param minR00tOut Minimum R00T to receive (slippage protection)
-    /// @param tokenChangeCommitment Commitment for remaining tokens (0 if none)
-    /// @param r00tNote Encrypted note for R00T commitment
-    /// @param tokenChangeNote Encrypted note for token change (if any)
-    function swapTokenForR00t(
-        uint256[8] calldata proof,
-        uint256 tokenMerkleRoot,
-        uint256 tokenNullifierHash,
-        uint256 tokenAmount,
-        uint256 r00tOutputCommitment,
-        uint256 minR00tOut,
-        uint256 tokenChangeCommitment,
-        bytes calldata r00tNote,
-        bytes calldata tokenChangeNote
-    ) external nonReentrant {
-        // SECURITY FIX: Validate all ZK public inputs are within scalar field
-        if (tokenMerkleRoot >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (tokenNullifierHash >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (r00tOutputCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (tokenChangeCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-
-        // Verify project token merkle root is known
-        if (!projectTokenPool.isKnownRoot(tokenMerkleRoot)) revert UnknownMerkleRoot();
-
-        // Verify nullifier not spent
-        if (nullifiers[tokenNullifierHash]) revert NullifierAlreadySpent();
-
-        // Prepare public signals
-        uint256[7] memory pubSignals = [
-            tokenMerkleRoot,
-            tokenNullifierHash,
-            tokenAmount,
-            r00tOutputCommitment,
-            minR00tOut,
-            tokenChangeCommitment,
-            uint256(0) // swapBinding (computed by circuit)
-        ];
-
-        // Verify ZK proof
-        if (!swapVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
-
-        // Mark nullifier as spent
-        nullifiers[tokenNullifierHash] = true;
-
-        // Calculate R00T out
-        uint256 r00tOut = getAmountOut(tokenAmount, tokenReserve, r00tReserve);
-        if (r00tOut < minR00tOut) revert SlippageExceeded();
-        if (r00tOut > r00tReserve) revert InsufficientReserve();
-
-        // SECURITY FIX: Ensure we have enough R00T to back this claim
-        // Available R00T = r00tReserve - totalPendingClaims (already promised but not yet processed)
-        // We need: availableR00t >= r00tOut
-        if (totalPendingClaims + r00tOut > r00tReserve) revert InsufficientReserve();
-
-        // Update reserves
-        tokenReserve += tokenAmount;
-        r00tReserve -= r00tOut;
-
-        // Insert token change commitment if any
-        if (tokenChangeCommitment != 0) {
-            uint256 changeIndex = projectTokenPool.insert(tokenChangeCommitment);
-            emit NewCommitment(tokenChangeCommitment, changeIndex, tokenChangeNote);
-        }
-
-        // SECURITY FIX: Instead of creating R00T commitments directly (which requires r00tPool authorization),
-        // register a pending claim that can be processed by the launchpad
-        // This ensures R00T commitments are only created by authorized entities
-        if (r00tOutputCommitment != 0) {
-            uint256 claimId = nextClaimId++;
-            pendingR00tClaims[claimId] = PendingR00tClaim({
-                amount: r00tOut,
-                outputCommitment: r00tOutputCommitment,
-                encryptedNote: r00tNote,
-                claimed: false,
-                createdAt: block.timestamp  // SECURITY FIX: Track creation time
-            });
-            totalPendingClaims += r00tOut;
-            emit R00tClaimRegistered(claimId, r00tOut, r00tOutputCommitment);
-        }
-
-        emit NullifierSpent(tokenNullifierHash);
-        emit SwapTokenForR00t(tokenAmount, r00tOut);
+    /// @notice Upgrade the router address
+    /// @dev SECURITY FIX (Vuln 6): Now requires pending + timelock via admin contract
+    ///      The admin contract's proposeRouterUpgrade/executeRouterUpgrade enforces the timelock.
+    ///      This function validates the caller is the admin contract.
+    /// @param _newRouter New router contract address
+    function upgradeRouter(address _newRouter) external {
+        if (msg.sender != admin) revert Unauthorized();
+        if (_newRouter == address(0)) revert ZeroAddress();
+        router = _newRouter;
     }
 
-    // ============ Pending Claims Processing ============
-
-    /// @notice Process a pending R00T claim (called by launchpad)
-    /// @dev This creates the actual R00T commitment in the main R00T pool
-    ///
-    /// SECURITY NOTE (Vuln 7): This function calls r00tPool.insert() which requires
-    /// this contract to be authorized in r00tPool.authorizedCallers mapping.
-    /// DEPLOYMENT REQUIREMENT: After deploying ZkAMMPair, the deployer MUST call:
-    ///   r00tPool.setAuthorizedCaller(address(zkAMMPair), true)
-    /// Otherwise this function will always revert with Unauthorized().
-    ///
-    /// @param claimId The claim ID to process
-    function processR00tClaim(uint256 claimId) external onlyLaunchpad nonReentrant {
-        PendingR00tClaim storage claim = pendingR00tClaims[claimId];
-        if (claim.amount == 0) revert InvalidClaimId();
-        if (claim.claimed) revert ClaimAlreadyProcessed();
-
-        // SECURITY FIX (Vuln 7): Verify authorization before attempting insert
-        // This gives a clear error instead of failing deep in r00tPool.insert()
-        if (!r00tPool.authorizedCallers(address(this))) {
-            revert Unauthorized(); // This ZkAMMPair is not authorized in r00tPool
-        }
-
-        claim.claimed = true;
-        totalPendingClaims -= claim.amount;
-
-        // Now create the R00T commitment in the main R00T pool
-        // This is authorized because we verified authorization above
-        uint256 leafIndex = r00tPool.insert(claim.outputCommitment);
-
-        // SECURITY FIX (Vuln 6): Use local event for proper event source attribution
-        emit R00tCommitmentCreated(claim.outputCommitment, leafIndex, claim.encryptedNote);
-        emit R00tClaimProcessed(claimId, claim.amount);
+    /// @notice Set the shorts contract address (one-time only after initial zero)
+    /// @dev SECURITY FIX (Vuln 6): Can only be set once. For upgrades, use admin timelock pattern.
+    /// @param _shortsContract Shorts contract address
+    function setShortsContract(address _shortsContract) external {
+        if (msg.sender != admin) revert Unauthorized();
+        if (_shortsContract == address(0)) revert ZeroAddress();
+        // SECURITY FIX (Vuln 6): Prevent repeated changes - require timelock for upgrades
+        if (shortsContract != address(0)) revert Unauthorized();
+        shortsContract = _shortsContract;
     }
 
-    /// @notice Emergency process a pending R00T claim after delay (called by anyone)
-    /// @dev SECURITY FIX (Vuln 6): Prevents permanent fund lock if launchpad is compromised.
-    ///      After EMERGENCY_CLAIM_DELAY (30 days), anyone can process pending claims.
-    ///      This ensures users can always recover their funds even if launchpad fails.
-    ///
-    ///      SECURITY FIX (Vuln 6): Uses TokenPool.emergencyInsert() if authorization revoked.
-    ///      This allows fund recovery even if pool authorization was maliciously revoked.
-    ///      The 30-day delay provides sufficient time for legitimate security responses.
-    /// @param claimId The claim ID to process
-    function emergencyProcessR00tClaim(uint256 claimId) external nonReentrant {
-        PendingR00tClaim storage claim = pendingR00tClaims[claimId];
-        if (claim.amount == 0) revert InvalidClaimId();
-        if (claim.claimed) revert ClaimAlreadyProcessed();
+    /// @notice Allocate ROOT tokens from pool reserves to the shorts contract
+    /// @dev Admin-only. Reduces tokenReserve and transfers ERC20 tokens to shorts contract.
+    ///      This is needed to seed the shorts contract with tokens it can sell when users open shorts.
+    /// @param amount Amount of ROOT tokens to allocate
+    function allocateTokensForShorts(uint256 amount) external {
+        if (msg.sender != admin) revert Unauthorized();
+        if (shortsContract == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (amount > tokenReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
 
-        // SECURITY: Require emergency delay to have passed
-        if (block.timestamp < claim.createdAt + EMERGENCY_CLAIM_DELAY) {
-            revert EmergencyDelayNotMet();
-        }
+        tokenReserve -= amount;
+        rootToken.safeTransfer(shortsContract, amount);
+    }
 
-        claim.claimed = true;
-        totalPendingClaims -= claim.amount;
+    // ============ Router-Only State Modification Functions ============
 
-        // Create the R00T commitment in the main R00T pool
-        // SECURITY FIX (Vuln 6): Try normal insert first, fall back to emergency insert
-        uint256 leafIndex;
-        if (r00tPool.authorizedCallers(address(this))) {
-            // Pool is authorized, use normal insert
-            leafIndex = r00tPool.insert(claim.outputCommitment);
+    /// @notice Update reserves after a swap
+    /// @param ethDelta ETH amount to add (positive) or remove (negative via separate param)
+    /// @param tokenDelta Token amount change
+    /// @param isEthIn True if ETH is being added, false if removed
+    function updateReserves(
+        uint256 ethDelta,
+        uint256 tokenDelta,
+        bool isEthIn
+    ) external onlyRouter {
+        if (isEthIn) {
+            ethReserve += ethDelta;
+            tokenReserve -= tokenDelta;
         } else {
-            // Pool authorization was revoked, use emergency insert
-            // SECURITY FIX (Audit Vuln 7): Verify pool was ever authorized before attempting emergencyInsert
-            // If pool was never authorized in r00tPool, emergencyInsert will fail with NeverAuthorized
-            // We check here to provide a clearer error message
-            if (!r00tPool.wasEverAuthorized(address(this))) revert NeverAuthorizedInR00TPool();
-            // This requires 30 days to have passed since revocation (enforced by TokenPool)
-            leafIndex = r00tPool.emergencyInsert(claim.outputCommitment);
+            if (ethDelta > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+            ethReserve -= ethDelta;
+            tokenReserve += tokenDelta;
         }
-
-        // SECURITY FIX (Vuln 6): Use local event for proper event source attribution
-        emit R00tCommitmentCreated(claim.outputCommitment, leafIndex, claim.encryptedNote);
-        emit R00tClaimProcessed(claimId, claim.amount);
     }
 
-    /// @notice Get pending claim details
-    function getPendingClaim(uint256 claimId) external view returns (
-        uint256 amount,
-        uint256 outputCommitment,
-        bool claimed,
-        uint256 createdAt
-    ) {
-        PendingR00tClaim storage claim = pendingR00tClaims[claimId];
-        return (claim.amount, claim.outputCommitment, claim.claimed, claim.createdAt);
-    }
-
-    // ============ Transfer Functions ============
-
-    /// @notice Transfer project tokens privately
-    /// @param proof ZK proof
-    /// @param merkleRoot Merkle root of project token pool
-    /// @param nullifierHash Nullifier to prevent double-spending
-    /// @param recipientCommitment Commitment for recipient
-    /// @param changeCommitment Commitment for sender's change (0 if none)
-    /// @param recipientNote Encrypted note for recipient
-    /// @param changeNote Encrypted note for change
-    function transferPrivate(
-        uint256[8] calldata proof,
-        uint256 merkleRoot,
-        uint256 nullifierHash,
-        uint256 recipientCommitment,
-        uint256 changeCommitment,
-        bytes calldata recipientNote,
-        bytes calldata changeNote
-    ) external nonReentrant {
-        // SECURITY FIX: Validate all ZK public inputs are within scalar field
-        if (merkleRoot >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (recipientCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-        if (changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
-
-        // Verify merkle root
-        if (!projectTokenPool.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-
-        // Verify nullifier not spent
+    /// @notice Mark a trading nullifier as spent
+    function markNullifierSpent(uint256 nullifierHash) external onlyRouter {
         if (nullifiers[nullifierHash]) revert NullifierAlreadySpent();
-
-        // Prepare public signals
-        uint256[4] memory pubSignals = [
-            merkleRoot,
-            nullifierHash,
-            recipientCommitment,
-            changeCommitment
-        ];
-
-        // Verify ZK proof
-        if (!transferVerifier.verifyProof(proof, pubSignals)) revert InvalidProof();
-
-        // Mark nullifier as spent
         nullifiers[nullifierHash] = true;
+        emit NullifierSpent(nullifierHash);
+    }
 
-        // Insert recipient commitment
-        uint256 recipientIndex = projectTokenPool.insert(recipientCommitment);
-        emit NewCommitment(recipientCommitment, recipientIndex, recipientNote);
+    /// @notice Mark an LP nullifier as spent
+    function markLPNullifierSpent(uint256 nullifierHash) external onlyRouter {
+        if (lpNullifiers[nullifierHash]) revert NullifierAlreadySpent();
+        lpNullifiers[nullifierHash] = true;
+        emit LPNullifierSpent(nullifierHash);
+    }
 
-        // Insert change commitment if any
-        if (changeCommitment != 0) {
-            uint256 changeIndex = projectTokenPool.insert(changeCommitment);
-            emit NewCommitment(changeCommitment, changeIndex, changeNote);
+    /// @notice Mark a claim nullifier as spent
+    function markClaimNullifierSpent(uint256 claimNullifier) external onlyRouter {
+        if (spentClaimNullifiers[claimNullifier]) revert ClaimNullifierAlreadySpent();
+        spentClaimNullifiers[claimNullifier] = true;
+        emit ClaimNullifierSpent(claimNullifier);
+    }
+
+    /// @notice Insert a commitment into the token pool
+    function insertCommitment(uint256 commitment, bytes calldata encryptedNote) external onlyRouter returns (uint256 leafIndex) {
+        leafIndex = tokenPool.insert(commitment);
+        emit NewCommitment(commitment, leafIndex, encryptedNote);
+    }
+
+    /// @notice Insert an LP commitment into the LP pool
+    function insertLPCommitment(
+        uint256 commitment,
+        uint256 lpShares,
+        bytes calldata encryptedNote
+    ) external onlyRouter returns (uint256 leafIndex) {
+        leafIndex = lpPool.insert(commitment);
+        emit NewLPCommitment(commitment, leafIndex, lpShares, encryptedNote);
+    }
+
+    /// @notice Record an LP commitment with shares and fee snapshot
+    function recordLPCommitment(
+        uint256 commitment,
+        uint256 shares,
+        bool isReuse
+    ) external onlyRouter {
+        // Check for collision (unless reusing withdrawn slot)
+        if (lpDepositTime[commitment] != 0 && !lpCommitmentWithdrawn[commitment]) {
+            revert CommitmentAlreadyExists();
         }
 
-        emit NullifierSpent(nullifierHash);
-        emit PrivateTransfer(0); // Amount hidden
+        lpCommitmentShares[commitment] = shares;
+        lpDepositTime[commitment] = block.timestamp;
+        lastClaimedFeePerShare[commitment] = feePerShare;
+        lastLPDepositTime = block.timestamp;
+
+        // Reset withdrawn flag if reusing
+        if (isReuse && lpCommitmentWithdrawn[commitment]) {
+            lpCommitmentWithdrawn[commitment] = false;
+        }
     }
 
-    // ============ Withdraw Functions ============
+    /// @notice Clear LP commitment data after withdrawal
+    function clearLPCommitment(uint256 commitment) external onlyRouter returns (uint256 shares) {
+        shares = lpCommitmentShares[commitment];
+        if (shares == 0) revert InvalidLPShares();
 
-    /// @notice Withdraw tokens from privacy pool to public wallet
-    /// @dev SECURITY FIX (Audit Vuln 1): This function is DISABLED for ZkAMMPair because
-    ///      this pool operates with virtual/commitment-only tokens - there are no actual
-    ///      ERC20 tokens to withdraw. Project tokens in ZkAMMPair exist purely as private
-    ///      commitments. Users who want to "exit" should swap back to R00T and then
-    ///      withdraw from the main ZkAMMv3 pool which handles actual ETH.
-    ///      For pools with actual ERC20 tokens, use ZkProjectPool instead.
-    function withdrawPublic(
-        uint256[8] calldata,
-        uint256,
-        uint256,
-        uint256,
-        address
-    ) external pure {
-        revert NotImplemented();
+        lpCommitmentShares[commitment] = 0;
+        lpCommitmentWithdrawn[commitment] = true;
     }
 
-    /// @notice Error for functions not supported by this pool type
-    error NotImplemented();
+    /// @notice Add LP shares to total
+    function addLPShares(uint256 shares) external onlyRouter {
+        totalLPShares += shares;
+    }
+
+    /// @notice Remove LP shares from total
+    function removeLPShares(uint256 shares) external onlyRouter {
+        totalLPShares -= shares;
+    }
+
+    /// @notice Add protocol fees
+    function addProtocolFees(uint256 amount) external onlyRouterOrShorts {
+        accumulatedProtocolFees += amount;
+        // SECURITY FIX (M-4): Ensure accumulated fees never exceed ETH reserve
+        if (accumulatedProtocolFees + accumulatedLPFees > ethReserve) {
+            accumulatedProtocolFees = ethReserve > accumulatedLPFees ? ethReserve - accumulatedLPFees : 0;
+        }
+    }
+
+    /// @notice Distribute LP fees
+    function distributeLPFees(uint256 lpFee) external onlyRouter {
+        if (totalLPShares > 0 && lpFee >= MIN_LP_FEE_FOR_DISTRIBUTION) {
+            uint256 feeIncrement = (lpFee * FEE_PRECISION) / totalLPShares;
+            if (feeIncrement > 0) {
+                feePerShare += feeIncrement;
+                accumulatedLPFees += lpFee;
+            } else {
+                accumulatedProtocolFees += lpFee;
+            }
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+    }
+
+    /// @notice Deduct claimed LP fees
+    function deductLPFees(uint256 amount) external onlyRouter {
+        if (amount > accumulatedLPFees) {
+            amount = accumulatedLPFees;
+        }
+        accumulatedLPFees -= amount;
+    }
+
+    /// @notice Check and use commitment binding
+    function useCommitmentBinding(bytes32 binding) external onlyRouter {
+        if (usedCommitmentBindings[binding]) revert CommitmentBindingAlreadyUsed();
+        usedCommitmentBindings[binding] = true;
+    }
+
+    /// @notice Increment atomic swap nonce and return previous value
+    function useAtomicSwapNonce() external onlyRouter returns (uint256 nonce) {
+        nonce = atomicSwapNonce++;
+    }
+
+    /// @notice Bootstrap initial liquidity
+    function bootstrap(
+        uint256 lpCommitment,
+        uint256 ownerShares,
+        uint256 burnedShares,
+        bytes calldata lpNote
+    ) external payable onlyRouter returns (uint256 leafIndex) {
+        if (bootstrapped) revert AlreadyBootstrapped();
+        bootstrapped = true;
+
+        ethReserve += msg.value;
+        totalLPShares = ownerShares + burnedShares;
+        burnedLPShares = burnedShares;
+
+        lpDepositTime[lpCommitment] = block.timestamp;
+        lastLPDepositTime = block.timestamp;
+        lastClaimedFeePerShare[lpCommitment] = 0;
+        lpCommitmentShares[lpCommitment] = ownerShares;
+
+        leafIndex = lpPool.insert(lpCommitment);
+        emit NewLPCommitment(lpCommitment, leafIndex, ownerShares, lpNote);
+        emit LiquidityBootstrapped(msg.value, ownerShares, burnedShares);
+    }
+
+    /// @notice Announce epoch increment
+    function announceEpochIncrement() external onlyRouterOrAdmin {
+        if (block.timestamp < lastEpochIncrementTime + MIN_EPOCH_DURATION) revert EpochTooSoon();
+        if (block.timestamp < lastLPDepositTime + MIN_CLAIM_WINDOW) revert RecentLPDeposit();
+        if (epochIncrementPending) revert("Epoch increment already pending");
+
+        epochIncrementPending = true;
+        epochIncrementAnnouncedAt = block.timestamp;
+
+        emit EpochIncrementAnnounced(currentFeeEpoch + 1, block.timestamp + MIN_CLAIM_WINDOW);
+    }
+
+    /// @notice Execute epoch increment
+    function executeEpochIncrement() external onlyRouterOrAdmin {
+        if (!epochIncrementPending) revert EpochIncrementNotAnnounced();
+        if (block.timestamp < epochIncrementAnnouncedAt + MIN_CLAIM_WINDOW) revert ClaimWindowNotPassed();
+
+        epochIncrementPending = false;
+        epochIncrementAnnouncedAt = 0;
+
+        currentFeeEpoch++;
+        lastEpochIncrementTime = block.timestamp;
+        feePerShareAtEpochStart[currentFeeEpoch] = feePerShare;
+
+        emit FeeEpochIncremented(currentFeeEpoch, accumulatedLPFees);
+    }
+
+    /// @notice Cancel epoch increment
+    function cancelEpochIncrement() external onlyRouterOrAdmin {
+        if (!epochIncrementPending) revert EpochIncrementNotAnnounced();
+
+        uint256 cancelledEpoch = currentFeeEpoch + 1;
+        epochIncrementPending = false;
+        epochIncrementAnnouncedAt = 0;
+
+        emit EpochIncrementCancelled(cancelledEpoch);
+    }
+
+    /// @notice Collect protocol fees
+    function collectProtocolFees(address treasury) external onlyRouterOrAdmin returns (uint256 fees) {
+        fees = accumulatedProtocolFees;
+        if (fees == 0) revert NoFeesToCollect();
+        accumulatedProtocolFees = 0;
+
+        (bool success, ) = treasury.call{value: fees}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Sweep LP fees attributable to burned shares (send to treasury)
+    function sweepBurnedShareFees(address treasury) external onlyRouterOrAdmin returns (uint256 fees) {
+        if (burnedLPShares == 0) revert NoFeesToCollect();
+
+        uint256 feeGrowth = feePerShare - lastSweptFeePerShare;
+        fees = (burnedLPShares * feeGrowth) / FEE_PRECISION;
+        if (fees == 0) revert NoFeesToCollect();
+        if (fees > accumulatedLPFees) fees = accumulatedLPFees;
+
+        lastSweptFeePerShare = feePerShare;
+        accumulatedLPFees -= fees;
+
+        (bool success, ) = treasury.call{value: fees}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Emergency withdraw ETH
+    function emergencyWithdrawETH(uint256 amount, address recipient) external onlyRouterOrAdmin {
+        if (amount > ethReserve) revert InsufficientETH();
+        ethReserve -= amount;
+
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Send ETH to recipient (for LP withdrawal, sell, etc.)
+    /// SECURITY FIX (Vuln 10): Added balance validation as defense-in-depth
+    function sendETH(address recipient, uint256 amount) external onlyRouter {
+        if (amount > address(this).balance) revert InsufficientETH();
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Add ETH to reserves (for owner bootstrap)
+    function addETHReserve() external payable onlyRouterOrAdmin {
+        if (bootstrapped) revert AlreadyBootstrapped();
+        ethReserve += msg.value;
+    }
+
+    /// @notice Sync ETH accounting for force-sent ETH
+    function syncETHAccounting() external onlyRouterOrAdmin returns (uint256 surplus) {
+        uint256 actualBalance = address(this).balance;
+        if (actualBalance <= ethReserve) return 0;
+
+        surplus = actualBalance - ethReserve;
+        uint256 previousReserve = ethReserve;
+
+        accumulatedProtocolFees += surplus;
+        ethReserve = actualBalance;
+
+        emit ETHAccountingSynced(previousReserve, actualBalance, surplus);
+    }
+
+    // ============ Shorts Contract Functions ============
+
+    /// @notice Update reserves for short position operations
+    /// @dev Called by shorts contract to affect pool reserves when opening/closing shorts
+    /// @param ethDelta ETH amount to change
+    /// @param tokenDelta Token amount to change
+    /// @param isEthIn True if ETH is coming IN (closing short), false if ETH going OUT (opening short)
+    function updateReservesForShorts(
+        uint256 ethDelta,
+        uint256 tokenDelta,
+        bool isEthIn
+    ) external onlyShorts {
+        if (isEthIn) {
+            // Closing short: ETH comes in, tokens go out
+            ethReserve += ethDelta;
+            if (tokenDelta > tokenReserve) revert InsufficientLiquidity();
+            tokenReserve -= tokenDelta;
+        } else {
+            // Opening short: ETH goes out, tokens come in
+            if (ethDelta > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+            ethReserve -= ethDelta;
+            tokenReserve += tokenDelta;
+        }
+    }
+
+    /// @notice Send ETH to shorts contract (for opening shorts)
+    /// @param recipient Address to receive ETH (shorts contract)
+    /// @param amount Amount of ETH to send
+    function sendETHForShorts(address recipient, uint256 amount) external onlyShorts {
+        if (amount > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+        ethReserve -= amount;
+
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Shorts contract sells ROOT tokens for ETH (real swap)
+    /// @dev Shorts contract must have approved this contract to spend ROOT tokens
+    /// @param tokenAmount Amount of ROOT tokens to sell
+    /// @return ethOut Amount of ETH received
+    function sellTokensForShorts(uint256 tokenAmount) external onlyShorts nonReentrant returns (uint256 ethOut) {
+        if (tokenAmount == 0) revert ZeroAmount();
+
+        // Transfer ROOT from shorts contract to this contract
+        rootToken.safeTransferFrom(msg.sender, address(this), tokenAmount);
+
+        // Calculate ETH out using AMM formula (no embedded fee - fees extracted explicitly)
+        // SECURITY FIX (Vuln 18): Extract fees explicitly and distribute to protocol/LPs
+        uint256 ethOutRaw = (tokenAmount * ethReserve) / (tokenReserve + tokenAmount);
+
+        // Extract protocol and LP fees (same split as regular sells)
+        uint256 protocolFee = (ethOutRaw * 30) / 10000; // 30bps protocol fee
+        uint256 lpFee = (ethOutRaw * 70) / 10000;       // 70bps LP fee
+        ethOut = ethOutRaw - protocolFee - lpFee;
+
+        // Check minimum liquidity
+        if (ethOut > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
+
+        // Update reserves - only decrement by ethOut (fees stay in pool accounting)
+        tokenReserve += tokenAmount;
+        ethReserve -= ethOut;
+
+        // SECURITY FIX (Vuln 18): Distribute fees to protocol and LPs
+        accumulatedProtocolFees += protocolFee;
+        if (totalLPShares > 0) {
+            feePerShare += (lpFee * FEE_PRECISION) / totalLPShares;
+            accumulatedLPFees += lpFee;
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Send ETH to shorts contract
+        (bool success, ) = payable(msg.sender).call{value: ethOut}("");
+        if (!success) revert TransferFailed();
+
+        emit TokensSold(tokenAmount, ethOut);
+    }
+
+    /// @notice Emitted when shorts contract sells tokens (for indexer visibility)
+    event TokensSold(uint256 tokensIn, uint256 ethOut);
+    /// @notice Emitted when shorts contract buys tokens back (for indexer visibility)
+    event TokensPurchased(uint256 ethIn, uint256 tokensOut);
+
+    /// @notice Shorts contract buys ROOT tokens with ETH (real swap)
+    /// @dev If msg.value is insufficient, buys as many tokens as affordable (for liquidation)
+    /// @param tokenAmount Amount of ROOT tokens to buy (may receive less if underfunded)
+    /// @return ethUsed Amount of ETH spent
+    function buyTokensForShorts(uint256 tokenAmount) external payable onlyShorts nonReentrant returns (uint256 ethUsed) {
+        if (tokenAmount == 0) revert ZeroAmount();
+        if (tokenAmount >= tokenReserve) revert InsufficientLiquidity();
+
+        // SECURITY FIX (Vuln 18): Calculate ETH needed using raw AMM formula (no embedded fee)
+        // Then extract fees explicitly and distribute to protocol/LPs
+        uint256 ethRequiredRaw = (ethReserve * tokenAmount) / (tokenReserve - tokenAmount) + 1;
+
+        // Add protocol + LP fees on top (same split as sells: 30bps protocol, 70bps LP)
+        uint256 protocolFee = (ethRequiredRaw * 30) / 10000;
+        uint256 lpFee = (ethRequiredRaw * 70) / 10000;
+        uint256 ethRequired = ethRequiredRaw + protocolFee + lpFee;
+
+        uint256 actualTokenAmount = tokenAmount;
+
+        // If insufficient ETH, calculate how many tokens we can actually buy
+        // This allows liquidation when position is severely underwater
+        if (msg.value < ethRequired) {
+            // Reverse AMM: given msg.value ETH, how many tokens can we get (after fees)?
+            // Deduct 1% fee from input to get effective ETH for AMM
+            uint256 effectiveEth = (msg.value * 10000) / 10100;
+            uint256 num = effectiveEth * tokenReserve;
+            uint256 denom = ethReserve + effectiveEth;
+            actualTokenAmount = num / denom;
+
+            // If we can't afford any tokens, just accept the ETH as protocol fee
+            if (actualTokenAmount == 0) {
+                accumulatedProtocolFees += msg.value;
+                ethReserve += msg.value;
+                return msg.value;
+            }
+
+            // Recalculate fees for the tokens we can actually afford
+            ethRequiredRaw = (ethReserve * actualTokenAmount) / (tokenReserve - actualTokenAmount) + 1;
+            protocolFee = (ethRequiredRaw * 30) / 10000;
+            lpFee = (ethRequiredRaw * 70) / 10000;
+            ethUsed = msg.value;
+        } else {
+            ethUsed = ethRequired;
+        }
+
+        // Update reserves (only raw ETH amount affects AMM curve)
+        ethReserve += (ethUsed - protocolFee - lpFee);
+        tokenReserve -= actualTokenAmount;
+
+        // SECURITY FIX (Vuln 18): Distribute fees to protocol and LPs
+        accumulatedProtocolFees += protocolFee;
+        if (totalLPShares > 0) {
+            feePerShare += (lpFee * FEE_PRECISION) / totalLPShares;
+            accumulatedLPFees += lpFee;
+        } else {
+            accumulatedProtocolFees += lpFee;
+        }
+
+        // Transfer ROOT tokens to shorts contract
+        rootToken.safeTransfer(msg.sender, actualTokenAmount);
+
+        // Refund excess ETH
+        if (msg.value > ethUsed) {
+            (bool refundSuccess, ) = payable(msg.sender).call{value: msg.value - ethUsed}("");
+            if (!refundSuccess) revert TransferFailed();
+        }
+
+        emit TokensPurchased(ethUsed, actualTokenAmount);
+    }
+
+    /// @notice Authorize a caller in tokenPool (for project pools)
+    function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {
+        tokenPool.setAuthorizedCaller(caller, authorized);
+    }
+
+    /// @notice Withdraw ROOT tokens to recipient (for withdrawPublic)
+    function withdrawROOT(address recipient, uint256 amount) external onlyRouter {
+        if (rootToken.balanceOf(address(this)) < amount) revert InsufficientLiquidity();
+        rootToken.safeTransfer(recipient, amount);
+    }
+
+    /// @notice Deposit public ROOT tokens into a private commitment
+    /// @dev SECURITY: Uses depositorBinding to prevent front-running attacks.
+    ///      The depositorBinding is a hash of (commitment, depositor, amount) that ensures
+    ///      only the intended depositor can make this deposit. Even if an attacker sees
+    ///      the commitment in a pending transaction, they cannot use it because their
+    ///      depositorBinding would be different (different msg.sender via router).
+    /// @param amount Amount of ROOT tokens to deposit
+    /// @param commitment The commitment hash = hash(nullifier, secret, amount)
+    /// @param depositorBinding Hash binding commitment to depositor: keccak256(commitment, depositor, amount)
+    /// @param depositor The address depositing tokens (for binding verification)
+    /// @param encryptedNote Encrypted note containing nullifier, secret, amount
+    /// @return leafIndex The index where commitment was inserted in merkle tree
+    function depositPublic(
+        uint256 amount,
+        uint256 commitment,
+        bytes32 depositorBinding,
+        address depositor,
+        bytes calldata encryptedNote
+    ) external onlyRouter nonReentrant returns (uint256 leafIndex) {
+        // Input validation
+        if (amount == 0) revert ZeroAmount();
+        if (commitment == 0) revert ZeroAmount();
+        // SECURITY: Validate commitment is within SNARK scalar field
+        // Commitments >= SNARK_SCALAR_FIELD cannot be spent via ZK proofs
+        // This prevents users from accidentally locking their tokens forever
+        if (commitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
+
+        // SECURITY: Verify depositor binding to prevent front-running
+        // This ensures only the intended depositor can make this deposit with this commitment
+        bytes32 expectedBinding = keccak256(abi.encodePacked(commitment, depositor, amount));
+        if (depositorBinding != expectedBinding) revert InvalidDepositorBinding();
+
+        // SECURITY: Transfer tokens FIRST (checks-effects-interactions)
+        // safeTransferFrom will revert if depositor hasn't approved or has insufficient balance
+        rootToken.safeTransferFrom(depositor, address(this), amount);
+
+        // Insert commitment into merkle tree
+        leafIndex = tokenPool.insert(commitment);
+
+        // Emit events for indexing
+        emit NewCommitment(commitment, leafIndex, encryptedNote);
+        emit PublicDeposit(commitment, depositor, amount);
+    }
+
+    // ============ CRE Integration ============
+
+    /// @notice Insert a commitment from an authorized CRE callback contract
+    /// @dev Only callable by addresses authorized via ZkAMMAdmin.authorizedCRECallback
+    /// @param commitment The commitment hash to insert
+    /// @param encryptedNote Encrypted note data
+    /// @return leafIndex The merkle tree leaf index
+    function insertCommitmentFromCRE(
+        uint256 commitment,
+        bytes calldata encryptedNote
+    ) external nonReentrant returns (uint256 leafIndex) {
+        // Validate caller is an authorized CRE callback via the admin contract
+        // We read directly from admin's authorizedCRECallback mapping
+        (bool success, bytes memory result) = admin.staticcall(
+            abi.encodeWithSignature("authorizedCRECallback(address)", msg.sender)
+        );
+        require(success && abi.decode(result, (bool)), "Unauthorized CRE callback");
+
+        // Validate commitment
+        if (commitment == 0) revert ZeroAmount();
+        if (commitment >= SNARK_SCALAR_FIELD) revert InvalidScalarField();
+
+        leafIndex = tokenPool.insert(commitment);
+        emit NewCommitment(commitment, leafIndex, encryptedNote);
+    }
+
+    /// @notice Get ROOT token balance
+    function getRootBalance() external view returns (uint256) {
+        return rootToken.balanceOf(address(this));
+    }
 
     // ============ View Functions ============
 
-    /// @notice Calculate output amount for a swap
-    /// @dev Note: Cannot be pure due to FEE_BPS being immutable (not constant)
-    function getAmountOut(
-        uint256 amountIn,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) public view returns (uint256 amountOut) {
-        uint256 amountInWithFee = amountIn * (FEE_DENOMINATOR - FEE_BPS);
-        uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = reserveIn * FEE_DENOMINATOR + amountInWithFee;
-        amountOut = numerator / denominator;
+    /// @notice Get reserves
+    function getReserves() external view returns (uint256 _ethReserve, uint256 _tokenReserve) {
+        return (ethReserve, tokenReserve);
     }
 
-    /// @notice Get token price in $R00T (tokens per 1 $R00T)
-    function getTokenPrice() external view returns (uint256) {
-        return getAmountOut(1e18, r00tReserve, tokenReserve);
+    /// @notice Check if root is known in token pool
+    function isKnownRoot(uint256 root) external view returns (bool) {
+        return tokenPool.isKnownRoot(root);
     }
 
-    /// @notice Get $R00T price in tokens ($R00T per 1 token)
-    function getRootPrice() external view returns (uint256) {
-        return getAmountOut(1e18, tokenReserve, r00tReserve);
+    /// @notice Check if root is known in LP pool
+    function isKnownLPRoot(uint256 root) external view returns (bool) {
+        return lpPool.isKnownRoot(root);
     }
 
-    /// @notice Get pool reserves
-    function getReserves() external view returns (uint256 _r00tReserve, uint256 _tokenReserve) {
-        return (r00tReserve, tokenReserve);
+    /// @notice Check if nullifier is spent
+    function isNullifierSpent(uint256 nullifier) external view returns (bool) {
+        return nullifiers[nullifier];
     }
 
-    /// @notice Get the project token pool address
-    function getProjectTokenPool() external view returns (address) {
-        return address(projectTokenPool);
+    /// @notice Check if LP nullifier is spent
+    function isLPNullifierSpent(uint256 nullifier) external view returns (bool) {
+        return lpNullifiers[nullifier];
     }
 
-    // ============ Admin Functions ============
-
-    /// @notice Lock all verifiers permanently (cannot be unlocked)
-    /// @dev SECURITY FIX (Vuln 2): Once locked, verifiers cannot be changed
-    ///      This should be called after all verifiers are properly configured
-    ///      Prevents a compromised launchpad from replacing verifiers with malicious ones
-    event VerifiersPermanentlyLocked();
-
-    function lockVerifiers() external onlyLaunchpad {
-        verifiersLocked = true;
-        emit VerifiersPermanentlyLocked();
+    /// @notice Check if claim nullifier is spent
+    function isClaimNullifierSpent(uint256 nullifier) external view returns (bool) {
+        return spentClaimNullifiers[nullifier];
     }
 
-    /// @notice Update swap verifier (for circuit upgrades)
-    /// @dev SECURITY FIX (Vuln 2): Cannot be called after verifiers are locked
-    function setSwapVerifier(address _newVerifier) external onlyLaunchpad {
-        if (verifiersLocked) revert VerifiersLocked();
-        if (_newVerifier == address(0)) revert ZeroAddress();
-        swapVerifier = ISwapVerifier(_newVerifier);
+    /// @notice Get LP commitment info
+    function getLPCommitmentInfo(uint256 commitment) external view returns (
+        uint256 shares,
+        uint256 depositTime,
+        uint256 lastClaimed,
+        bool isWithdrawn,
+        bool isLocked
+    ) {
+        shares = lpCommitmentShares[commitment];
+        depositTime = lpDepositTime[commitment];
+        lastClaimed = lastClaimedFeePerShare[commitment];
+        isWithdrawn = lpCommitmentWithdrawn[commitment];
+        isLocked = block.timestamp < depositTime + LP_LOCK_PERIOD;
     }
 
-    /// @notice Update transfer verifier
-    /// @dev SECURITY FIX (Vuln 2): Cannot be called after verifiers are locked
-    function setTransferVerifier(address _newVerifier) external onlyLaunchpad {
-        if (verifiersLocked) revert VerifiersLocked();
-        if (_newVerifier == address(0)) revert ZeroAddress();
-        transferVerifier = ITransferVerifier(_newVerifier);
+    /// @notice Get LP info
+    function getLPInfo() external view returns (uint256 _totalShares, uint256 _feePerShare, uint256 _accumulatedFees) {
+        return (totalLPShares, feePerShare, accumulatedLPFees);
     }
 
-    /// @notice Update withdraw verifier
-    /// @dev SECURITY FIX (Vuln 2): Cannot be called after verifiers are locked
-    function setWithdrawVerifier(address _newVerifier) external onlyLaunchpad {
-        if (verifiersLocked) revert VerifiersLocked();
-        if (_newVerifier == address(0)) revert ZeroAddress();
-        withdrawVerifier = IWithdrawVerifier(_newVerifier);
+    /// @notice Get token pool address
+    function getTokenPool() external view returns (address) {
+        return address(tokenPool);
+    }
+
+    /// @notice Get LP pool address
+    function getLPPool() external view returns (address) {
+        return address(lpPool);
+    }
+
+    /// @notice Get circulating supply
+    function getCirculatingSupply() external view returns (uint256) {
+        return TOTAL_SUPPLY - tokenReserve;
+    }
+
+    /// @notice Get ETH surplus from force-sent transactions
+    function getETHSurplus() public view returns (uint256 surplus) {
+        uint256 actualBalance = address(this).balance;
+        surplus = actualBalance > ethReserve ? actualBalance - ethReserve : 0;
+    }
+
+    /// @notice Get claimable fees for current epoch
+    function getClaimableFees(uint256 lpShares) external view returns (uint256 claimable) {
+        uint256 epochStartFee = feePerShareAtEpochStart[currentFeeEpoch];
+        uint256 feeGrowthThisEpoch = feePerShare - epochStartFee;
+        claimable = (lpShares * feeGrowthThisEpoch) / FEE_PRECISION;
+        if (claimable > accumulatedLPFees) claimable = accumulatedLPFees;
+    }
+
+    /// @notice Babylonian method for integer square root
+    function sqrt(uint256 x) external pure returns (uint256 y) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
+
+    /// @notice Receive ETH - only from router, admin, or shorts contract
+    receive() external payable {
+        if (msg.sender != router && msg.sender != admin && msg.sender != shortsContract) revert Unauthorized();
     }
 }

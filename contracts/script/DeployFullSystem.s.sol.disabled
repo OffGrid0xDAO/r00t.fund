@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Script, console2 as console} from "forge-std/Script.sol";
 
 // Core
-import {ZkAMMv3} from "../src/ZkAMMv3.sol";
+import {ZkAMM} from "../src/ZkAMM.sol";
 import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 
 // Verifiers
@@ -51,9 +51,9 @@ contract DeployFullSystemScript is Script {
         NullifierRegistry nullifierRegistry = new NullifierRegistry(deployer);
         console.log("  NullifierRegistry:", address(nullifierRegistry));
 
-        // === Step 3: Deploy ZkAMMv3 ===
-        console.log("\n[3/9] Deploying ZkAMMv3 (1 ETH initial)...");
-        ZkAMMv3 zkAMMv3 = new ZkAMMv3{value: 0.1 ether}(
+        // === Step 3: Deploy ZkAMM ===
+        console.log("\n[3/9] Deploying ZkAMM (1 ETH initial)...");
+        ZkAMM zkAMMv3 = new ZkAMM{value: 0.1 ether}(
             "R00T",
             "ROOT",
             address(sellVerifier),
@@ -64,7 +64,7 @@ contract DeployFullSystemScript is Script {
             deployer,  // emergency signer 1
             deployer   // emergency signer 2
         );
-        console.log("  ZkAMMv3:", address(zkAMMv3));
+        console.log("  ZkAMM:", address(zkAMMv3));
         console.log("  TokenPool:", address(zkAMMv3.tokenPool()));
         console.log("  LPPool:", address(zkAMMv3.lpPool()));
 
@@ -79,8 +79,8 @@ contract DeployFullSystemScript is Script {
         console.log("  RemoveLiquidityVerifier:", address(removeLiqVerifier));
         console.log("  ClaimLPFeesVerifier:", address(claimFeesVerifier));
 
-        // === Step 5: Set LP Verifiers on ZkAMMv3 ===
-        console.log("\n[5/9] Configuring ZkAMMv3 verifiers...");
+        // === Step 5: Set LP Verifiers on ZkAMM ===
+        console.log("\n[5/9] Configuring ZkAMM verifiers...");
         zkAMMv3.setSwapVerifier(address(swapVerifier));
         zkAMMv3.setAddLiquidityVerifier(address(addLiqVerifier));
         zkAMMv3.setRemoveLiquidityVerifier(address(removeLiqVerifier));
@@ -133,7 +133,7 @@ contract DeployFullSystemScript is Script {
         console.log("\n========================================");
         console.log("  DEPLOYMENT COMPLETE");
         console.log("========================================\n");
-        console.log("ZkAMMv3:", address(zkAMMv3));
+        console.log("ZkAMM:", address(zkAMMv3));
         console.log("TokenPool:", zkAMMv3.tokenPool());
         console.log("LPPool:", zkAMMv3.lpPool());
         console.log("NullifierRegistry:", address(nullifierRegistry));

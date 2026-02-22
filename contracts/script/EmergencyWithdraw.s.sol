@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/ZkAMMv3Admin.sol";
-import "../src/ZkAMMv3Pair.sol";
+import "../src/ZkAMMAdmin.sol";
+import "../src/ZkAMMPair.sol";
 
 /**
  * @title EmergencyWithdraw Script
- * @notice Script to perform emergency ETH withdrawal from ZkAMMv3
+ * @notice Script to perform emergency ETH withdrawal from ZkAMM
  * @dev Requires 2-of-3 emergency signers to approve
  *
  * Usage:
@@ -33,13 +33,13 @@ contract EmergencyWithdrawScript is Script {
         console.log("Pair contract:", PAIR);
 
         // Check current ETH reserve
-        ZkAMMv3Pair pair = ZkAMMv3Pair(payable(PAIR));
+        ZkAMMPair pair = ZkAMMPair(payable(PAIR));
         uint256 ethReserve = pair.ethReserve();
         console.log("Current ETH reserve:", ethReserve);
         console.log("Current ETH reserve (in ETH):", ethReserve / 1e18);
 
         // Check emergency signers
-        ZkAMMv3Admin admin = ZkAMMv3Admin(ADMIN);
+        ZkAMMAdmin admin = ZkAMMAdmin(ADMIN);
         console.log("\nEmergency Signers:");
         console.log("  Signer 0:", admin.emergencySigners(0));
         console.log("  Signer 1:", admin.emergencySigners(1));
@@ -54,8 +54,8 @@ contract EmergencyWithdrawScript is Script {
     function initiateWithdrawAll(address recipient) external {
         vm.startBroadcast();
 
-        ZkAMMv3Admin admin = ZkAMMv3Admin(ADMIN);
-        ZkAMMv3Pair pair = ZkAMMv3Pair(payable(PAIR));
+        ZkAMMAdmin admin = ZkAMMAdmin(ADMIN);
+        ZkAMMPair pair = ZkAMMPair(payable(PAIR));
 
         uint256 ethReserve = pair.ethReserve();
         console.log("Initiating withdrawal of", ethReserve, "wei to", recipient);
@@ -75,7 +75,7 @@ contract EmergencyWithdrawScript is Script {
     function initiateWithdrawAmount(uint256 amount, address recipient) external {
         vm.startBroadcast();
 
-        ZkAMMv3Admin admin = ZkAMMv3Admin(ADMIN);
+        ZkAMMAdmin admin = ZkAMMAdmin(ADMIN);
 
         console.log("Initiating withdrawal of", amount, "wei to", recipient);
 
@@ -93,7 +93,7 @@ contract EmergencyWithdrawScript is Script {
     function confirmWithdraw(bytes32 actionHash) external {
         vm.startBroadcast();
 
-        ZkAMMv3Admin admin = ZkAMMv3Admin(ADMIN);
+        ZkAMMAdmin admin = ZkAMMAdmin(ADMIN);
 
         console.log("Confirming emergency action:");
         console.logBytes32(actionHash);
@@ -107,7 +107,7 @@ contract EmergencyWithdrawScript is Script {
 
     /// @notice Check status of a pending emergency action
     function checkAction(bytes32 actionHash) external view {
-        ZkAMMv3Admin admin = ZkAMMv3Admin(ADMIN);
+        ZkAMMAdmin admin = ZkAMMAdmin(ADMIN);
 
         (uint8 actionType, uint256 amount, address recipient,,) = admin.pendingEmergencyActions(actionHash);
         uint8 approvals = admin.emergencyApprovals(actionHash);

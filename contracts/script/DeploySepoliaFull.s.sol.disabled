@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/ZkAMMv3.sol";
+import "../src/ZkAMM.sol";
 import "../src/NullifierRegistry.sol";
 import "../src/LaunchpadGovernance.sol";
 import "../src/verifiers/SellVerifier.sol";
@@ -17,7 +17,7 @@ import "../src/verifiers/PledgeVerifier.sol";
 
 /// @title DeploySepoliaFull
 /// @notice Deploy the complete HideMyCoin system to Sepolia testnet
-/// @dev Deploys: Verifiers -> NullifierRegistry -> ZkAMMv3 -> LaunchpadGovernance
+/// @dev Deploys: Verifiers -> NullifierRegistry -> ZkAMM -> LaunchpadGovernance
 ///
 /// Required environment variables:
 ///   - PRIVATE_KEY: Deployer private key
@@ -105,10 +105,10 @@ contract DeploySepoliaFullScript is Script {
         console.log("  PledgeVerifier:", pledgeVerifier);
 
         // ==========================================
-        // Step 2: Deploy ZkAMMv3 (Main AMM)
+        // Step 2: Deploy ZkAMM (Main AMM)
         // ==========================================
         console.log("");
-        console.log("Step 2: Deploying ZkAMMv3...");
+        console.log("Step 2: Deploying ZkAMM...");
 
         // For testnet, use deployer as all emergency signers
         // In production, these should be different addresses
@@ -116,7 +116,7 @@ contract DeploySepoliaFullScript is Script {
         address emergencySigner2 = address(uint160(deployer) + 1); // Different address
         address emergencySigner3 = address(uint160(deployer) + 2); // Different address
 
-        ZkAMMv3 _zkAMMv3 = new ZkAMMv3{value: initialEth}(
+        ZkAMM _zkAMMv3 = new ZkAMM{value: initialEth}(
             "r00t",                  // name
             "ROOT",                  // symbol
             sellVerifier,            // sellVerifier
@@ -131,15 +131,15 @@ contract DeploySepoliaFullScript is Script {
         tokenPool = address(_zkAMMv3.tokenPool());
         lpPool = address(_zkAMMv3.getLPPool());
 
-        console.log("  ZkAMMv3:", zkAMMv3);
+        console.log("  ZkAMM:", zkAMMv3);
         console.log("  TokenPool:", tokenPool);
         console.log("  LPPool:", lpPool);
 
         // ==========================================
-        // Step 3: Configure ZkAMMv3 verifiers
+        // Step 3: Configure ZkAMM verifiers
         // ==========================================
         console.log("");
-        console.log("Step 3: Configuring ZkAMMv3 verifiers...");
+        console.log("Step 3: Configuring ZkAMM verifiers...");
 
         _zkAMMv3.setAddLiquidityVerifier(addLiquidityVerifier);
         console.log("  Set AddLiquidityVerifier");
@@ -191,17 +191,17 @@ contract DeploySepoliaFullScript is Script {
         console.log("");
         console.log("Step 6: Final configuration...");
 
-        // Set launchpad in ZkAMMv3 (for pool registration)
+        // Set launchpad in ZkAMM (for pool registration)
         _zkAMMv3.setLaunchpad(launchpad);
-        console.log("  Set Launchpad in ZkAMMv3");
+        console.log("  Set Launchpad in ZkAMM");
 
         // Update NullifierRegistry governance to LaunchpadGovernance
         _nullifierRegistry.setGovernance(launchpad);
         console.log("  Set LaunchpadGovernance as NullifierRegistry governance");
 
-        // Authorize ZkAMMv3 in NullifierRegistry
+        // Authorize ZkAMM in NullifierRegistry
         _nullifierRegistry.setPoolAuthorization(zkAMMv3, true);
-        console.log("  Authorized ZkAMMv3 in NullifierRegistry");
+        console.log("  Authorized ZkAMM in NullifierRegistry");
 
         vm.stopBroadcast();
 
@@ -214,7 +214,7 @@ contract DeploySepoliaFullScript is Script {
         console.log("========================================");
         console.log("");
         console.log("=== Core Contracts ===");
-        console.log("ZkAMMv3:", zkAMMv3);
+        console.log("ZkAMM:", zkAMMv3);
         console.log("TokenPool:", tokenPool);
         console.log("LPPool:", lpPool);
         console.log("NullifierRegistry:", nullifierRegistry);

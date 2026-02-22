@@ -6,7 +6,7 @@ pragma solidity ^0.8.24;
 /// @dev SECURITY FIX: Prevents double-spending R00T commitments across multiple project pools
 ///
 /// Problem Solved:
-/// - R00T commitments live in ZkAMMv3's TokenPool
+/// - R00T commitments live in ZkAMM's TokenPool
 /// - Multiple ZkProjectPools can accept R00T commitments
 /// - Without coordination, same R00T commitment could be spent in multiple pools
 ///

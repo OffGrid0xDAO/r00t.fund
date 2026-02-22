@@ -9,7 +9,7 @@ import "../interfaces/AggregatorV3Interface.sol";
 /// @notice Chainlink-compatible Proof of Reserve data feed for ReFi reserves (Workflow 2)
 /// @dev Prize Track: DeFi & Tokenization ($20k)
 ///      Implements AggregatorV3Interface so any protocol can consume reserve data.
-///      CRE DON reads on-chain state (ZkAMMv3Pair, ZkProjectPools) + external
+///      CRE DON reads on-chain state (ZkAMMPair, ZkProjectPools) + external
 ///      environmental data to produce composite reserve health reports.
 contract RegenProofOfReserve is R00tCREReceiver, AggregatorV3Interface {
     // ============ Structs ============

@@ -751,10 +751,10 @@ contract ZkProjectPoolCore is ReentrancyGuard {
         emit AtomicSwapFromR00T(r00tAmount, tokensOut, outputCommitment);
     }
 
-    // ============ Direct Atomic Swap (for ZkAMMv3) ============
+    // ============ Direct Atomic Swap (for ZkAMM) ============
 
-    /// @notice Atomic swap from R00T - called directly by ZkAMMv3
-    /// @dev This is the direct interface used by ZkAMMv3 for ETH -> ProjectToken atomic swaps
+    /// @notice Atomic swap from R00T - called directly by ZkAMM
+    /// @dev This is the direct interface used by ZkAMM for ETH -> ProjectToken atomic swaps
     function atomicSwapFromR00T(
         uint256 r00tAmount,
         uint256 r00tNullifier,

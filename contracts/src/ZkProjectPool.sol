@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ///
 /// Key Design:
 /// - R00T is the base currency (not ETH) - users swap R00T for project tokens
-/// - R00T commitments come from the main ZkAMMv3 R00T pool
+/// - R00T commitments come from the main ZkAMM R00T pool
 /// - Project tokens have their own commitment pool in this contract
 /// - Fees go to project creator and platform
 ///
@@ -185,7 +185,7 @@ contract ZkProjectPool is ReentrancyGuard {
     /// @notice Proposal ID that created this pool
     uint256 public proposalId;
 
-    /// @notice Authorized atomic swapper (ZkAMMv3) for ETH → ProjectToken atomic swaps
+    /// @notice Authorized atomic swapper (ZkAMM) for ETH → ProjectToken atomic swaps
     address public authorizedAtomicSwapper;
 
     /// @notice Maximum dev allocation in tokens (SECURITY FIX: prevents unlimited claims)
@@ -200,7 +200,7 @@ contract ZkProjectPool is ReentrancyGuard {
 
     // ============ Pending R00T Claims System ============
     // SECURITY FIX: Instead of creating R00T commitments directly (which this pool cannot back),
-    // we track pending claims that users can redeem through ZkAMMv3 (the actual R00T custodian)
+    // we track pending claims that users can redeem through ZkAMM (the actual R00T custodian)
 
     /// @notice Emergency claim delay (30 days) - allows anyone to process claims if governance is inactive
     /// @dev SECURITY FIX (Vuln 6): Prevents permanent fund lock if governance is compromised
@@ -317,8 +317,8 @@ contract ZkProjectPool is ReentrancyGuard {
         _;
     }
 
-    /// @notice Requires caller to be the authorized atomic swapper (ZkAMMv3)
-    /// @dev SECURITY: Only ZkAMMv3 can perform atomic swaps without proof
+    /// @notice Requires caller to be the authorized atomic swapper (ZkAMM)
+    /// @dev SECURITY: Only ZkAMM can perform atomic swaps without proof
     modifier onlyAuthorizedAtomicSwapper() {
         if (msg.sender != authorizedAtomicSwapper) revert Unauthorized();
         _;
@@ -862,7 +862,7 @@ contract ZkProjectPool is ReentrancyGuard {
         emit NewProjectTokenCommitment(tokenOutputCommitment, tokenLeafIndex, tokenNote);
 
         // SECURITY FIX: Instead of creating R00T commitments directly (which this pool cannot back),
-        // register a pending claim that can be processed by ZkAMMv3 (the actual R00T custodian)
+        // register a pending claim that can be processed by ZkAMM (the actual R00T custodian)
         // This prevents creating unbacked R00T commitments
         uint256 claimId = nextClaimId++;
         pendingR00tClaims[claimId] = PendingR00tClaim({
@@ -1439,18 +1439,18 @@ contract ZkProjectPool is ReentrancyGuard {
 
     // ============ Atomic Swap Functions ============
 
-    /// @notice Receive R00T atomically from ZkAMMv3 (no proof required - trusted call)
-    /// @dev Only callable by authorized ZkAMMv3. R00T commitment already created and
-    ///      nullifier already marked in ZkAMMv3. We just mark in global registry and
+    /// @notice Receive R00T atomically from ZkAMM (no proof required - trusted call)
+    /// @dev Only callable by authorized ZkAMM. R00T commitment already created and
+    ///      nullifier already marked in ZkAMM. We just mark in global registry and
     ///      create the ProjectToken commitment.
-    ///      SECURITY NOTE: This function trusts that the authorizedAtomicSwapper (ZkAMMv3) has:
+    ///      SECURITY NOTE: This function trusts that the authorizedAtomicSwapper (ZkAMM) has:
     ///      1. Verified a valid ZK proof for the R00T commitment being spent
     ///      2. Marked the nullifier in its local r00tNullifiers mapping
     ///      3. Updated its own ethReserve to reflect the R00T spent
-    ///      The r00tAmount parameter is trusted because only ZkAMMv3 can call this function,
-    ///      and ZkAMMv3 calculates it from verified ZK proof public inputs.
+    ///      The r00tAmount parameter is trusted because only ZkAMM can call this function,
+    ///      and ZkAMM calculates it from verified ZK proof public inputs.
     /// @param r00tAmount Amount of R00T being swapped
-    /// @param r00tNullifier Nullifier for the R00T commitment (already marked locally in ZkAMMv3)
+    /// @param r00tNullifier Nullifier for the R00T commitment (already marked locally in ZkAMM)
     /// @param minTokensOut Minimum project tokens to receive (slippage protection)
     /// @param outputCommitment Commitment for the project tokens received
     /// @param encryptedNote Encrypted note for commitment recovery
@@ -1520,7 +1520,7 @@ contract ZkProjectPool is ReentrancyGuard {
 
     // ============ Admin Functions ============
 
-    /// @notice Set the authorized atomic swapper (ZkAMMv3) - can only be set once
+    /// @notice Set the authorized atomic swapper (ZkAMM) - can only be set once
     /// @dev SECURITY FIX (Audit Vuln 3): Only callable by governance, and only once.
     ///      Once set, the atomic swapper cannot be changed to prevent compromised governance
     ///      from redirecting atomic swaps to a malicious contract.

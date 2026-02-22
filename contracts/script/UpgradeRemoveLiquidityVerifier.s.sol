@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/ZkAMMv3Admin.sol";
+import "../src/ZkAMMAdmin.sol";
 import "../src/verifiers/RealRemoveLiquidityVerifier.sol";
 
 /// @title UpgradeRemoveLiquidityVerifier
@@ -35,7 +35,7 @@ contract UpgradeRemoveLiquidityVerifierScript is Script {
         // Step 2: Update admin to use new verifier
         console.log("");
         console.log("Step 2: Updating Admin with new verifier...");
-        ZkAMMv3Admin admin = ZkAMMv3Admin(adminAddress);
+        ZkAMMAdmin admin = ZkAMMAdmin(adminAddress);
         admin.proposeVerifierChange("removeLiquidity", address(newVerifier));
         console.log("  Verifier change proposed! Execute after timelock expires.");
 

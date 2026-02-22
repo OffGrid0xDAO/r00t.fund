@@ -12,7 +12,7 @@ import { getBytes } from 'ethers';
 import { useZkProver } from '../hooks/useZkProver';
 import { usePageVisibility } from '../hooks/usePageVisibility';
 
-// ZkAMMv3 ABI (LP functions) - Updated for dual-sided LP with ZK proofs
+// ZkAMM ABI (LP functions) - Updated for dual-sided LP with ZK proofs
 const ZKAMM_V3_ABI = [
   {
     name: 'addLiquidityPrivate',
@@ -1129,7 +1129,7 @@ export function LiquidityPanel({
       }));
 
       // Calculate expected tokens out: tokensOut = (withdrawShares * tokenReserve) / totalLPShares
-      // This matches the contract calculation in ZkAMMv3Router.sol:476
+      // This matches the contract calculation in ZkAMMRouter.sol:476
       // SECURITY FIX: Now calculated BEFORE proof generation and included in circuit
       const expectedTokensOut = poolInfo.totalShares > 0n
         ? (withdrawShares * poolInfo.tokenReserve) / poolInfo.totalShares

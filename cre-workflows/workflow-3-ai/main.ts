@@ -3,21 +3,26 @@
  * Prize Track: CRE & AI ($17k)
  *
  * THE CORE DIFFERENTIATOR: Uses Chainlink CRE to verify whether projects
- * launched through LaunchpadGovernanceV2 are *actually regenerating land*.
+ * launched through LaunchpadGovernance are *actually regenerating land*,
+ * using an LLM (Groq Llama 3.3 70B) as an AI agent to analyze multi-source
+ * environmental evidence and produce verification verdicts.
  *
  * Pipeline:
  * 1. Read project proposals from governance (location, area, claimed impact)
  * 2. Fetch Copernicus Sentinel-2 satellite NDVI data for the project coordinates
  * 3. Fetch soil carbon measurements from SoilGrids/ISRIC
  * 4. Fetch land use change data from Global Forest Watch
- * 5. Apply heuristic scoring to determine regeneration status
- * 6. Push verified regeneration attestation on-chain
+ * 5. LLM AGENT: Send all evidence to Llama 3.3 70B (via Groq) for expert analysis and verdict
+ * 6. Push AI-verified regeneration attestation on-chain
  *
- * This creates a decentralized MRV (Measurement, Reporting, Verification)
- * layer -- the missing piece for legitimate carbon credit attribution.
+ * This creates a decentralized AI-powered MRV (Measurement, Reporting,
+ * Verification) layer -- the missing piece for legitimate carbon credit
+ * attribution. The LLM acts as an expert ecological assessor, interpreting
+ * satellite imagery metrics, soil data, and forest monitoring signals to
+ * produce a confidence-scored regeneration verdict.
  *
  * Trigger: CronCapability (every 5 minutes)
- * Capabilities: HTTPClient, EVMClient
+ * Capabilities: HTTPClient (external APIs + LLM), EVMClient
  */
 
 import {
@@ -43,7 +48,7 @@ import {
   toBytes,
 } from 'viem'
 import { z } from 'zod'
-import { LaunchpadGovernanceV2ABI } from '../contracts/abi/LaunchpadGovernanceV2'
+import { LaunchpadGovernanceABI } from '../contracts/abi/LaunchpadGovernance'
 import { AIAgentOrchestratorABI } from '../contracts/abi/AIAgentOrchestrator'
 
 // ============ Config Schema ============
@@ -166,10 +171,10 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
   const httpCapability = new cre.capabilities.HTTPClient()
 
-  // ---- Step 1: Read active proposals from LaunchpadGovernanceV2 ----
+  // ---- Step 1: Read active proposals from LaunchpadGovernance ----
 
   const proposalCountCallData = encodeFunctionData({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'proposalCount',
   })
 
@@ -183,7 +188,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   }).result()
 
   const proposalCount = decodeFunctionResult({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'proposalCount',
     data: bytesToHex(proposalCountResult.data),
   }) as bigint
@@ -203,7 +208,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 
   // Read proposal details
   const getProposalCallData = encodeFunctionData({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'getProposal',
     args: [BigInt(latestProposalId)],
   })
@@ -218,7 +223,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   }).result()
 
   const proposal = decodeFunctionResult({
-    abi: LaunchpadGovernanceV2ABI,
+    abi: LaunchpadGovernanceABI,
     functionName: 'getProposal',
     data: bytesToHex(proposalResult.data),
   }) as readonly [string, bigint, string, string, string, bigint, bigint, bigint, number]
@@ -295,7 +300,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     treeCoverChange = 5
   }
 
-  // ---- Step 5: Build evidence and apply heuristic scoring ----
+  // ---- Step 5: Build evidence and send to LLM for AI analysis ----
   const evidence: RegenerationEvidence = {
     ndviCurrent,
     ndviBaseline,
@@ -314,31 +319,113 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   let confidence: number
   let carbonCreditEligible: boolean
 
-  // Heuristic fallback scoring (no LLM in simulation)
-  if (evidence.ndviChange > 0.1 && evidence.treeCoverChange > 2) {
-    verificationStatus = VerificationStatus.REGENERATING
-    regenerationScore = Math.min(
-      1000,
-      Math.floor(evidence.ndviChange * 2000 + evidence.treeCoverChange * 50)
-    )
-    estimatedCarbon = evidence.soilOrganicCarbon * project.areaHectares * 0.01
-    verdict = `NDVI increase of ${evidence.ndviChange.toFixed(3)} and +${evidence.treeCoverChange}% tree cover indicate active regeneration`
-    confidence = 60
-    carbonCreditEligible = regenerationScore > 300
-  } else if (evidence.ndviChange > 0) {
-    verificationStatus = VerificationStatus.STABLE
-    regenerationScore = Math.floor(evidence.ndviChange * 1000)
-    estimatedCarbon = evidence.soilOrganicCarbon * project.areaHectares * 0.005
-    verdict = 'Minor vegetation improvement detected but insufficient for carbon credit attribution'
-    confidence = 45
-    carbonCreditEligible = false
-  } else {
-    verificationStatus = VerificationStatus.DEGRADING
-    regenerationScore = 0
-    estimatedCarbon = 0
-    verdict = 'No evidence of land regeneration -- NDVI declining'
-    confidence = 70
-    carbonCreditEligible = false
+  // ---- LLM AI AGENT: Call GPT-4o to analyze environmental evidence ----
+  const llmPrompt = `You are an expert ecological assessor for a carbon credit verification system.
+Analyze the following environmental monitoring data for a land regeneration project and provide your assessment.
+
+PROJECT: "${project.projectName}" at coordinates (${project.lat}, ${project.lon}), ${project.areaHectares} hectares
+REGION: Central Portugal (Mediterranean climate, post-fire reforestation context)
+
+SATELLITE DATA (Copernicus Sentinel-2):
+- Current NDVI: ${evidence.ndviCurrent.toFixed(4)} (0=bare soil, 1=dense vegetation)
+- Baseline NDVI: ${evidence.ndviBaseline.toFixed(4)}
+- NDVI Change: ${evidence.ndviChange > 0 ? '+' : ''}${evidence.ndviChange.toFixed(4)}
+
+SOIL DATA (ISRIC SoilGrids):
+- Soil Organic Carbon: ${evidence.soilOrganicCarbon} tonnes C/ha (0-30cm depth)
+
+FOREST DATA (Global Forest Watch):
+- Tree Canopy Cover: ${evidence.treeCanopyCover}%
+- Tree Cover Change: ${evidence.treeCoverChange > 0 ? '+' : ''}${evidence.treeCoverChange}%
+
+DATA QUALITY SCORE: ${evidence.dataQuality}/100
+
+Respond ONLY with a valid JSON object (no markdown, no explanation outside JSON):
+{
+  "status": "REGENERATING" | "STABLE" | "DEGRADING" | "INSUFFICIENT_DATA",
+  "score": <0-1000 regeneration score>,
+  "confidence": <0-100 confidence percentage>,
+  "estimatedCarbonTonnes": <estimated annual CO2 sequestration in tCO2e/yr>,
+  "carbonCreditEligible": true | false,
+  "verdict": "<2-3 sentence expert assessment explaining your reasoning>"
+}`
+
+  // Call Groq LLM (Llama 3.3 70B) via CRE HTTPClient — OpenAI-compatible API
+  const llmRequest: HTTPSendRequester = {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer {{{ secrets.LLM_API_KEY }}}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are an expert ecological assessor. Respond only with valid JSON.' },
+        { role: 'user', content: llmPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 500,
+    }),
+  }
+
+  let llmUsed = false
+
+  try {
+    const llmResponse = httpCapability.sendRequest(runtime, llmRequest).result()
+    if (llmResponse?.body) {
+      const llmData = JSON.parse(llmResponse.body)
+      const content = llmData.choices?.[0]?.message?.content ?? ''
+
+      // Parse the LLM's JSON response
+      const aiVerdict = JSON.parse(content)
+      llmUsed = true
+
+      // Map LLM status to enum
+      const statusMap: Record<string, VerificationStatus> = {
+        REGENERATING: VerificationStatus.REGENERATING,
+        STABLE: VerificationStatus.STABLE,
+        DEGRADING: VerificationStatus.DEGRADING,
+        INSUFFICIENT_DATA: VerificationStatus.INSUFFICIENT_DATA,
+      }
+
+      verificationStatus = statusMap[aiVerdict.status] ?? VerificationStatus.INSUFFICIENT_DATA
+      regenerationScore = Math.min(1000, Math.max(0, Number(aiVerdict.score) || 0))
+      estimatedCarbon = Number(aiVerdict.estimatedCarbonTonnes) || 0
+      verdict = `[AI/Llama-3.3-70B] ${aiVerdict.verdict}`
+      confidence = Math.min(100, Math.max(0, Number(aiVerdict.confidence) || 0))
+      carbonCreditEligible = Boolean(aiVerdict.carbonCreditEligible)
+    } else {
+      throw new Error('Empty LLM response')
+    }
+  } catch {
+    // Heuristic fallback if LLM is unavailable
+    llmUsed = false
+    if (evidence.ndviChange > 0.1 && evidence.treeCoverChange > 2) {
+      verificationStatus = VerificationStatus.REGENERATING
+      regenerationScore = Math.min(
+        1000,
+        Math.floor(evidence.ndviChange * 2000 + evidence.treeCoverChange * 50)
+      )
+      estimatedCarbon = evidence.soilOrganicCarbon * project.areaHectares * 0.01
+      verdict = `[Heuristic] NDVI increase of ${evidence.ndviChange.toFixed(3)} and +${evidence.treeCoverChange}% tree cover indicate active regeneration`
+      confidence = 60
+      carbonCreditEligible = regenerationScore > 300
+    } else if (evidence.ndviChange > 0) {
+      verificationStatus = VerificationStatus.STABLE
+      regenerationScore = Math.floor(evidence.ndviChange * 1000)
+      estimatedCarbon = evidence.soilOrganicCarbon * project.areaHectares * 0.005
+      verdict = '[Heuristic] Minor vegetation improvement detected but insufficient for carbon credit attribution'
+      confidence = 45
+      carbonCreditEligible = false
+    } else {
+      verificationStatus = VerificationStatus.DEGRADING
+      regenerationScore = 0
+      estimatedCarbon = 0
+      verdict = '[Heuristic] No evidence of land regeneration -- NDVI declining'
+      confidence = 70
+      carbonCreditEligible = false
+    }
   }
 
   // ---- Step 6: Encode and push verification report on-chain ----
@@ -399,7 +486,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 
   return `Regeneration verification for proposal ${project.proposalId} "${project.projectName}": ` +
     `status=${VerificationStatus[verificationStatus]}, score=${regenerationScore}/1000, ` +
-    `carbon=${estimatedCarbon} tCO2e/yr, eligible=${carbonCreditEligible}, confidence=${confidence}%. ` +
+    `carbon=${estimatedCarbon} tCO2e/yr, eligible=${carbonCreditEligible}, confidence=${confidence}%, ` +
+    `agent=${llmUsed ? 'Llama-3.3-70B/Groq' : 'heuristic-fallback'}. ` +
     `TX: ${writeResp}`
 }
 
