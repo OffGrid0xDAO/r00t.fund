@@ -1,6 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { formatUnits, parseEther } from 'viem';
+import { formatUnits, formatEther, parseEther } from 'viem';
+import { usePredictionMarket } from '../hooks/usePredictionMarket';
+import { useConfidentialFunding } from '../hooks/useConfidentialFunding';
+import { useAIOrchestrator } from '../hooks/useAIOrchestrator';
+import type { PredictionMarket, ProjectAttestation, GovernanceAdvisory } from '../types';
 import { GlowButton } from '../../ui/GlowButton';
 import { StatusBadge } from './StatusBadge';
 import { MilestoneTimeline } from './MilestoneTimeline';
@@ -58,6 +62,27 @@ export function ProposalCard({
       status: proposal.status === ProposalStatus.Executed ? 'active' : 'pending',
     }));
   }, [proposal.status]);
+
+  // CRE Workflow hooks (W1, W3, W4)
+  const { getMarket } = usePredictionMarket();
+  const { getProjectAttestation } = useConfidentialFunding();
+  const { getGovernanceAdvisory } = useAIOrchestrator();
+
+  const [market, setMarket] = useState<PredictionMarket | null>(null);
+  const [attestation, setAttestation] = useState<ProjectAttestation | null>(null);
+  const [advisory, setAdvisory] = useState<GovernanceAdvisory | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      getMarket(proposal.id),
+      getProjectAttestation(proposal.id),
+      getGovernanceAdvisory(proposal.id),
+    ]).then(([m, a, adv]) => {
+      if (m) setMarket(m);
+      if (a) setAttestation(a);
+      if (adv) setAdvisory(adv);
+    });
+  }, [proposal.id]);
 
   const getVotePercentage = () => {
     const total = proposal.votesFor + proposal.votesAgainst;
@@ -173,6 +198,54 @@ export function ProposalCard({
       <div className="mb-3">
         <MilestoneTimeline milestones={milestones} compact />
       </div>
+
+      {/* CRE Workflow Status (W1/W3/W4) */}
+      {(attestation || advisory || market) && (
+        <div className="mb-3 p-2.5 rounded-lg space-y-1.5" style={{ background: 'var(--bg-primary)' }}>
+          {attestation && (
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span>
+                <span style={{ color: 'var(--accent)' }}>W1</span>
+                <span className="text-[var(--text-muted)]"> funding_vault</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: attestation.verified ? 'var(--success)' : 'var(--warning)' }}>
+                  {attestation.verified ? 'verified' : 'pending'}
+                </span>
+                <span className="text-[var(--text-muted)]">impact: {attestation.impactScore}</span>
+              </span>
+            </div>
+          )}
+          {advisory && (
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span>
+                <span style={{ color: 'var(--accent)' }}>W3</span>
+                <span className="text-[var(--text-muted)]"> ai_advisory</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: advisory.recommendation === 1 ? 'var(--success)' : advisory.recommendation === 2 ? 'var(--error)' : 'var(--text-muted)' }}>
+                  {advisory.recommendation === 1 ? 'FOR' : advisory.recommendation === 2 ? 'AGAINST' : 'ABSTAIN'}
+                </span>
+                <span className="text-[var(--text-muted)]">{advisory.confidence}%</span>
+              </span>
+            </div>
+          )}
+          {market && (
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span>
+                <span style={{ color: 'var(--accent)' }}>W4</span>
+                <span className="text-[var(--text-muted)]"> prediction</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: market.status === 0 ? 'var(--accent)' : market.status === 1 ? 'var(--success)' : market.status === 2 ? 'var(--error)' : 'var(--text-muted)' }}>
+                  {['OPEN', 'YES', 'NO', 'CANCELLED'][market.status] ?? 'UNKNOWN'}
+                </span>
+                <span className="text-[var(--text-muted)]">{formatEther(market.totalPool)} ETH</span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2">

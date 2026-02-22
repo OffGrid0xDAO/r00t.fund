@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
 import { LiveProjectCard } from './LiveProjectCard';
-import type { Proposal, CreDataFeedReport, ProjectSummary } from '../types';
+import type { Proposal, CreDataFeedReport, ProjectSummary, CreWorkflowStatus } from '../types';
 
 interface LiveProjectListProps {
   liveProjects: string[];
   proposals: Proposal[];
   report?: CreDataFeedReport | null;
   summary?: ProjectSummary | null;
+  creWorkflowStatus?: CreWorkflowStatus;
   onSelectProject: (project: { name: string; symbol: string; ammAddress: string; totalSupply?: bigint; feeBps?: number }) => void;
   onTradeProject?: (ammAddress: string, name: string, symbol: string) => void;
 }
@@ -16,6 +17,7 @@ export function LiveProjectList({
   proposals,
   report,
   summary,
+  creWorkflowStatus,
   onSelectProject,
   onTradeProject,
 }: LiveProjectListProps) {
@@ -49,6 +51,7 @@ export function LiveProjectList({
             proposal={proposal}
             report={report}
             summary={summary}
+            creWorkflowStatus={creWorkflowStatus}
             index={idx}
             onClick={() =>
               onSelectProject({

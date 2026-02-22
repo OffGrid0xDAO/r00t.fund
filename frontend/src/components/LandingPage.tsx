@@ -1,8 +1,11 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
+import { formatEther } from 'viem';
 import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
+import { useProofOfReserve } from './projects/hooks/useProofOfReserve';
+import { useProtocolHealth } from './projects/hooks/useProtocolHealth';
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -116,6 +119,9 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
 }
 
 export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
+  const { data: reserveData } = useProofOfReserve();
+  const { report: healthReport } = useProtocolHealth();
+
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -355,12 +361,12 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       <section className="relative py-10 border-y border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            {[
+            {([
               { label: 'Trees Planted', value: '2,550' },
               { label: 'Hectares Restoring', value: '9' },
-              { label: 'CRE Workflows', value: '7' },
-              { label: 'Privacy Score', value: '100%' },
-            ].map((stat, i) => (
+              { label: 'Backing Ratio', value: reserveData ? `${(reserveData.backingRatio / 100).toFixed(0)}%` : '—', live: !!reserveData },
+              { label: 'Protocol Risk', value: healthReport ? ['NONE','LOW','MED','HIGH','CRIT'][healthReport.overallRiskLevel] : '—', live: !!healthReport, color: healthReport ? (healthReport.overallRiskLevel <= 1 ? 'var(--success)' : healthReport.overallRiskLevel === 2 ? 'var(--warning)' : 'var(--error)') : undefined },
+            ] as { label: string; value: string; live?: boolean; color?: string }[]).map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 15 }}
@@ -369,15 +375,39 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 transition={{ duration: 0.4, delay: i * 0.08 }}
                 className="text-center md:text-left"
               >
-                <p className="text-3xl md:text-4xl font-display text-[var(--text-primary)] tracking-tight tabular-nums">
+                <p className="text-3xl md:text-4xl font-display tracking-tight tabular-nums" style={{ color: stat.color || 'var(--text-primary)' }}>
                   {stat.value}
                 </p>
-                <span className="text-[11px] tracking-[0.15em] text-[var(--text-muted)] uppercase font-mono">
+                <span className="text-[11px] tracking-[0.15em] text-[var(--text-muted)] uppercase font-mono inline-flex items-center gap-1.5">
+                  {stat.live && (
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
+                    </span>
+                  )}
                   {stat.label}
                 </span>
               </motion.div>
             ))}
           </div>
+          {reserveData && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.35 }}
+              className="mt-6 flex items-center justify-center md:justify-start gap-2"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
+              </span>
+              <span className="text-xs font-mono text-[var(--text-muted)]">TVL</span>
+              <span className="text-sm font-mono font-medium" style={{ color: 'var(--accent)' }}>
+                {Number(formatEther(reserveData.totalTVL)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH
+              </span>
+            </motion.div>
+          )}
         </div>
       </section>
 

@@ -5,14 +5,18 @@ import { StatusBadge } from '../proposals/StatusBadge';
 import { DataFeedGauge } from './DataFeedGauge';
 import { NdviMiniChart } from './NdviMiniChart';
 import { SpeciesBreakdown } from './SpeciesBreakdown';
-import type { Proposal, ProposalMetadata, CreDataFeedReport, ProjectSummary } from '../types';
+import type { Proposal, ProposalMetadata, CreDataFeedReport, ProjectSummary, CreWorkflowStatus } from '../types';
 import { ProposalStatus } from '../constants';
+
+const RISK_LABELS = ['NONE', 'LOW', 'MED', 'HIGH', 'CRIT'] as const;
+const RISK_COLORS = ['var(--text-muted)', 'var(--success)', 'var(--warning)', 'var(--error)', 'var(--error)'] as const;
 
 interface LiveProjectCardProps {
   ammAddress: string;
   proposal?: Proposal;
   report?: CreDataFeedReport | null;
   summary?: ProjectSummary | null;
+  creWorkflowStatus?: CreWorkflowStatus;
   index: number;
   onClick: () => void;
   onTrade?: () => void;
@@ -36,6 +40,7 @@ export function LiveProjectCard({
   proposal,
   report,
   summary,
+  creWorkflowStatus,
   index,
   onClick,
   onTrade,
@@ -148,8 +153,119 @@ export function LiveProjectCard({
         </div>
       )}
 
+      {/* CRE Workflow Status Bar */}
+      {creWorkflowStatus && (
+        <div className="mt-3 pt-3 border-t border-[var(--border)]">
+          <p className="text-[9px] font-mono text-[var(--text-muted)] mb-2 uppercase">cre workflow status</p>
+          <div className="flex flex-wrap gap-1.5">
+            {/* W7: Serra Estrela Data Feed */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.serraEstrela.active
+                  ? 'color-mix(in srgb, var(--success) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.serraEstrela.active ? 'var(--success)' : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W7:NDVI
+            </span>
+
+            {/* W2: Proof of Reserve */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.proofOfReserve.active
+                  ? 'color-mix(in srgb, var(--success) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.proofOfReserve.active ? 'var(--success)' : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W2:PoR
+              {creWorkflowStatus.proofOfReserve.active && (
+                <span className="opacity-70">{(creWorkflowStatus.proofOfReserve.backingRatio / 100).toFixed(0)}%</span>
+              )}
+            </span>
+
+            {/* W3: AI Orchestrator */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.aiOrchestrator.active
+                  ? `color-mix(in srgb, ${RISK_COLORS[creWorkflowStatus.aiOrchestrator.riskLevel] || 'var(--success)'} 15%, transparent)`
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.aiOrchestrator.active
+                  ? RISK_COLORS[creWorkflowStatus.aiOrchestrator.riskLevel] || 'var(--success)'
+                  : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W3:AI
+              {creWorkflowStatus.aiOrchestrator.active && (
+                <span className="opacity-70">{RISK_LABELS[creWorkflowStatus.aiOrchestrator.riskLevel] || '?'}</span>
+              )}
+            </span>
+
+            {/* W5: Protocol Health */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.protocolHealth.active
+                  ? `color-mix(in srgb, ${RISK_COLORS[creWorkflowStatus.protocolHealth.riskLevel] || 'var(--success)'} 15%, transparent)`
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.protocolHealth.active
+                  ? RISK_COLORS[creWorkflowStatus.protocolHealth.riskLevel] || 'var(--success)'
+                  : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W5:HEALTH
+              {creWorkflowStatus.protocolHealth.active && (
+                <span className="opacity-70">{RISK_LABELS[creWorkflowStatus.protocolHealth.riskLevel] || '?'}</span>
+              )}
+            </span>
+
+            {/* W6: Compliance */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.policyEngine.active
+                  ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.policyEngine.active ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W6:KYC
+              {creWorkflowStatus.policyEngine.active && (
+                <span className="opacity-70">{creWorkflowStatus.policyEngine.totalAttestations}</span>
+              )}
+            </span>
+
+            {/* W1: Confidential Funding */}
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+              style={{
+                background: creWorkflowStatus.confidentialFunding.active
+                  ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+                color: creWorkflowStatus.confidentialFunding.active ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />
+              W1:VAULT
+              {creWorkflowStatus.compliantVault.active && (
+                <span className="opacity-70">{creWorkflowStatus.compliantVault.totalRequests}</span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Fallback for projects without CRE data */}
-      {!report && !summary && !metadata && (
+      {!report && !summary && !metadata && !creWorkflowStatus && (
         <div className="text-center py-3">
           <p className="text-xs font-mono text-[var(--text-muted)]">
             // awaiting first CRE data feed report

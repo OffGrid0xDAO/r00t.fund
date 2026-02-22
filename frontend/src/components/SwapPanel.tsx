@@ -14,6 +14,7 @@ import { RootLogo } from './ui/RootLogo';
 import { ZKAMM_ABI } from '../abis/zkAMM';
 import { TRADE_COMPLETE_EVENT } from './PriceChart';
 import { usePageVisibility } from '../hooks/usePageVisibility';
+import { useCompliantVault } from './projects/hooks/useCompliantVault';
 
 const SIGN_MESSAGE = 'Sign this message to access your r00t.fund private balance.\n\nThis signature is used to derive your viewing key locally.\nIt never leaves your browser.';
 
@@ -350,6 +351,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const { signMessageAsync } = useSignMessage();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
   const isPageVisible = usePageVisibility();
+  const { stats: vaultStats } = useCompliantVault();
 
   const isOnCorrectChain = chainId === CHAIN.id;
   const handleSwitchToCorrectChain = useCallback(() => switchChain({ chainId: CHAIN.id }), [switchChain]);
@@ -1193,6 +1195,25 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         <div className="border-t border-[var(--border)] my-1" />
         <InfoRow label="liquidity" value={`${formatEther(ethReserve)} ETH / ${Number(formatUnits(tokenReserve, 18)).toLocaleString()} $${currentToken.symbol}`} />
       </motion.div>
+
+      {/* W6 Compliant Vault Status */}
+      {vaultStats && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[10px] font-mono"
+          style={{ background: 'var(--bg-secondary)50' }}
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
+          </span>
+          <span className="text-[var(--accent)]">W6</span>
+          <span className="text-[var(--text-muted)]">compliant_vault</span>
+          <span className="text-[var(--text-secondary)] ml-auto">
+            {Number(formatEther(vaultStats.totalVolume)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH vol
+          </span>
+          <span className="text-[var(--text-muted)]">{vaultStats.totalRequests} txns</span>
+        </div>
+      )}
 
       {/* Error/Success Messages */}
       <AnimatePresence>
