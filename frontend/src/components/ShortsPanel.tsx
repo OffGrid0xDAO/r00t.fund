@@ -164,18 +164,22 @@ interface Position {
 }
 
 // Position Card Component
+const COOLDOWN_SECONDS = 3600; // 1 hour
+
 const PositionCard = ({
   position,
   onClose,
   onLiquidate,
   isClosing,
   currentPrice,
+  blockTimestamp,
 }: {
   position: Position;
   onClose: () => void;
   onLiquidate: () => void;
   isClosing: boolean;
   currentPrice: bigint;
+  blockTimestamp: bigint;
 }) => {
   const pnlColor = position.pnl !== undefined && position.pnl > 0n
     ? 'var(--success)'
@@ -187,6 +191,18 @@ const PositionCard = ({
   const pnlPercent = position.pnl !== undefined && position.ethCollateral > 0n
     ? (position.pnl * 10000n) / BigInt(position.ethCollateral)
     : 0n;
+
+  // Cooldown: position can only be closed after 1 hour
+  const cooldownEnd = Number(position.openedAt) + COOLDOWN_SECONDS;
+  const currentTs = blockTimestamp > 0n ? Number(blockTimestamp) : Math.floor(Date.now() / 1000);
+  const cooldownRemaining = Math.max(0, cooldownEnd - currentTs);
+  const isInCooldown = cooldownRemaining > 0;
+
+  const formatCooldown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${s}s`;
+  };
 
   return (
     <motion.div
@@ -207,6 +223,11 @@ const PositionCard = ({
           {position.isLiquidatable && (
             <span className="px-2 py-0.5 rounded text-xs font-mono bg-[var(--warning)]/20 text-[var(--warning)] animate-pulse">
               LIQUIDATABLE
+            </span>
+          )}
+          {isInCooldown && !position.isLiquidatable && (
+            <span className="px-2 py-0.5 rounded text-xs font-mono bg-[var(--warning)]/10 text-[var(--warning)]">
+              COOLDOWN {formatCooldown(cooldownRemaining)}
             </span>
           )}
         </div>
@@ -251,13 +272,13 @@ const PositionCard = ({
       <div className="flex gap-2">
         <GlowButton
           onClick={onClose}
-          disabled={isClosing || !!position.isLiquidatable}
+          disabled={isClosing || !!position.isLiquidatable || isInCooldown}
           loading={isClosing}
           fullWidth
           size="sm"
           variant="secondary"
         >
-          close_position()
+          {isInCooldown ? `cooldown (${formatCooldown(cooldownRemaining)})` : 'close_position()'}
         </GlowButton>
         {position.isLiquidatable && (
           <GlowButton onClick={onLiquidate} size="sm" variant="primary">
@@ -291,6 +312,7 @@ export function ShortsPanel() {
   const [tokenReserve, setTokenReserve] = useState<bigint>(0n);
   const [availableTokens, setAvailableTokens] = useState<bigint>(0n);
   const [totalOpenInterest, setTotalOpenInterest] = useState<bigint>(0n);
+  const [blockTimestamp, setBlockTimestamp] = useState<bigint>(0n);
 
   const shortsAddress = CONTRACTS.shortsContract as `0x${string}`;
   const pairAddress = CONTRACTS.zkAMMPair as `0x${string}`;
@@ -327,16 +349,18 @@ export function ShortsPanel() {
 
     const fetchState = async () => {
       try {
-        const [ethRes, tokenRes, available, openInterest] = await Promise.all([
+        const [ethRes, tokenRes, available, openInterest, block] = await Promise.all([
           publicClient.readContract({ address: pairAddress, abi: PAIR_ABI, functionName: 'ethReserve' }),
           publicClient.readContract({ address: pairAddress, abi: PAIR_ABI, functionName: 'tokenReserve' }),
           publicClient.readContract({ address: shortsAddress, abi: SHORTS_ABI, functionName: 'getAvailableTokens' }).catch(() => 0n),
           publicClient.readContract({ address: shortsAddress, abi: SHORTS_ABI, functionName: 'totalOpenInterest' }).catch(() => 0n),
+          publicClient.getBlock(),
         ]);
         setEthReserve(ethRes);
         setTokenReserve(tokenRes);
         setAvailableTokens(available);
         setTotalOpenInterest(openInterest);
+        setBlockTimestamp(block.timestamp);
       } catch (err) {
         console.error('[ShortsPanel] Failed to fetch state:', err);
       }
@@ -474,7 +498,10 @@ export function ShortsPanel() {
 
   // Close position
   const handleClosePosition = async (positionId: bigint) => {
-    if (!walletClient || !publicClient) return;
+    if (!walletClient || !publicClient) {
+      setError('Wallet not connected — please connect your wallet first');
+      return;
+    }
 
     setClosingPositionId(positionId);
     setError(null);
@@ -498,17 +525,23 @@ export function ShortsPanel() {
         functionName: 'closeShort',
         args: [positionId, maxRepurchaseCost],
         chain: CHAIN,
+        account: address,
       });
 
+      setTxHash(hash);
       await publicClient.waitForTransactionReceipt({ hash });
       refetchBalance();
       fetchPositions();
     } catch (err: unknown) {
       const error = err as Error;
       let msg = error.message || 'Failed to close position';
-      if (msg.includes('User rejected')) msg = 'Transaction rejected';
-      else if (msg.includes('CooldownNotMet')) msg = 'Must wait 1 hour after opening to close';
+      if (msg.includes('User rejected') || msg.includes('user rejected')) msg = 'Transaction rejected';
+      else if (msg.includes('CooldownNotMet')) msg = 'Must wait 1 hour after opening to close (cooldown period)';
       else if (msg.includes('SlippageExceeded')) msg = 'Slippage exceeded, try increasing tolerance';
+      else if (msg.includes('NotPositionOwner')) msg = 'You are not the owner of this position';
+      else if (msg.includes('PositionNotOpen')) msg = 'Position is already closed';
+      else if (msg.includes('TransferFailed')) msg = 'ETH transfer failed during close';
+      else if (msg.length > 200) msg = msg.slice(0, 200) + '...';
       setError(msg);
     } finally {
       setClosingPositionId(null);
@@ -706,14 +739,18 @@ export function ShortsPanel() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm text-[var(--success)]">Short opened!</span>
-                <a
-                  href={getExplorerTxUrl(txHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-[var(--success)] hover:underline"
-                >
-                  view tx
-                </a>
+                {getExplorerTxUrl(txHash) ? (
+                  <a
+                    href={getExplorerTxUrl(txHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--success)] hover:underline"
+                  >
+                    view tx
+                  </a>
+                ) : (
+                  <span className="text-xs text-[var(--success)] font-mono opacity-70">{txHash.slice(0, 10)}...</span>
+                )}
               </div>
             </motion.div>
           )}
@@ -776,6 +813,7 @@ export function ShortsPanel() {
               onLiquidate={() => handleLiquidate(position.id)}
               isClosing={closingPositionId === position.id}
               currentPrice={currentPrice}
+              blockTimestamp={blockTimestamp}
             />
           ))}
         </motion.div>

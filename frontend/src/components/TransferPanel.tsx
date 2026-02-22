@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { formatUnits, parseEther, keccak256, toBytes, encodeAbiParameters } from 'viem';
+import { getExplorerTxUrl, NETWORK } from '../config';
 
 interface TransferPanelProps {
   zkAMMAddress: string;
@@ -246,14 +247,18 @@ export function TransferPanel({ zkAMMAddress, balance, viewingKey }: TransferPan
           {txHash && (
             <>
               {' '}
-              <a
-                href={`https://basescan.org/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                View on BaseScan
-              </a>
+              {getExplorerTxUrl(txHash) ? (
+                <a
+                  href={getExplorerTxUrl(txHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View on {NETWORK.explorerName}
+                </a>
+              ) : (
+                <span className="font-mono text-xs opacity-70">{txHash.slice(0, 10)}...{txHash.slice(-8)}</span>
+              )}
             </>
           )}
         </div>

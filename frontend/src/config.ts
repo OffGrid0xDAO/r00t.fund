@@ -23,8 +23,10 @@ export const NETWORK = {
     : isSepoliaTestnet
       ? 'https://eth-sepolia.g.alchemy.com/v2/demo'
       : 'https://arbitrum-one.publicnode.com'),
-  explorerUrl: isTenderlyVNet ? 'https://sepolia.etherscan.io' : isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
-  explorerName: isTenderlyVNet ? 'Etherscan (Tenderly)' : isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
+  explorerUrl: isTenderlyVNet
+    ? (import.meta.env.VITE_TENDERLY_EXPLORER_URL || '')
+    : isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
+  explorerName: isTenderlyVNet ? 'Tenderly Explorer' : isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
   // Ponder indexer URL for querying trades, stats, and merkle tree data
   indexerUrl: import.meta.env.VITE_INDEXER_URL || 'https://ponder-indexer-production-50c3.up.railway.app',
   isTestnet: isSepoliaTestnet || isTenderlyVNet,
@@ -193,11 +195,17 @@ export const EVENTS = {
 
 // Helper functions
 export function getExplorerTxUrl(txHash: string): string {
+  if (!NETWORK.explorerUrl) return '';
   return `${NETWORK.explorerUrl}/tx/${txHash}`;
 }
 
 export function getExplorerAddressUrl(address: string): string {
+  if (!NETWORK.explorerUrl) return '';
   return `${NETWORK.explorerUrl}/address/${address}`;
+}
+
+export function hasExplorer(): boolean {
+  return !!NETWORK.explorerUrl;
 }
 
 export function isContractDeployed(address: string): boolean {

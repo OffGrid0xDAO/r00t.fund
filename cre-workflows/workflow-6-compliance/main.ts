@@ -7,23 +7,23 @@
  * Identity Manager — the compliance gate that users MUST pass before any ETH
  * can enter the private ZK system (ZkAMM).
  *
- * Correct Flow (compliance BEFORE ZkAMM access):
+ * Flow (compliance BEFORE ZkAMM access):
  * 1. User calls requestDeposit() on CompliantPrivateVault — ETH held in escrow
  * 2. CRE W6 polls for pending requests (ACE "Present")
- * 3. CRE reads R00tPolicyEngine (ACE "Verify" — sanctions, KYC, jurisdiction,
- *    amount limits, daily volume)
- * 4. CRE calls authorizeTransfer() or denyTransfer() (ACE "Write")
- * 5. If authorized → Vault inserts commitment into ZkAMMPair Merkle tree
- *    (via insertCommitmentFromCRE) — user now has private ZK commitment
- * 6. If denied → ETH refunded to user, no ZkAMM access
- *
- * The ZkAMM (buyPrivate, depositPublic, addLiquidity) is the DESTINATION
- * after compliance clears — users cannot bypass the vault to access it directly.
+ * 3. CRE calls CompliantPrivateVault.checkCompliance() which wraps the official
+ *    Chainlink ACE PolicyEngine.check() (sanctions, KYC, volume, jurisdiction)
+ * 4. If ALLOWED:
+ *    → Read ZkAMMPair reserves, calculate minTokensOut (5% slippage)
+ *    → CRE calls authorizeAndBuy(requestId, minTokensOut, deadline)
+ *    → Vault forwards ETH to ZkAMMRouter.buyPrivate()
+ *    → User gets ZK token commitment (real AMM-priced tokens)
+ * 5. If REJECTED:
+ *    → CRE calls denyTransfer(requestId, reason) → ETH refunded
  *
  * ACE Flow:
  * 1. Present  — User submits deposit with address hash (privacy-preserving ID)
- * 2. Verify   — CRE reads R00tPolicyEngine to check compliance
- * 3. Write    — CRE calls authorizeTransfer() or denyTransfer() on-chain
+ * 2. Verify   — CRE reads ACE PolicyEngine via checkCompliance()
+ * 3. Write    — CRE calls authorizeAndBuy() or denyTransfer() on-chain
  *
  * Privacy Guarantees:
  * - Only address hashes (never raw addresses) used in compliance checks
@@ -53,7 +53,7 @@ import {
 } from 'viem'
 import { z } from 'zod'
 import { CompliantPrivateVaultABI } from '../contracts/abi/CompliantPrivateVault'
-import { R00tPolicyEngineABI } from '../contracts/abi/R00tPolicyEngine'
+import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 
 // ============ Config Schema ============
 
@@ -62,6 +62,7 @@ const configSchema = z.object({
   chainName: z.string(),
   compliantVaultAddress: z.string(),
   policyEngineAddress: z.string(),
+  zkAMMPairAddress: z.string(),
   gasLimit: z.string(),
 })
 
@@ -173,53 +174,91 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     const requestType = Number(request.requestType ?? request[0] ?? 0)
     const amount = BigInt(request.amount ?? request[3] ?? 0)
     const senderHash = (request.senderHash ?? request[5] ?? '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
-    const recipientHash = (request.recipientHash ?? request[6] ?? '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`
 
     const requestId = BigInt(i)
 
-    // ---- Step 2: Verify compliance via PolicyEngine (ACE "Verify" step) ----
+    // ---- Step 2: Verify compliance via ACE PolicyEngine (ACE "Verify" step) ----
+    // CompliantPrivateVault.checkCompliance() wraps the official Chainlink ACE
+    // PolicyEngine.check() internally — modular policies (sanctions, volume, KYC)
     let policyAllowed = false
-    let policyReason = 'PolicyEngine unavailable'
+    let policyReason = 'ACE PolicyEngine unavailable'
 
-    const policyCallData = encodeFunctionData({
-      abi: R00tPolicyEngineABI,
-      functionName: 'checkPrivateTransferAllowed',
-      args: [senderHash, recipientHash, amount, requestType],
+    const complianceCallData = encodeFunctionData({
+      abi: CompliantPrivateVaultABI,
+      functionName: 'checkCompliance',
+      args: [senderHash, amount, requestType],
     })
 
     try {
-      const policyResult = evmClient.callContract(runtime, {
+      const complianceResult = evmClient.callContract(runtime, {
         call: encodeCallMsg({
           from: zeroAddress,
-          to: config.policyEngineAddress as Address,
-          data: policyCallData,
+          to: config.compliantVaultAddress as Address,
+          data: complianceCallData,
         }),
         blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
       }).result()
 
-      const policyDecoded = decodeFunctionResult({
-        abi: R00tPolicyEngineABI,
-        functionName: 'checkPrivateTransferAllowed',
-        data: bytesToHex(policyResult.data),
+      const complianceDecoded = decodeFunctionResult({
+        abi: CompliantPrivateVaultABI,
+        functionName: 'checkCompliance',
+        data: bytesToHex(complianceResult.data),
       }) as any
 
-      policyAllowed = Boolean(policyDecoded[0] ?? policyDecoded.allowed ?? false)
-      policyReason = String(policyDecoded[1] ?? policyDecoded.reason ?? '')
+      policyAllowed = Boolean(complianceDecoded)
+      policyReason = policyAllowed ? '' : 'ACE PolicyEngine denied transfer'
     } catch {
       // PolicyEngine call failed -- deny transfer for safety
       policyAllowed = false
-      policyReason = 'PolicyEngine unavailable'
+      policyReason = 'ACE PolicyEngine unavailable'
     }
 
     processedCount++
 
     // ---- Step 3: Authorize or Deny (ACE "Write" step) ----
     if (policyAllowed) {
-      // Authorize the transfer
+      // ---- Step 3a: Read AMM reserves and calculate minTokensOut ----
+      // Read ZkAMMPair reserves to calculate slippage-protected minTokensOut
+      const reservesCallData = encodeFunctionData({
+        abi: ZkAMMPairABI,
+        functionName: 'getReserves',
+      })
+      const reservesResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.zkAMMPairAddress as Address,
+          data: reservesCallData,
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+
+      const reservesDecoded = decodeFunctionResult({
+        abi: ZkAMMPairABI,
+        functionName: 'getReserves',
+        data: bytesToHex(reservesResult.data),
+      }) as any
+
+      const ethReserve = BigInt(reservesDecoded[0] ?? reservesDecoded._ethReserve ?? 0)
+      const tokenReserve = BigInt(reservesDecoded[1] ?? reservesDecoded._tokenReserve ?? 0)
+
+      // Calculate expected tokens out using constant-product formula
+      // expectedTokens = (amount * tokenReserve) / (ethReserve + amount)
+      // Apply 5% slippage tolerance: minTokensOut = expectedTokens * 95 / 100
+      let minTokensOut = BigInt(0)
+      if (ethReserve > BigInt(0) && tokenReserve > BigInt(0)) {
+        const expectedTokens = (amount * tokenReserve) / (ethReserve + amount)
+        minTokensOut = (expectedTokens * BigInt(95)) / BigInt(100)
+      }
+
+      // Deadline: 10 minutes from now (600 seconds)
+      // Note: CRE runtime doesn't have block.timestamp, use a generous deadline
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600)
+
+      // ---- Step 3b: Authorize and buy via AMM ----
       const authorizeData = encodeFunctionData({
         abi: CompliantPrivateVaultABI,
-        functionName: 'authorizeTransfer',
-        args: [requestId],
+        functionName: 'authorizeAndBuy',
+        args: [requestId, minTokensOut, deadline],
       })
 
       const reportResponse = runtime.report({

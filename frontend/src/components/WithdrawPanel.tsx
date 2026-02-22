@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { formatUnits, parseEther, isAddress } from 'viem';
+import { getExplorerTxUrl, NETWORK } from '../config';
 
 interface WithdrawPanelProps {
   zkAMMAddress: string;
@@ -214,14 +215,18 @@ export function WithdrawPanel({ zkAMMAddress, balance, viewingKey }: WithdrawPan
           {txHash && (
             <>
               {' '}
-              <a
-                href={`https://basescan.org/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                View on BaseScan
-              </a>
+              {getExplorerTxUrl(txHash) ? (
+                <a
+                  href={getExplorerTxUrl(txHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View on {NETWORK.explorerName}
+                </a>
+              ) : (
+                <span className="font-mono text-xs opacity-70">{txHash.slice(0, 10)}...{txHash.slice(-8)}</span>
+              )}
             </>
           )}
         </div>

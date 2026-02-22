@@ -1862,7 +1862,7 @@ export function LiquidityPanel({
                 >
                   <div className="flex items-center justify-between">
                     <span>{success.message}</span>
-                    {success.txHash && (
+                    {success.txHash && getExplorerTxUrl(success.txHash) ? (
                       <a
                         href={getExplorerTxUrl(success.txHash)}
                         target="_blank"
@@ -1874,7 +1874,9 @@ export function LiquidityPanel({
                         </svg>
                         tx
                       </a>
-                    )}
+                    ) : success.txHash ? (
+                      <span className="text-xs font-mono opacity-70 ml-2">{success.txHash.slice(0, 10)}...</span>
+                    ) : null}
                   </div>
                 </motion.div>
               )}

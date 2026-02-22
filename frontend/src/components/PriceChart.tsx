@@ -96,7 +96,7 @@ function TradeRow({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
-      href={getExplorerTxUrl(trade.txHash)}
+      href={getExplorerTxUrl(trade.txHash) || undefined}
       target="_blank"
       rel="noopener noreferrer"
       className="flex items-center justify-between px-3 py-2.5 hover:bg-[var(--bg-secondary)] transition-all duration-200 cursor-pointer group"

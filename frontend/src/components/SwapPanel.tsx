@@ -187,6 +187,7 @@ const SwapInput = ({
   maxLabel,
   readOnly = false,
   isToken = false,
+  onTokenClick,
 }: {
   label: string;
   value: string;
@@ -196,8 +197,10 @@ const SwapInput = ({
   maxLabel?: string;
   readOnly?: boolean;
   isToken?: boolean;
+  onTokenClick?: () => void;
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const canSelectToken = !!onTokenClick;
 
   return (
     <motion.div
@@ -255,7 +258,8 @@ const SwapInput = ({
           <motion.div
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-default"
+            onClick={onTokenClick}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg ${canSelectToken ? 'cursor-pointer' : 'cursor-default'}`}
             style={{
               background: isToken
                 ? 'linear-gradient(135deg, rgba(45, 90, 61, 0.12) 0%, rgba(184, 134, 11, 0.08) 100%)'
@@ -266,6 +270,11 @@ const SwapInput = ({
           >
             {token.isEth ? <EthLogo /> : <TokenLogo symbol={token.symbol} glowing={isToken} />}
             <span className="font-mono font-medium text-[var(--text-primary)]">{token.symbol}</span>
+            {canSelectToken && (
+              <svg className="w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
           </motion.div>
         </div>
       </div>
@@ -340,7 +349,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, availableTokens, selectedToken, onBuySuccess, onSellSuccess, removeCommitment: _removeCommitment, fetchAllOnChainCommitments, session, resetWallet, scan }: SwapPanelProps) {
+export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, availableTokens, selectedToken, onTokenChange, onBuySuccess, onSellSuccess, removeCommitment: _removeCommitment, fetchAllOnChainCommitments, session, resetWallet, scan }: SwapPanelProps) {
   const { isConnected, address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient, isLoading: isWalletLoading, refetch: refetchWallet } = useWalletClient();
@@ -873,68 +882,16 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
-        <div className="relative">
+        <div>
           <h2 className="text-xl font-display font-bold text-[var(--text-primary)]">
             {direction === 'buy' ? 'Buy' : 'Sell'}{' '}
-            <button
-              onClick={() => setShowTokenSelector(!showTokenSelector)}
-              className="text-[var(--accent)] hover:opacity-80 transition-opacity inline-flex items-center gap-1"
-            >
-              ${currentToken.symbol}
-              <svg className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showTokenSelector ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
-              </svg>
-            </button>
+            <span className="text-[var(--accent)]">${currentToken.symbol}</span>
           </h2>
           <p className="text-xs font-mono text-[var(--text-muted)] mt-1">
             {direction === 'buy'
               ? '// ZK commitments — only you see balance'
               : '// sell privately — ETH to any address'}
           </p>
-
-          {/* Token Selector Dropdown */}
-          {showTokenSelector && availableTokens && availableTokens.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute left-0 top-full mt-2 z-50 w-64 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] shadow-lg overflow-hidden"
-            >
-              <div className="p-2">
-                <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase px-2 py-1">
-                  <span className="text-[var(--accent)] opacity-60">// </span>select token
-                </p>
-                {availableTokens.map((token) => (
-                  <button
-                    key={token.address}
-                    onClick={() => {
-                      onTokenChange?.(token.address);
-                      setShowTokenSelector(false);
-                      setInputAmount('');
-                    }}
-                    className={`w-full text-left px-3 py-2.5 rounded-md flex items-center justify-between transition-colors ${
-                      token.address === currentToken.address
-                        ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
-                        : 'hover:bg-[var(--bg-secondary)] text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <div>
-                      <span className="font-medium text-sm">${token.symbol}</span>
-                      <span className="text-xs text-[var(--text-muted)] ml-2">{token.name}</span>
-                    </div>
-                    {token.isRoot && (
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-muted)]">base</span>
-                    )}
-                    {token.address === currentToken.address && (
-                      <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1196,6 +1153,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
               ? `max per tx: ${Number(formatUnits(maxSellableFromSingleCommitment, 18)).toFixed(2)}`
               : `max: ${Number(formatUnits(balance, 18)).toFixed(2)}`
           ) : undefined}
+          onTokenClick={direction === 'sell' ? () => setShowTokenSelector(true) : undefined}
         />
 
         <SwapArrow onClick={() => setDirection(direction === 'buy' ? 'sell' : 'buy')} />
@@ -1206,6 +1164,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           token={{ symbol: direction === 'buy' ? currentToken.symbol : 'ETH', isEth: direction === 'sell' }}
           readOnly
           isToken={direction === 'buy'}
+          onTokenClick={direction === 'buy' ? () => setShowTokenSelector(true) : undefined}
         />
       </div>
 
@@ -1311,17 +1270,21 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
                   )}
                 </div>
               </div>
-              <a
-                href={getExplorerTxUrl(txHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-mono text-[var(--success)] hover:underline flex items-center gap-1"
-              >
-                view
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
+              {getExplorerTxUrl(txHash) ? (
+                <a
+                  href={getExplorerTxUrl(txHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-mono text-[var(--success)] hover:underline flex items-center gap-1"
+                >
+                  view
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              ) : (
+                <span className="text-xs font-mono text-[var(--success)] opacity-70">{txHash.slice(0, 10)}...</span>
+              )}
             </div>
           </motion.div>
         )}
@@ -1397,6 +1360,139 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
             : 'uses zk proofs — nobody sees what you spend'}
         </p>
       </motion.div>
+
+      {/* Token Selector Modal */}
+      <AnimatePresence>
+        {showTokenSelector && (
+          <motion.div
+            key="token-selector-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+            onClick={() => setShowTokenSelector(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 24 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm mx-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] shadow-2xl overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                <div>
+                  <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase mb-1">
+                    <span className="text-[var(--accent)] opacity-60">// </span>select_token
+                  </p>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)]">Choose a token</h3>
+                </div>
+                <button
+                  onClick={() => setShowTokenSelector(false)}
+                  className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Token List */}
+              <div className="px-3 pb-4 space-y-1.5">
+                {availableTokens && availableTokens.length > 0 ? availableTokens.map((token, idx) => {
+                  const isSelected = token.address === currentToken.address;
+                  return (
+                    <motion.button
+                      key={token.address}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.04, duration: 0.25 }}
+                      onClick={() => {
+                        onTokenChange?.(token.address);
+                        setShowTokenSelector(false);
+                        setInputAmount('');
+                      }}
+                      className={`w-full text-left px-4 py-3.5 rounded-lg flex items-center gap-3.5 transition-all duration-200 group ${
+                        isSelected
+                          ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/30'
+                          : 'hover:bg-[var(--bg-secondary)] border border-transparent hover:border-[var(--border)]'
+                      }`}
+                    >
+                      {/* Token Icon */}
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold"
+                        style={{
+                          background: token.isRoot
+                            ? 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, black))'
+                            : `linear-gradient(135deg, hsl(${(token.symbol.charCodeAt(0) * 37) % 360}, 55%, 45%), hsl(${(token.symbol.charCodeAt(0) * 37 + 40) % 360}, 55%, 35%))`,
+                          color: 'white',
+                          boxShadow: isSelected ? '0 0 16px var(--accent)40' : 'none',
+                        }}
+                      >
+                        {token.isRoot ? (
+                          <RootLogo size={22} />
+                        ) : (
+                          <span>{token.symbol.slice(0, 2)}</span>
+                        )}
+                      </div>
+
+                      {/* Token Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold text-sm ${isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                            ${token.symbol}
+                          </span>
+                          {token.isRoot && (
+                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] uppercase tracking-wider">
+                              base
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">{token.name}</p>
+                        <p className="text-[10px] font-mono text-[var(--text-muted)] opacity-50 mt-0.5">
+                          {token.address.slice(0, 6)}...{token.address.slice(-4)}
+                        </p>
+                      </div>
+
+                      {/* Selected check */}
+                      {isSelected && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="w-6 h-6 rounded-full bg-[var(--accent)] flex items-center justify-center shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </motion.div>
+                      )}
+
+                      {/* Hover arrow */}
+                      {!isSelected && (
+                        <svg className="w-4 h-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-60 transition-opacity shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
+                    </motion.button>
+                  );
+                }) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[var(--text-muted)] font-mono">// no tokens available</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer hint */}
+              <div className="px-5 py-3 border-t border-[var(--border)]">
+                <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">
+                  project tokens appear after proposals are executed
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

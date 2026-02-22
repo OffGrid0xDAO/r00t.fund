@@ -16,7 +16,7 @@ import { ProposalList } from './projects/proposals/ProposalList';
 import { VoteModal } from './projects/proposals/VoteModal';
 import { LiveProjectList } from './projects/live/LiveProjectList';
 import { CreateProposalWizard } from './projects/wizard/CreateProposalWizard';
-import { CONTRACTS } from '../config';
+import { CONTRACTS, getExplorerTxUrl, NETWORK } from '../config';
 import type { CommitmentsResult, TabType, CreWorkflowStatus } from './projects/types';
 
 interface ProjectsPanelProps {
@@ -180,14 +180,18 @@ export function ProjectsPanel({
             }}
           >
             Transaction submitted!{' '}
-            <a
-              href={`https://basescan.org/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View on BaseScan
-            </a>
+            {getExplorerTxUrl(txHash) ? (
+              <a
+                href={getExplorerTxUrl(txHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View on {NETWORK.explorerName}
+              </a>
+            ) : (
+              <span className="font-mono text-xs opacity-70">{txHash.slice(0, 10)}...{txHash.slice(-8)}</span>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

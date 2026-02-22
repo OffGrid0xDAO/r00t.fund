@@ -474,13 +474,13 @@ Real-time monitoring of the entire protocol stack — reserves, shorts utilizati
 
 **Prize Track:** Privacy ($16,000)
 **File:** [`cre-workflows/workflow-6-compliance/main.ts`](cre-workflows/workflow-6-compliance/main.ts)
-**Contracts:** [`R00tPolicyEngine.sol`](contracts/src/cre/R00tPolicyEngine.sol), [`CompliantPrivateVault.sol`](contracts/src/cre/CompliantPrivateVault.sol)
+**Contracts:** [`CompliantPrivateVault.sol`](contracts/src/cre/CompliantPrivateVault.sol), [Chainlink ACE `PolicyEngine`](contracts/src/cre/interfaces/IACEPolicyEngine.sol)
 
 <p align="center">
   <img src="cre-workflows/diagrams/workflow-6-compliance.svg" alt="Workflow 6 — Compliant Private Transfers" width="100%"/>
 </p>
 
-Adapts the **Chainlink ACE (Anonymous Compliant Exchange)** pattern for R00t.fund's ZK-SNARK privacy system. Users get privacy AND regulatory compliance — simultaneously.
+Adapts the **Chainlink ACE (Anonymous Compliant Exchange)** pattern for R00t.fund's ZK-SNARK privacy system. Uses the official `@chainlink/policy-management` PolicyEngine for modular compliance (SanctionsPolicy, VolumePolicy, etc.). Users get privacy AND regulatory compliance — simultaneously, with compliance-gated AMM access where users receive real token value.
 
 **How it works:**
 
@@ -492,25 +492,25 @@ CRE W6 (cron every 60s):
   1. Polls nextRequestId() and scans recent requests for PENDING status
 
   2. For each pending request:
-     EVMClient.callContract() → PolicyEngine.checkPrivateTransferAllowed()
-     - Checks compliance level (BASIC/STANDARD/ENHANCED/INSTITUTIONAL)
-     - Checks daily volume limits
-     - Checks risk score
-     - Checks jurisdiction (32 EU/EEA countries pre-approved)
+     EVMClient.callContract() → CompliantPrivateVault.checkCompliance()
+       → wraps ACE PolicyEngine.check() (official Chainlink)
+       - Modular policies: SanctionsPolicy, VolumePolicy, KYC, jurisdiction
+       - Returns ALLOWED or REJECTED
 
-  3. If ALL checks pass:
-     → runtime.report() → EVMClient.writeReport → authorizeTransfer()
-     → insertCommitmentFromCRE() → ZK Merkle tree
-     (commitment is now private, spendable with ZK proof)
+  3. If ALLOWED:
+     → Read ZkAMMPair reserves, calculate minTokensOut (5% slippage)
+     → runtime.report() → EVMClient.writeReport → authorizeAndBuy()
+     → Vault forwards ETH to ZkAMMRouter.buyPrivate()
+     → User gets ZK commitment backed by real AMM-priced tokens
 
-  4. If ANY check fails:
+  4. If REJECTED:
      → runtime.report() → EVMClient.writeReport → denyTransfer(reason)
      → ETH refunded to user
 ```
 
 **Privacy model:**
 - Only address hashes (`keccak256(address, salt)`) used for compliance — never raw addresses
-- On-chain PolicyEngine handles all compliance decisions
+- Official Chainlink ACE PolicyEngine handles all compliance decisions
 - On-chain: only sees "authorized" or "denied" — no identity linkage
 - Once committed, tokens are fully private (ZK-SNARK spend via nullifier proofs)
 

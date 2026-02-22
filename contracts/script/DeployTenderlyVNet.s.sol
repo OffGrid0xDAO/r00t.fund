@@ -222,7 +222,7 @@ contract DeployTenderlyVNetScript is Script {
         // W6: CompliantPrivateVault (ACE pattern)
         console.log("Deploying W6b: CompliantPrivateVault...");
         CompliantPrivateVault vault = new CompliantPrivateVault(
-            donForwarder, deployer, address(policyEngine), address(pair)
+            donForwarder, deployer, address(policyEngine), address(pair), address(router)
         );
         console.log("  CompliantPrivateVault:", address(vault));
 

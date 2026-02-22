@@ -37,8 +37,8 @@
   <!-- ============================================================ -->
   <!-- ACE IDENTITY MANAGER LABEL (top center) -->
   <!-- ============================================================ -->
-  <rect x="385" y="400" width="150" height="22" rx="11" fill="#0847F7"/>
-  <text x="460" y="415" text-anchor="middle" fill="white" font-size="10" font-weight="600">ACE Identity Manager</text>
+  <rect x="370" y="400" width="180" height="22" rx="11" fill="#0847F7"/>
+  <text x="460" y="415" text-anchor="middle" fill="white" font-size="10" font-weight="600">ACE Compliance Gateway</text>
 
 
   <!-- ============================================================ -->
@@ -106,14 +106,15 @@
   <text x="705" y="243" text-anchor="middle" fill="white" font-size="10" font-weight="500">requestDeposit()</text>
   <text x="830" y="267" fill="#6B7280" font-size="10" font-style="italic" text-anchor="middle">ETH held in escrow until compliance clears</text>
 
-  <!-- R00tPolicyEngine.sol — aligned with Step 2 (center y=355) -->
-  <rect x="610" y="318" width="440" height="75" rx="6" fill="white" stroke="#e5e7eb" stroke-width="1.5"/>
-  <text x="830" y="348" text-anchor="middle" fill="#1a1a1a" font-size="15" font-weight="600">R00tPolicyEngine.sol</text>
-  <rect x="635" y="362" width="240" height="22" rx="4" fill="#1a1a1a"/>
-  <text x="755" y="377" text-anchor="middle" fill="white" font-size="10" font-weight="500">checkPrivateTransferAllowed()</text>
+  <!-- ACE PolicyEngine — aligned with Step 2 (center y=355) -->
+  <rect x="610" y="318" width="440" height="75" rx="6" fill="white" stroke="#0847F7" stroke-width="1.5"/>
+  <text x="830" y="345" text-anchor="middle" fill="#1a1a1a" font-size="15" font-weight="600">ACE PolicyEngine</text>
+  <text x="830" y="358" text-anchor="middle" fill="#0847F7" font-size="10" font-weight="500">Chainlink @chainlink/policy-management</text>
+  <rect x="635" y="366" width="160" height="22" rx="4" fill="#1a1a1a"/>
+  <text x="715" y="381" text-anchor="middle" fill="white" font-size="10" font-weight="500">PolicyEngine.check()</text>
 
   <!-- Label showing what happens after decision -->
-  <text x="825" y="420" text-anchor="middle" fill="#6B7280" font-size="10" font-style="italic">authorizeTransfer() / denyTransfer()</text>
+  <text x="825" y="420" text-anchor="middle" fill="#6B7280" font-size="10" font-style="italic">authorizeAndBuy() / denyTransfer()</text>
 
   <!-- Fork rail (thin gray line connecting the two outcomes) -->
   <line x1="650" y1="460" x2="980" y2="460" stroke="#e5e7eb" stroke-width="1.5"/>
@@ -128,13 +129,14 @@
   <text x="940" y="460" text-anchor="middle" fill="white" font-size="10" font-weight="600">denied</text>
   <line x1="940" y1="467" x2="940" y2="500" stroke="#DC2626" stroke-width="2" marker-end="url(#arrowDownRed)"/>
 
-  <!-- ZkAMMPair.sol (authorized destination) -->
+  <!-- ZkAMMRouter → ZkAMMPair (authorized destination) -->
   <rect x="610" y="510" width="230" height="85" rx="6" fill="white" stroke="#16A34A" stroke-width="2"/>
   <rect x="610" y="510" width="5" height="85" rx="2" fill="#16A34A"/>
-  <text x="725" y="537" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="600">ZkAMMPair.sol</text>
-  <text x="725" y="555" text-anchor="middle" fill="#16A34A" font-size="10" font-weight="600">DESTINATION</text>
-  <rect x="640" y="565" width="168" height="20" rx="4" fill="#1a1a1a"/>
-  <text x="724" y="579" text-anchor="middle" fill="white" font-size="9" font-weight="500">insertCommitmentFromCRE()</text>
+  <text x="725" y="533" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="600">ZkAMMRouter</text>
+  <text x="725" y="548" text-anchor="middle" fill="#6B7280" font-size="10">→ ZkAMMPair</text>
+  <text x="725" y="562" text-anchor="middle" fill="#16A34A" font-size="10" font-weight="600">AMM SWAP</text>
+  <rect x="655" y="570" width="140" height="20" rx="4" fill="#1a1a1a"/>
+  <text x="725" y="584" text-anchor="middle" fill="white" font-size="9" font-weight="500">buyPrivate()</text>
 
   <!-- Refund box (denied path) -->
   <rect x="860" y="510" width="190" height="85" rx="6" fill="white" stroke="#DC2626" stroke-width="1.5"/>
@@ -153,7 +155,7 @@
   <!-- Arrow 2: R00tPolicyEngine → Read Policy (y=355, RIGHT to LEFT) with Chainlink symbol -->
   <line x1="610" y1="355" x2="512" y2="355" stroke="#1a1a1a" stroke-width="1.5"/>
   <line x1="408" y1="355" x2="310" y2="355" stroke="#1a1a1a" stroke-width="1.5" marker-end="url(#arrowLeft)"/>
-  <text x="460" y="300" text-anchor="middle" fill="#6B7280" font-size="9" font-style="italic">compliance rules</text>
+  <text x="460" y="300" text-anchor="middle" fill="#6B7280" font-size="9" font-style="italic">ACE compliance check</text>
   <!-- Chainlink hexagon symbol: blue bg + white evenodd pattern -->
   <g transform="translate(415,308) scale(0.09)" clip-path="url(#hexClip)">
     <!-- Blue hexagon background (so holes in Path 2 show blue) -->
@@ -173,10 +175,10 @@
   <!-- ACE PRIVACY GUARANTEES (top right, above chain region) -->
   <!-- ============================================================ -->
   <rect x="580" y="42" width="490" height="72" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
-  <text x="825" y="62" text-anchor="middle" fill="#1a1a1a" font-size="12" font-weight="600">ACE Privacy Guarantees</text>
-  <text x="825" y="78" text-anchor="middle" fill="#6B7280" font-size="10">Only address hashes — no raw addresses</text>
+  <text x="825" y="62" text-anchor="middle" fill="#1a1a1a" font-size="12" font-weight="600">Chainlink ACE Privacy Guarantees</text>
+  <text x="825" y="78" text-anchor="middle" fill="#6B7280" font-size="10">Official @chainlink/policy-management PolicyEngine</text>
   <text x="825" y="93" text-anchor="middle" fill="#6B7280" font-size="10">No identity linkage on-chain — ZK proofs only</text>
-  <text x="825" y="108" text-anchor="middle" fill="#16A34A" font-size="10" font-weight="600">Compliance BEFORE ZkAMM access</text>
+  <text x="825" y="108" text-anchor="middle" fill="#16A34A" font-size="10" font-weight="600">Compliance-gated AMM access → real token value</text>
 
   <!-- ============================================================ -->
   <!-- TENDERLY LOGO (bottom right) -->

@@ -2,27 +2,28 @@
 pragma solidity ^0.8.24;
 
 import "./R00tCREReceiver.sol";
-import "./R00tPolicyEngine.sol";
+import "./interfaces/IACEPolicyEngine.sol";
 
 /// @title CompliantPrivateVault
 /// @author r00t.fund
-/// @notice Privacy-preserving vault with Chainlink CRE compliance verification
-/// @dev Adapted from Chainlink ACE (Anonymous Compliant Exchange) Compliant Private Transfer Demo.
+/// @notice Privacy-preserving vault with Chainlink ACE PolicyEngine compliance verification
+/// @dev Uses the official Chainlink ACE (Anonymous Compliant Exchange) PolicyEngine
+///      (chainlink policy-management core PolicyEngine.sol) for modular compliance checks.
 ///
 ///      This vault bridges regulatory compliance with ZK-SNARK privacy:
 ///
 ///      Flow for compliant private deposit:
 ///      1. User calls requestDeposit(amount, commitment, addressHash) → pending
 ///      2. CRE DON detects PrivateTransferRequested event
-///      3. CRE queries R00tPolicyEngine.checkPrivateTransferAllowed() via eth_call
-///      4. CRE queries sanctions APIs via ConfidentialHTTPClient (OFAC, EU sanctions)
-///      5. If compliant: CRE calls authorizeTransfer() → vault inserts commitment into ZkAMM
-///      6. If denied: CRE calls denyTransfer() → funds returned to user
+///      3. CRE queries ACE PolicyEngine.check() via eth_call (sanctions, volume, KYC)
+///      4. If compliant: CRE calls authorizeAndBuy() → vault forwards ETH to ZkAMMRouter.buyPrivate()
+///         → user receives ZK commitment with real AMM-priced tokens
+///      5. If denied: CRE calls denyTransfer() → funds returned to user
 ///
 ///      Flow for compliant private withdrawal:
 ///      1. User provides ZK proof of commitment ownership (nullifier, root, proof)
 ///      2. User calls requestWithdrawal(proof, addressHash) → pending
-///      3. CRE DON checks compliance
+///      3. CRE DON checks compliance via ACE PolicyEngine
 ///      4. If compliant: CRE calls authorizeWithdrawal() → ETH/tokens sent to user
 ///
 ///      Privacy guarantees:
@@ -82,11 +83,14 @@ contract CompliantPrivateVault is R00tCREReceiver {
     /// @notice Next request ID
     uint256 public nextRequestId;
 
-    /// @notice R00tPolicyEngine address
-    R00tPolicyEngine public policyEngine;
+    /// @notice Chainlink ACE PolicyEngine (official @chainlink/policy-management)
+    IACEPolicyEngine public policyEngine;
 
-    /// @notice ZkAMMPair address (for commitment insertion)
+    /// @notice ZkAMMPair address (for legacy commitment insertion)
     address public zkAMMPair;
+
+    /// @notice ZkAMMRouter address (for buyPrivate — compliance-gated AMM access)
+    address public zkAMMRouter;
 
     /// @notice Total ETH held for pending deposits
     uint256 public pendingDepositETH;
@@ -153,6 +157,7 @@ contract CompliantPrivateVault is R00tCREReceiver {
     error InsufficientDeposit();
     error RefundFailed();
     error InsertionFailed();
+    error BuyPrivateFailed();
 
     // ============ Constructor ============
 
@@ -160,12 +165,15 @@ contract CompliantPrivateVault is R00tCREReceiver {
         address _donForwarder,
         address _owner,
         address _policyEngine,
-        address _zkAMMPair
+        address _zkAMMPair,
+        address _zkAMMRouter
     ) R00tCREReceiver(_donForwarder, _owner) {
         if (_policyEngine == address(0)) revert ZeroAddress();
         if (_zkAMMPair == address(0)) revert ZeroAddress();
-        policyEngine = R00tPolicyEngine(_policyEngine);
+        if (_zkAMMRouter == address(0)) revert ZeroAddress();
+        policyEngine = IACEPolicyEngine(_policyEngine);
         zkAMMPair = _zkAMMPair;
+        zkAMMRouter = _zkAMMRouter;
     }
 
     // ============ User Functions — Request Private Transfers ============
@@ -312,8 +320,62 @@ contract CompliantPrivateVault is R00tCREReceiver {
             totalDepositsProcessed++;
         }
 
-        // Record volume in PolicyEngine
-        try policyEngine.recordTransferVolume(req.senderHash, req.amount) {} catch {}
+        // Note: ACE PolicyEngine tracks volume internally via run()
+
+        req.status = RequestStatus.EXECUTED;
+
+        emit TransferAuthorized(requestId, req.requestType, req.commitment, leafIndex);
+    }
+
+    /// @notice Authorize a pending transfer and buy tokens on the AMM
+    /// @dev Called by CRE DON after ACE PolicyEngine.check() passes.
+    ///      Forwards escrowed ETH to ZkAMMRouter.buyPrivate() so the user
+    ///      receives a ZK commitment backed by real AMM-priced tokens.
+    /// @param requestId The request to authorize
+    /// @param minTokensOut Minimum tokens expected from AMM swap (slippage protection)
+    /// @param deadline Transaction deadline timestamp
+    function authorizeAndBuy(
+        uint256 requestId,
+        uint256 minTokensOut,
+        uint256 deadline
+    ) external onlyDonForwarder whenNotPaused {
+        TransferRequest storage req = requests[requestId];
+        if (req.status != RequestStatus.PENDING) revert RequestNotPending();
+        if (block.timestamp > req.expiresAt) {
+            req.status = RequestStatus.EXPIRED;
+            _refundDeposit(req);
+            emit TransferExpired(requestId, req.requestType);
+            return;
+        }
+
+        _recordReport();
+        req.status = RequestStatus.AUTHORIZED;
+
+        // Forward escrowed ETH to ZkAMMRouter.buyPrivate()
+        (bool success, bytes memory result) = zkAMMRouter.call{value: req.amount}(
+            abi.encodeWithSignature(
+                "buyPrivate(uint256,uint256,uint256,bytes)",
+                req.commitment,
+                minTokensOut,
+                deadline,
+                req.encryptedNote
+            )
+        );
+        if (!success) revert BuyPrivateFailed();
+
+        uint256 leafIndex = abi.decode(result, (uint256));
+
+        // Update accounting
+        if (req.amount > 0) {
+            pendingDepositETH -= req.amount;
+        }
+        totalComplianceVolume += req.amount;
+
+        if (req.requestType == RequestType.DEPOSIT) {
+            totalDepositsProcessed++;
+        } else if (req.requestType == RequestType.VAULT_TRANSFER) {
+            totalDepositsProcessed++;
+        }
 
         req.status = RequestStatus.EXECUTED;
 
@@ -365,7 +427,7 @@ contract CompliantPrivateVault is R00tCREReceiver {
             totalComplianceVolume += req.amount;
             totalDepositsProcessed++;
 
-            try policyEngine.recordTransferVolume(req.senderHash, req.amount) {} catch {}
+            // Note: ACE PolicyEngine tracks volume internally via run()
 
             req.status = RequestStatus.EXECUTED;
 
@@ -374,6 +436,27 @@ contract CompliantPrivateVault is R00tCREReceiver {
     }
 
     // ============ View Functions ============
+
+    /// @notice Check compliance via ACE PolicyEngine
+    /// @dev Wraps policyEngine.check() — CRE DON calls this via eth_call
+    /// @param senderHash Privacy-preserving sender identifier
+    /// @param amount Transfer amount in wei
+    /// @param requestType Type of request (0=DEPOSIT, 1=WITHDRAWAL, 2=VAULT_TRANSFER)
+    /// @return allowed True if ACE PolicyEngine returns Allowed
+    function checkCompliance(
+        bytes32 senderHash,
+        uint256 amount,
+        uint8 requestType
+    ) external view returns (bool allowed) {
+        IACEPolicyEngine.Payload memory payload = IACEPolicyEngine.Payload({
+            selector: bytes4(keccak256("transfer(bytes32,uint256,uint8)")),
+            sender: address(this),
+            data: abi.encode(senderHash, amount, requestType),
+            context: ""
+        });
+        IACEPolicyEngine.PolicyResult result = policyEngine.check(payload);
+        return result == IACEPolicyEngine.PolicyResult.Allowed;
+    }
 
     /// @notice Get a transfer request
     function getRequest(uint256 requestId) external view returns (TransferRequest memory) {
@@ -420,16 +503,22 @@ contract CompliantPrivateVault is R00tCREReceiver {
 
     // ============ Admin Functions ============
 
-    /// @notice Update PolicyEngine address
+    /// @notice Update ACE PolicyEngine address
     function setPolicyEngine(address _policyEngine) external onlyOwner {
         if (_policyEngine == address(0)) revert ZeroAddress();
-        policyEngine = R00tPolicyEngine(_policyEngine);
+        policyEngine = IACEPolicyEngine(_policyEngine);
     }
 
     /// @notice Update ZkAMMPair address
     function setZkAMMPair(address _pair) external onlyOwner {
         if (_pair == address(0)) revert ZeroAddress();
         zkAMMPair = _pair;
+    }
+
+    /// @notice Update ZkAMMRouter address
+    function setZkAMMRouter(address _router) external onlyOwner {
+        if (_router == address(0)) revert ZeroAddress();
+        zkAMMRouter = _router;
     }
 
     /// @notice Expire stale pending requests (housekeeping)

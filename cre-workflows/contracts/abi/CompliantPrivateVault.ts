@@ -1,6 +1,7 @@
 /**
  * CompliantPrivateVault ABI — Privacy-preserving vault with CRE compliance
- * Adapted from Chainlink ACE (Anonymous Compliant Exchange) pattern
+ * Uses official Chainlink ACE PolicyEngine for modular compliance checks.
+ * After compliance passes, forwards ETH to ZkAMMRouter.buyPrivate() for real AMM-priced tokens.
  */
 export const CompliantPrivateVaultABI = [
   // User functions
@@ -41,6 +42,28 @@ export const CompliantPrivateVaultABI = [
     inputs: [{ name: "requestId", type: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "authorizeAndBuy",
+    inputs: [
+      { name: "requestId", type: "uint256" },
+      { name: "minTokensOut", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "checkCompliance",
+    inputs: [
+      { name: "senderHash", type: "bytes32" },
+      { name: "amount", type: "uint256" },
+      { name: "requestType", type: "uint8" },
+    ],
+    outputs: [{ name: "allowed", type: "bool" }],
+    stateMutability: "view",
   },
   {
     type: "function",

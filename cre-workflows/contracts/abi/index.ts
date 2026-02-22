@@ -13,6 +13,7 @@ export { RegenPredictionMarketABI } from "./RegenPredictionMarket"
 export { ProtocolHealthMonitorABI } from "./ProtocolHealthMonitor"
 
 // Chainlink ACE (Compliant Private Transfer) ABIs
+export { ACEPolicyEngineABI } from "./ACEPolicyEngine"
 export { R00tPolicyEngineABI } from "./R00tPolicyEngine"
 export { CompliantPrivateVaultABI } from "./CompliantPrivateVault"
 
