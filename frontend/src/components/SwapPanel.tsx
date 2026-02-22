@@ -389,6 +389,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   // Slippage settings
   const [slippageTolerance, setSlippageTolerance] = useState(DEFAULT_SLIPPAGE);
   const [showSlippageSettings, setShowSlippageSettings] = useState(false);
+  const [showTokenSelector, setShowTokenSelector] = useState(false);
 
   const currentToken = availableTokens?.find(t => t.address === selectedToken) || availableTokens?.find(t => t.isRoot) || { address: zkAMMAddress, name: 'r00t', symbol: 'ROOT', isRoot: true };
   const activeAMMAddress = selectedToken || zkAMMAddress;
@@ -872,16 +873,68 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
-        <div>
+        <div className="relative">
           <h2 className="text-xl font-display font-bold text-[var(--text-primary)]">
             {direction === 'buy' ? 'Buy' : 'Sell'}{' '}
-            <span className="text-[var(--accent)]">${currentToken.symbol}</span>
+            <button
+              onClick={() => setShowTokenSelector(!showTokenSelector)}
+              className="text-[var(--accent)] hover:opacity-80 transition-opacity inline-flex items-center gap-1"
+            >
+              ${currentToken.symbol}
+              <svg className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showTokenSelector ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+              </svg>
+            </button>
           </h2>
           <p className="text-xs font-mono text-[var(--text-muted)] mt-1">
             {direction === 'buy'
               ? '// ZK commitments — only you see balance'
               : '// sell privately — ETH to any address'}
           </p>
+
+          {/* Token Selector Dropdown */}
+          {showTokenSelector && availableTokens && availableTokens.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute left-0 top-full mt-2 z-50 w-64 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] shadow-lg overflow-hidden"
+            >
+              <div className="p-2">
+                <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase px-2 py-1">
+                  <span className="text-[var(--accent)] opacity-60">// </span>select token
+                </p>
+                {availableTokens.map((token) => (
+                  <button
+                    key={token.address}
+                    onClick={() => {
+                      onTokenChange?.(token.address);
+                      setShowTokenSelector(false);
+                      setInputAmount('');
+                    }}
+                    className={`w-full text-left px-3 py-2.5 rounded-md flex items-center justify-between transition-colors ${
+                      token.address === currentToken.address
+                        ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
+                        : 'hover:bg-[var(--bg-secondary)] text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <div>
+                      <span className="font-medium text-sm">${token.symbol}</span>
+                      <span className="text-xs text-[var(--text-muted)] ml-2">{token.name}</span>
+                    </div>
+                    {token.isRoot && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-muted)]">base</span>
+                    )}
+                    {token.address === currentToken.address && (
+                      <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount } from 'wagmi';
 import { ProjectDetailModal } from './ProjectDetailModal';
@@ -25,6 +25,7 @@ interface ProjectsPanelProps {
   viewingKey: string | null;
   hiddenBalance: bigint;
   onTradeProject?: (ammAddress: string, name: string, symbol: string) => void;
+  onLiveTokensDiscovered?: (tokens: { address: string; name: string; symbol: string }[]) => void;
   commitments?: Array<{
     commitment: string;
     amount: string;
@@ -43,6 +44,7 @@ export function ProjectsPanel({
   viewingKey,
   hiddenBalance,
   onTradeProject,
+  onLiveTokensDiscovered,
   commitments = [],
   fetchAllOnChainCommitments,
   worldIdGatekeeperAddress,
@@ -119,6 +121,15 @@ export function ProjectsPanel({
       verifiedProposals: confidentialFunding.verifiedCount,
     },
   }), [report, proofOfReserve.data, aiOrchestrator.analysis, aiOrchestrator.safeToTrade, protocolHealth.report, policyEngine.stats, compliantVault.stats, confidentialFunding.verifiedCount]);
+
+  // Notify parent of live project tokens so they appear in the swap token selector
+  useEffect(() => {
+    if (!onLiveTokensDiscovered || proposals.length === 0) return;
+    const liveTokens = proposals
+      .filter(p => p.ammAddress && p.ammAddress !== '0x0000000000000000000000000000000000000000')
+      .map(p => ({ address: p.ammAddress, name: p.name, symbol: p.symbol }));
+    if (liveTokens.length > 0) onLiveTokensDiscovered(liveTokens);
+  }, [proposals, onLiveTokensDiscovered]);
 
   const tabs = [
     { id: 'proposals' as const, label: '_proposals' },

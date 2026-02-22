@@ -303,6 +303,18 @@ function App() {
     setActiveTab('_swap');
   }, []);
 
+  const handleLiveTokensDiscovered = useCallback((tokens: { address: string; name: string; symbol: string }[]) => {
+    setAvailableTokens(prev => {
+      let updated = prev;
+      for (const token of tokens) {
+        if (!updated.find(t => t.address === token.address)) {
+          updated = [...updated, { address: token.address, name: token.name, symbol: token.symbol, isRoot: false }];
+        }
+      }
+      return updated;
+    });
+  }, []);
+
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
   const expectedChainId = NETWORK.chainId;
   const isWrongNetwork = isConnected && chainId !== expectedChainId;
@@ -690,6 +702,7 @@ function App() {
                           commitments={commitments}
                           fetchAllOnChainCommitments={fetchAllOnChainCommitments}
                           onTradeProject={handleTradeProject}
+                          onLiveTokensDiscovered={handleLiveTokensDiscovered}
                           worldIdGatekeeperAddress={CONTRACTS.worldIdGatekeeper}
                         />
                       </Suspense>
