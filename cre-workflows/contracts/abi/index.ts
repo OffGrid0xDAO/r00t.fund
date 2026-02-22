@@ -7,6 +7,7 @@ export { RootTokenABI } from "./RootToken"
 // CRE Callback Contract ABIs
 export { ConfidentialFundingVaultABI } from "./ConfidentialFundingVault"
 export { RegenProofOfReserveABI } from "./RegenProofOfReserve"
+export { LiquidationExecutorABI } from "./LiquidationExecutor"
 export { AIAgentOrchestratorABI } from "./AIAgentOrchestrator"
 export { RegenPredictionMarketABI } from "./RegenPredictionMarket"
 export { ProtocolHealthMonitorABI } from "./ProtocolHealthMonitor"

@@ -705,6 +705,7 @@ function App() {
                           commitments={commitments}
                           fetchAllOnChainCommitments={fetchAllOnChainCommitments}
                           onTradeProject={handleTradeProject}
+                          worldIdGatekeeperAddress={CONTRACTS.worldIdGatekeeper}
                         />
                       </Suspense>
                     )}

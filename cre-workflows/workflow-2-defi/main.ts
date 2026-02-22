@@ -9,9 +9,11 @@
  * The workflow:
  * 1. Reads on-chain reserves from ZkAMMPair (ethReserve, tokenReserve, totalLPShares, fees)
  * 2. Reads shorts state from R00TShorts (totalCollateralLocked, totalOpenInterest)
- * 3. Fetches carbon credit prices from multiple external sources
- * 4. Computes TVL, backing ratio, and impact score
- * 5. Writes report to RegenProofOfReserve
+ * 3. Scans R00TShorts for liquidatable positions
+ * 4. Fetches carbon credit prices from multiple external sources
+ * 5. Computes TVL, backing ratio, impact score, and liquidation arrays
+ * 6. Writes report to RegenProofOfReserve
+ * 7. Writes liquidation batch to LiquidationExecutor (conditional)
  *
  * Trigger: CronCapability (every 30 minutes)
  * Capabilities: HTTPClient, EVMClient
@@ -41,6 +43,7 @@ import { z } from 'zod'
 import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 import { R00TShortsABI } from '../contracts/abi/R00TShorts'
 import { RegenProofOfReserveABI } from '../contracts/abi/RegenProofOfReserve'
+import { LiquidationExecutorABI } from '../contracts/abi/LiquidationExecutor'
 
 // ============ Config Schema ============
 
@@ -51,6 +54,7 @@ const configSchema = z.object({
   r00tShortsAddress: z.string(),
   proofOfReserveAddress: z.string(),
   fundingVaultAddress: z.string(),
+  liquidationExecutorAddress: z.string(),
   gasLimit: z.string(),
 })
 
@@ -65,6 +69,13 @@ const CARBON_PRICE_URLS = [
   'https://api.climatetrade.com/v1/carbon-price',
   'https://api.toucan.earth/v1/bct-price',
 ]
+
+// Max positions to scan per run (gas budget)
+const MAX_SCAN_POSITIONS = 50
+
+// Slippage buffer for repurchase cost (5%)
+const SLIPPAGE_BUFFER_BPS = 500n
+const BPS_DENOMINATOR = 10000n
 
 // ============ HTTP Fetcher Functions ============
 
@@ -213,7 +224,108 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     data: bytesToHex(oiResult.data),
   }) as bigint
 
-  // ---- Step 3: Fetch external carbon credit prices ----
+  // ---- Step 3: Scan R00TShorts for liquidatable positions ----
+
+  // Check if any positions are liquidatable (fast aggregate check)
+  const liqCountCallData = encodeFunctionData({
+    abi: R00TShortsABI,
+    functionName: 'getLiquidatablePositionCount',
+  })
+  const liqCountResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.r00tShortsAddress as Address,
+      data: liqCountCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const liquidatableCount = decodeFunctionResult({
+    abi: R00TShortsABI,
+    functionName: 'getLiquidatablePositionCount',
+    data: bytesToHex(liqCountResult.data),
+  }) as bigint
+
+  // Get nextPositionId to know the scan range
+  const nextIdCallData = encodeFunctionData({
+    abi: R00TShortsABI,
+    functionName: 'nextPositionId',
+  })
+  const nextIdResult = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.r00tShortsAddress as Address,
+      data: nextIdCallData,
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+  const nextPositionId = decodeFunctionResult({
+    abi: R00TShortsABI,
+    functionName: 'nextPositionId',
+    data: bytesToHex(nextIdResult.data),
+  }) as bigint
+
+  // Scan individual positions if there are liquidatable ones
+  const liquidatableIds: bigint[] = []
+  const repurchaseCosts: bigint[] = []
+
+  if (liquidatableCount > 0n) {
+    const scanLimit = Number(nextPositionId) < MAX_SCAN_POSITIONS
+      ? Number(nextPositionId)
+      : MAX_SCAN_POSITIONS
+
+    for (let i = 0; i < scanLimit; i++) {
+      const positionId = BigInt(i)
+
+      // Check if position is liquidatable
+      const isLiqCallData = encodeFunctionData({
+        abi: R00TShortsABI,
+        functionName: 'isLiquidatable',
+        args: [positionId],
+      })
+      const isLiqResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.r00tShortsAddress as Address,
+          data: isLiqCallData,
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+      const isLiquidatable = decodeFunctionResult({
+        abi: R00TShortsABI,
+        functionName: 'isLiquidatable',
+        data: bytesToHex(isLiqResult.data),
+      }) as boolean
+
+      if (isLiquidatable) {
+        // Get repurchase cost for slippage calculation
+        const pnlCallData = encodeFunctionData({
+          abi: R00TShortsABI,
+          functionName: 'calculatePnL',
+          args: [positionId],
+        })
+        const pnlResult = evmClient.callContract(runtime, {
+          call: encodeCallMsg({
+            from: zeroAddress,
+            to: config.r00tShortsAddress as Address,
+            data: pnlCallData,
+          }),
+          blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+        }).result()
+        const [, repurchaseCost] = decodeFunctionResult({
+          abi: R00TShortsABI,
+          functionName: 'calculatePnL',
+          data: bytesToHex(pnlResult.data),
+        }) as [bigint, bigint]
+
+        liquidatableIds.push(positionId)
+        // Add 5% slippage buffer to repurchase cost
+        const maxCost = repurchaseCost + (repurchaseCost * SLIPPAGE_BUFFER_BPS) / BPS_DENOMINATOR
+        repurchaseCosts.push(maxCost)
+      }
+    }
+  }
+
+  // ---- Step 4: Fetch external carbon credit prices ----
   const carbonPrices: number[] = []
 
   for (const url of CARBON_PRICE_URLS) {
@@ -236,7 +348,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     medianCarbonPrice = carbonPrices[Math.floor(carbonPrices.length / 2)]
   }
 
-  // ---- Step 4: Compute aggregate metrics ----
+  // ---- Step 5: Compute aggregate metrics ----
   const ethReserveNum = Number(ethReserve)
   const shortsCollateralNum = Number(shortsCollateral)
 
@@ -260,7 +372,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   // Impact score: 500 default (moderate environmental impact)
   const impactScore = Math.min(1000, Math.max(0, 500))
 
-  // ---- Step 5: Encode and push report ----
+  // ---- Step 6: Encode and push PoR report ----
   const reportPayload = encodeAbiParameters(
     parseAbiParameters('uint256, uint256, uint256, uint256, uint256'),
     [ethReserve, tokenReserve, totalTVL, BigInt(backingRatio), BigInt(impactScore)]
@@ -280,10 +392,36 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     gasConfig: { gasLimit: config.gasLimit },
   }).result()
 
+  // ---- Step 7: Execute liquidations (conditional) ----
+  let liqResult = 'no liquidatable positions'
+
+  if (liquidatableIds.length > 0) {
+    const liqPayload = encodeAbiParameters(
+      parseAbiParameters('uint256[], uint256[]'),
+      [liquidatableIds, repurchaseCosts]
+    )
+
+    const liqReportResponse = runtime.report({
+      encodedPayload: hexToBase64(liqPayload),
+      encoderName: 'evm',
+      signingAlgo: 'ecdsa',
+      hashingAlgo: 'keccak256',
+    }).result()
+
+    const liqWriteResp = evmClient.writeReport(runtime, {
+      receiver: config.liquidationExecutorAddress as Address,
+      report: liqReportResponse,
+      gasConfig: { gasLimit: config.gasLimit },
+    }).result()
+
+    liqResult = `${liquidatableIds.length} positions liquidated, TX: ${liqWriteResp}`
+  }
+
   return `PoR Report: ethReserve=${ethReserve}, tokenReserve=${tokenReserve}, ` +
     `TVL=${totalTVL} (incl. ${carbonCreditValueWei} wei carbon credits), ` +
     `backingRatio=${backingRatio}, impact=${impactScore}, ` +
-    `carbonPrice=$${medianCarbonPrice}/tonne. TX: ${writeResp}`
+    `carbonPrice=$${medianCarbonPrice}/tonne. TX: ${writeResp}. ` +
+    `Liquidations: ${liqResult}`
 }
 
 // ============ Entry Point ============

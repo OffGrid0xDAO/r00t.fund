@@ -17,6 +17,8 @@
     "@railgun-community/wallet": "10.8.1",
     "@scure/bip39": "^2.0.1",
     "@tanstack/react-query": "^5.0.0",
+    "@worldcoin/idkit": "^1.3.0",
+    "@worldcoin/minikit-js": "^1.10.0",
     "axios": "^1.13.2",
     "browser-level": "^1.0.1",
     "cobe": "^0.6.5",
@@ -27,7 +29,6 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "viem": "^2.0.0",
-    "@worldcoin/idkit": "^1.3.0",
     "wagmi": "^2.0.0"
   },
   "devDependencies": {

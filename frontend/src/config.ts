@@ -42,6 +42,7 @@ const SEPOLIA_CONTRACTS = {
   poolFactory: '0xf729F57242F42ff23f3Ec55770F5B8B06aEb4b0C',
   poolRouter: '0x4b89761B1FB4532499B37aCA664A6E34aCC4F7fA',
   shortsContract: '0xE76cb3eb5253f3cFaEEab29bF44F27af9c66dF6C',
+  worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
 } as const;
 
 // Arbitrum mainnet fallback addresses (update when deployed)
@@ -59,6 +60,7 @@ const ARBITRUM_CONTRACTS = {
   poolFactory: '0x...',
   poolRouter: '0x...',
   shortsContract: '0x...',
+  worldIdGatekeeper: '0x...',
 } as const;
 
 // Select the right fallback based on network
@@ -92,6 +94,9 @@ export const CONTRACTS = {
 
   // Shorts contract for leveraged shorting
   shortsContract: import.meta.env.VITE_SHORTS_CONTRACT_ADDRESS || FALLBACK.shortsContract,
+
+  // World ID Gatekeeper for sybil-resistant proposal creation (CRE W8)
+  worldIdGatekeeper: import.meta.env.VITE_WORLD_ID_GATEKEEPER_ADDRESS || FALLBACK.worldIdGatekeeper,
 } as const;
 
 // External contract addresses (Arbitrum mainnet)
