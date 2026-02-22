@@ -152,36 +152,20 @@ export function StepWorldId({
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      {/* Orb animation */}
-      <div className="relative w-28 h-28 mx-auto">
-        <motion.div
-          className="absolute inset-0 rounded-full"
-          style={{ border: '2px solid var(--glow-secondary)', opacity: 0.2 }}
-          animate={{ scale: [1, 1.4, 1.4], opacity: [0.2, 0, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity }}
+      {/* World ID illustration */}
+      <motion.div
+        className="mx-auto"
+        style={{ maxWidth: '320px' }}
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <img
+          src="/assets/worldid-illustration.svg"
+          alt="World ID"
+          className="w-full h-auto"
+          style={{ filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.08))' }}
         />
-        <motion.div
-          className="absolute inset-3 rounded-full"
-          style={{ border: '2px solid var(--glow-secondary)', opacity: 0.35 }}
-          animate={{ scale: [1, 1.3, 1.3], opacity: [0.35, 0, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, delay: 0.4 }}
-        />
-        <motion.div
-          className="absolute inset-6 rounded-full"
-          style={{ border: '2px solid var(--glow-secondary)', opacity: 0.5 }}
-          animate={{ scale: [1, 1.2, 1.2], opacity: [0.5, 0, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, delay: 0.8 }}
-        />
-        <div
-          className="absolute inset-8 rounded-full flex items-center justify-center"
-          style={{ background: 'var(--glow-secondary)', color: 'var(--bg-primary)' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="4" fill="currentColor"/>
-          </svg>
-        </div>
-      </div>
+      </motion.div>
 
       <div className="text-center">
         <h3 className="font-semibold text-lg text-[var(--text-primary)] mb-2">Verify Your Humanity</h3>
@@ -227,9 +211,10 @@ export function StepWorldId({
               className="w-full"
             >
               <span className="flex items-center justify-center gap-2">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                <svg width="20" height="20" viewBox="28 28 73 73" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M98.5041 64.5063C98.5041 77.3777 91.4026 88.5857 80.9069 94.4079C76.023 97.1212 70.4044 98.662 64.4254 98.662C58.4463 98.662 52.8277 97.1144 47.9438 94.4079C37.4413 88.5925 30.3398 77.3777 30.3398 64.5063C30.3398 45.6422 45.5902 30.3438 64.4254 30.3438C83.2605 30.3438 98.5109 45.6354 98.5109 64.5063H98.5041Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
+                  <path d="M80.9065 51.7681V94.4116C76.0226 97.125 70.404 98.6658 64.4249 98.6658C58.4459 98.6658 52.8273 97.1182 47.9434 94.4116V51.7681C47.9434 49.0888 50.1132 46.9141 52.7865 46.9141H76.0634C78.7366 46.9141 80.9065 49.0888 80.9065 51.7681Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
+                  <path d="M64.4181 71.7635C68.419 71.7635 71.6624 68.5128 71.6624 64.5028C71.6624 60.4929 68.419 57.2422 64.4181 57.2422C60.4172 57.2422 57.1738 60.4929 57.1738 64.5028C57.1738 68.5128 60.4172 71.7635 64.4181 71.7635Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
                 </svg>
                 verify_with_world_app()
               </span>
@@ -246,9 +231,10 @@ export function StepWorldId({
               {({ open }: { open: () => void }) => (
                 <GlowButton onClick={open} variant="primary" size="lg" className="w-full">
                   <span className="flex items-center justify-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                      <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                    <svg width="20" height="20" viewBox="28 28 73 73" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M98.5041 64.5063C98.5041 77.3777 91.4026 88.5857 80.9069 94.4079C76.023 97.1212 70.4044 98.662 64.4254 98.662C58.4463 98.662 52.8277 97.1144 47.9438 94.4079C37.4413 88.5925 30.3398 77.3777 30.3398 64.5063C30.3398 45.6422 45.5902 30.3438 64.4254 30.3438C83.2605 30.3438 98.5109 45.6354 98.5109 64.5063H98.5041Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
+                      <path d="M80.9065 51.7681V94.4116C76.0226 97.125 70.404 98.6658 64.4249 98.6658C58.4459 98.6658 52.8273 97.1182 47.9434 94.4116V51.7681C47.9434 49.0888 50.1132 46.9141 52.7865 46.9141H76.0634C78.7366 46.9141 80.9065 49.0888 80.9065 51.7681Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
+                      <path d="M64.4181 71.7635C68.419 71.7635 71.6624 68.5128 71.6624 64.5028C71.6624 60.4929 68.419 57.2422 64.4181 57.2422C60.4172 57.2422 57.1738 60.4929 57.1738 64.5028C57.1738 68.5128 60.4172 71.7635 64.4181 71.7635Z" stroke="currentColor" strokeMiterlimit="10" strokeWidth="2"/>
                     </svg>
                     verify_with_world_id()
                   </span>

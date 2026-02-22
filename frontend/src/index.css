@@ -56,6 +56,10 @@ input:focus {
   --warning: #B8860B;
   --error: #A63D2F;
 
+  /* Glow accents (used by World ID orb, data feeds, etc.) */
+  --glow-primary: #2D5A3D;
+  --glow-secondary: #4A6FA5;
+
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(28, 28, 26, 0.06);
   --shadow-md: 0 4px 12px rgba(28, 28, 26, 0.08);
@@ -94,6 +98,10 @@ input:focus {
   --success: #5DA870;
   --warning: #D4A84B;
   --error: #C45D4D;
+
+  /* Glow accents */
+  --glow-primary: #5DA870;
+  --glow-secondary: #6B8FD4;
 
   /* Shadows — bolder with subtle accent tint */
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 1px rgba(93, 168, 112, 0.05);

@@ -10,21 +10,24 @@
  */
 
 // Determine which network we're on
-const chainId = Number(import.meta.env.VITE_CHAIN_ID) || 11155111;
+const chainId = Number(import.meta.env.VITE_CHAIN_ID) || 73571;
 const isSepoliaTestnet = chainId === 11155111;
+const isTenderlyVNet = chainId === 73571;
 
-// Network configuration - supports both Arbitrum and Sepolia
+// Network configuration - supports Arbitrum, Sepolia, and Tenderly VNet
 export const NETWORK = {
   chainId,
-  name: isSepoliaTestnet ? 'Sepolia Testnet' : 'Arbitrum One',
-  rpcUrl: import.meta.env.VITE_RPC_URL || (isSepoliaTestnet
-    ? 'https://eth-sepolia.g.alchemy.com/v2/demo'
-    : 'https://arbitrum-one.publicnode.com'),
-  explorerUrl: isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
-  explorerName: isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
+  name: isTenderlyVNet ? 'Tenderly VNet' : isSepoliaTestnet ? 'Sepolia Testnet' : 'Arbitrum One',
+  rpcUrl: import.meta.env.VITE_RPC_URL || (isTenderlyVNet
+    ? 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1'
+    : isSepoliaTestnet
+      ? 'https://eth-sepolia.g.alchemy.com/v2/demo'
+      : 'https://arbitrum-one.publicnode.com'),
+  explorerUrl: isTenderlyVNet ? 'https://sepolia.etherscan.io' : isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
+  explorerName: isTenderlyVNet ? 'Etherscan (Tenderly)' : isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
   // Ponder indexer URL for querying trades, stats, and merkle tree data
   indexerUrl: import.meta.env.VITE_INDEXER_URL || 'https://ponder-indexer-production-50c3.up.railway.app',
-  isTestnet: isSepoliaTestnet,
+  isTestnet: isSepoliaTestnet || isTenderlyVNet,
 } as const;
 
 // Sepolia fallback addresses (fresh deploy - 2026-02-06, configurable OI limit + liquidation fix)
@@ -42,6 +45,24 @@ const SEPOLIA_CONTRACTS = {
   poolFactory: '0xf729F57242F42ff23f3Ec55770F5B8B06aEb4b0C',
   poolRouter: '0x4b89761B1FB4532499B37aCA664A6E34aCC4F7fA',
   shortsContract: '0xE76cb3eb5253f3cFaEEab29bF44F27af9c66dF6C',
+  worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
+} as const;
+
+// Tenderly VNet fallback addresses (CRE contracts deployed here)
+const TENDERLY_CONTRACTS = {
+  zkAMM: '0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d',
+  zkAMMPair: '0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d',
+  zkAMMRouter: '0x79D52AB5EdaCFdC868c53DF8dd685f309cA20884',
+  zkAMMAdmin: '0xe99aD5A43ed5Fa986d396b18deE1ceFb48630A79',
+  rootToken: '0x89eb61a19B55257a91B3a5FCE7e36fC1668A1C29',
+  tokenPool: '0x5B1abBF8A76dF814B04E35C0BE4c5baB25bf6b07',
+  lpPool: '0xc4FA24F7411e32087B0D913bA213C3810d4923E1',
+  nullifierRegistry: '0x05553e6cf1a44b23c18d9707e8a7affbc2ba35de',
+  launchpad: '0x7f2f22329D8Cc84837D541DE7fCf7EB8f853649B',
+  tokenFactory: '0xBaEe818E3559b6F528f1C43266c9D400A0456078',
+  poolFactory: '0x0A413597731b4627412530847f281Fc93F4c557c',
+  poolRouter: '0x97300a37b7a5f550fb9975655d355174e57fa416',
+  shortsContract: '0xb2d888F6F030269BD07d1F84cfa535103F1Fe8fb',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
 } as const;
 
@@ -64,7 +85,7 @@ const ARBITRUM_CONTRACTS = {
 } as const;
 
 // Select the right fallback based on network
-const FALLBACK = isSepoliaTestnet ? SEPOLIA_CONTRACTS : ARBITRUM_CONTRACTS;
+const FALLBACK = isTenderlyVNet ? TENDERLY_CONTRACTS : isSepoliaTestnet ? SEPOLIA_CONTRACTS : ARBITRUM_CONTRACTS;
 
 // Contract addresses - reads from env with network-specific fallbacks
 export const CONTRACTS = {
@@ -149,4 +170,18 @@ export function isContractDeployed(address: string): boolean {
 // Re-export chain for use in viem/wagmi writeContract calls
 // This avoids hardcoding arbitrum everywhere
 import { arbitrum, sepolia } from 'wagmi/chains';
-export const CHAIN = NETWORK.chainId === 11155111 ? sepolia : arbitrum;
+import { defineChain } from 'viem';
+
+const tenderlyVNetChain = defineChain({
+  id: 73571,
+  name: 'Tenderly VNet',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: [NETWORK.rpcUrl],
+    },
+  },
+  testnet: true,
+});
+
+export const CHAIN = NETWORK.chainId === 73571 ? tenderlyVNetChain : NETWORK.chainId === 11155111 ? sepolia : arbitrum;

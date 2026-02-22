@@ -386,7 +386,7 @@ function App() {
       {/* Header */}
       <motion.header
         style={{ opacity: headerOpacity }}
-        className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-md bg-[var(--bg-primary)]/80 border-b border-[var(--border)]/50"
+        className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-md bg-[var(--bg-primary)]/80"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <AnimatedLogo onClick={() => setShowLanding(true)} />

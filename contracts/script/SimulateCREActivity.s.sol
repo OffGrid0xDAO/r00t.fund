@@ -407,7 +407,7 @@ contract SimulateCREActivityScript is Script {
         // Compliant vault deposits + authorizations
         ICompliantPrivateVault cv = ICompliantPrivateVault(compliantVault);
 
-        uint256 commitment1 = uint256(keccak256("test_deposit_commitment_1")) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 commitment1 = uint256(keccak256(abi.encodePacked("test_deposit_commitment_1", block.timestamp))) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
         uint256 reqId1 = cv.requestDeposit{value: 0.01 ether}(commitment1, user1Hash, "");
         txCount++;
         console.log("  Deposit request 1: 0.01 ETH (user1, ENHANCED)");
@@ -460,67 +460,56 @@ contract SimulateCREActivityScript is Script {
         // ==========================================
         // W8: World ID Verification -- 6 transactions
         // Simulates sybil-resistant identity verification
+        // Uses block.timestamp to generate unique nullifiers per run
         // ==========================================
         console.log("");
         console.log("--- W8: World ID Verification ---");
 
         IWorldIDGatekeeper wid = IWorldIDGatekeeper(worldIdGatekeeper);
 
-        // Verification request 1: Deployer verifies as human
-        uint256[8] memory worldIdProof1;
-        worldIdProof1[0] = uint256(keccak256("worldid_proof_element_0"));
-        worldIdProof1[1] = uint256(keccak256("worldid_proof_element_1"));
-        bytes32 nullifier1 = keccak256(abi.encodePacked(deployer, "worldid_nullifier_1"));
-        bytes32 root1 = keccak256(abi.encodePacked("worldid_merkle_root_1"));
-        uint256 reqId1_wid = wid.requestVerification(nullifier1, root1, worldIdProof1, "orb");
-        txCount++;
-        console.log("  Request 1: Deployer requests orb verification");
+        // Check if deployer is already verified (idempotent re-runs)
+        // Note: All requestVerification calls come from deployer (msg.sender),
+        // so once deployer is verified, ALL new requests revert with AlreadyVerified()
+        bool alreadyVerified = wid.isVerified(deployer);
+        if (alreadyVerified) {
+            uint256 totalVerifiedCount = wid.totalVerified();
+            uint256 totalPendingCount = wid.totalPending();
+            console.log("  Deployer verified: true");
+            console.log("  Total verified humans:", totalVerifiedCount);
+            console.log("  Total pending requests:", totalPendingCount);
+            console.log("  SKIP: W8 already completed in previous run");
+            console.log("  (requestVerification reverts for already-verified sender)");
+        } else {
+            // Verification request 1: Deployer verifies as human
+            uint256[8] memory worldIdProof1;
+            worldIdProof1[0] = uint256(keccak256(abi.encodePacked("worldid_proof_element_0", block.timestamp)));
+            worldIdProof1[1] = uint256(keccak256(abi.encodePacked("worldid_proof_element_1", block.timestamp)));
+            bytes32 nullifier1 = keccak256(abi.encodePacked(deployer, "worldid_nullifier_1", block.timestamp));
+            bytes32 root1 = keccak256(abi.encodePacked("worldid_merkle_root_1", block.timestamp));
+            uint256 reqId1_wid = wid.requestVerification(nullifier1, root1, worldIdProof1, "orb");
+            txCount++;
+            console.log("  Request 1: Deployer requests orb verification");
 
-        // CRE verifies and approves
-        wid.receiveVerificationResult(reqId1_wid, true, "World ID proof verified via Worldcoin cloud API");
-        txCount++;
-        console.log("  Result 1: VERIFIED (orb level)");
+            // CRE verifies and approves
+            wid.receiveVerificationResult(reqId1_wid, true, "World ID proof verified via Worldcoin cloud API");
+            txCount++;
+            console.log("  Result 1: VERIFIED (orb level)");
 
-        // Verification request 2: Another user
-        bytes32 nullifier2_wid = keccak256(abi.encodePacked(address(0xBEEF), "worldid_nullifier_2"));
-        bytes32 root2_wid = keccak256(abi.encodePacked("worldid_merkle_root_2"));
-        uint256[8] memory worldIdProof2;
-        worldIdProof2[0] = uint256(keccak256("worldid_proof_2_element_0"));
-        uint256 reqId2_wid = wid.requestVerification(nullifier2_wid, root2_wid, worldIdProof2, "device");
-        txCount++;
-        console.log("  Request 2: User requests device verification");
-
-        // CRE verifies — device level approved
-        wid.receiveVerificationResult(reqId2_wid, true, "Device-level verification confirmed");
-        txCount++;
-        console.log("  Result 2: VERIFIED (device level)");
-
-        // Verification request 3: Suspicious user — rejected
-        bytes32 nullifier3_wid = keccak256(abi.encodePacked(address(0xDEAD), "worldid_nullifier_3"));
-        bytes32 root3_wid = keccak256(abi.encodePacked("worldid_merkle_root_3"));
-        uint256[8] memory worldIdProof3;
-        uint256 reqId3_wid = wid.requestVerification(nullifier3_wid, root3_wid, worldIdProof3, "orb");
-        txCount++;
-        console.log("  Request 3: User requests orb verification");
-
-        // CRE rejects — invalid proof
-        wid.receiveVerificationResult(reqId3_wid, false, "Invalid World ID proof: merkle root not found");
-        txCount++;
-        console.log("  Result 3: REJECTED (invalid proof)");
-
-        // Check verification status
-        bool deployerVerified = wid.isVerified(deployer);
-        uint256 totalVerifiedCount = wid.totalVerified();
-        console.log("  Deployer verified:", deployerVerified ? "true" : "false");
-        console.log("  Total verified humans:", totalVerifiedCount);
+            // Check verification status
+            bool deployerVerifiedNow = wid.isVerified(deployer);
+            uint256 totalVerifiedCount = wid.totalVerified();
+            console.log("  Deployer verified:", deployerVerifiedNow ? "true" : "false");
+            console.log("  Total verified humans:", totalVerifiedCount);
+        }
 
         // ==========================================
         // Extra: Additional compliance deposits
+        // Uses block.timestamp for unique commitments per run
         // ==========================================
         console.log("");
         console.log("--- Extra: Additional Compliance Deposits ---");
 
-        uint256 commitment2 = uint256(keccak256("test_deposit_commitment_2")) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 commitment2 = uint256(keccak256(abi.encodePacked("test_deposit_commitment_2", block.timestamp))) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
         uint256 reqId2 = cv.requestDeposit{value: 0.02 ether}(commitment2, user2Hash, "");
         txCount++;
         console.log("  Deposit request 2: 0.02 ETH (user2, STANDARD)");
@@ -529,7 +518,7 @@ contract SimulateCREActivityScript is Script {
         txCount++;
         console.log("  Authorized: Request", reqId2);
 
-        uint256 commitment3 = uint256(keccak256("test_deposit_commitment_3")) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 commitment3 = uint256(keccak256(abi.encodePacked("test_deposit_commitment_3", block.timestamp))) % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
         uint256 reqId3 = cv.requestDeposit{value: 0.005 ether}(commitment3, user3Hash, "");
         txCount++;
         console.log("  Deposit request 3: 0.005 ETH (user3, BASIC)");
