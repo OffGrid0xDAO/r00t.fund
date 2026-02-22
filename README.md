@@ -560,13 +560,13 @@ The contract emits `MilestoneReached` events when the project hits key targets (
 
 **Prize Track:** World ($5k) — "Best use of World ID with CRE"
 **File:** [`cre-workflows/workflow-8-worldid/main.ts`](cre-workflows/workflow-8-worldid/main.ts)
-**Contract:** [`contracts/src/cre/WorldIDGatekeeper.sol`](contracts/src/cre/WorldIDGatekeeper.sol)
+**Contracts:** [`contracts/src/cre/WorldIDGatekeeper.sol`](contracts/src/cre/WorldIDGatekeeper.sol), [`contracts/src/LaunchpadGovernance.sol`](contracts/src/LaunchpadGovernance.sol)
 
 <p align="center">
   <img src="cre-workflows/diagrams/workflow-8-worldid.svg" alt="Workflow 8 — World ID Verification" width="100%"/>
 </p>
 
-Sybil-resistant identity verification for proposal creation. The World ID Router is only native on Ethereum/Optimism/World Chain — CRE bridges this capability to **any EVM chain** by calling the Worldcoin cloud verification API off-chain and writing results on-chain.
+Sybil-resistant identity verification for proposal creation. The World ID Router is only native on Ethereum/Optimism/World Chain — CRE bridges this capability to **any EVM chain** by calling the Worldcoin cloud verification API off-chain and writing results on-chain. Once verified, the address is marked as human in `WorldIDGatekeeper`, which `LaunchpadGovernance` checks before allowing proposal creation.
 
 **Why CRE is needed:** World ID's on-chain verification router only exists on Ethereum, Optimism, and World Chain. Projects deployed on other EVM chains (including Tenderly VNets, L2s, app-chains) cannot natively verify World ID proofs. CRE solves this by reading the proof data on-chain, calling the Worldcoin cloud verification API via `HTTPClient`, and writing the result back — enabling World ID on any chain.
 
@@ -577,7 +577,8 @@ Sybil-resistant identity verification for proposal creation. The World ID Router
 4. For each pending request, CRE reads the full proof data via `EVMClient.callContract`
 5. CRE calls Worldcoin cloud API (`POST /api/v2/verify/{app_id}`) with the proof
 6. CRE writes verification result on-chain via `receiveVerificationResult(requestId, isValid, reason)`
-7. `LaunchpadGovernance.createProposal()` checks `worldIdGatekeeper.isVerified(msg.sender)`
+7. `WorldIDGatekeeper` sets `verifiedHumans[address] = true` — marking the address as a real person
+8. When user calls `LaunchpadGovernance.createProposal()`, governance checks `worldIdGatekeeper.isVerified(msg.sender)` — only verified humans can submit regeneration funding proposals
 
 **Verification levels:**
 | Level | Method | Uniqueness Guarantee |
@@ -585,7 +586,7 @@ Sybil-resistant identity verification for proposal creation. The World ID Router
 | Orb | Iris biometric scan | One person = one proof (highest assurance) |
 | Device | Phone-based verification | Device-level uniqueness |
 
-**Sybil resistance:** Each World ID nullifier hash can only be used once per action — one person, one verification, one identity across all proposals. The `WorldIDGatekeeper` contract enforces this with a nullifier registry that prevents replay.
+**Sybil resistance:** Each World ID nullifier hash can only be used once per action — one person, one verification, one identity across all proposals. The `WorldIDGatekeeper` contract enforces this with a nullifier registry that prevents replay. This ensures no single person can flood governance with duplicate proposals.
 
 **Key CRE patterns:** `CronCapability`, `EVMClient.callContract`, `HTTPClient.sendRequest`, `runtime.report`, `EVMClient.writeReport`
 
