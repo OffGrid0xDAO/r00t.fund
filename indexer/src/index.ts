@@ -7,7 +7,9 @@ import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, m
 // Trade events come from Router, but reserves live on Pair
 const PAIR_ADDRESS = (process.env.PONDER_NETWORK === "arbitrum"
   ? "0xc7E7fD3bC101621F588a3A47cf03343BFAC05451"
-  : "0xdacF977d96840748EB5624508BF98fc5E8CC84E1"
+  : process.env.PONDER_NETWORK === "tenderly"
+    ? "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"
+    : "0xdacF977d96840748EB5624508BF98fc5E8CC84E1"
 ).toLowerCase();
 
 // Constants matching the on-chain TokenPool
@@ -73,10 +75,13 @@ function insertLeaf(
 // Only runs for recent blocks (within 5 minutes) to avoid RPC spam during historical sync
 async function updatePoolState(context: any, _eventAddress: string, blockNumber: bigint, timestamp: bigint) {
   // Skip if block is older than 5 minutes (historical sync)
-  const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
-  const fiveMinutesAgo = nowSeconds - 300n;
-  if (timestamp < fiveMinutesAgo) {
-    return; // Skip historical events to avoid RPC spam
+  // Tenderly VNet uses synthetic timestamps (evm_increaseTime), so always update pool state
+  if (process.env.PONDER_NETWORK !== "tenderly") {
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    const fiveMinutesAgo = nowSeconds - 300n;
+    if (timestamp < fiveMinutesAgo) {
+      return; // Skip historical events to avoid RPC spam
+    }
   }
 
   const { db, client } = context;

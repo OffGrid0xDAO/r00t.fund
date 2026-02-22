@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
+import { motion, AnimatePresence } from 'framer-motion';
+import { GlowButton } from './ui/GlowButton';
 
 interface ProjectDetailModalProps {
   project: {
@@ -159,139 +161,165 @@ export function ProjectDetailModal({ project, onClose, onTrade }: ProjectDetailM
   const isPositive = priceChange >= 0;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="card-elevated max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-xl font-semibold text-theme-primary">{project.name}</h2>
-              <span className="tag">${project.symbol}</span>
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          transition={{ type: 'spring', damping: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className="max-w-lg w-full mx-4 rounded-lg p-6 bg-[var(--bg-elevated)] border border-[var(--border)] max-h-[90vh] overflow-y-auto"
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-xl font-semibold text-[var(--text-primary)]">{project.name}</h2>
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--accent)]">
+                  ${project.symbol}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] font-mono">
+                {project.ammAddress.slice(0, 10)}...{project.ammAddress.slice(-8)}
+              </p>
             </div>
-            <p className="text-xs text-theme-muted font-mono">
-              {project.ammAddress.slice(0, 10)}...{project.ammAddress.slice(-8)}
-            </p>
+            <button onClick={onClose} className="btn-ghost p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button onClick={onClose} className="btn-ghost p-2">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
 
-        {isLoading ? (
-          <div className="text-center py-8 text-theme-muted">loading...</div>
-        ) : (
-          <>
-            {/* Price */}
-            <div className="mb-6">
-              <p className="code-label mb-1">price</p>
-              <div className="flex items-end gap-3">
-                <span className="text-3xl font-bold text-theme-primary">
-                  {formatNumber(currentPrice, 0)}
-                </span>
-                <span className="text-sm text-theme-muted mb-1">${project.symbol}/ETH</span>
-                <span
-                  className="text-sm font-medium mb-1"
-                  style={{ color: isPositive ? 'var(--success)' : 'var(--error)' }}
-                >
-                  {isPositive ? '+' : ''}{priceChange.toFixed(2)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Chart */}
-            <div className="rounded-xl p-4 bg-theme-tertiary mb-6">
-              <div className="h-20">
-                <svg
-                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                  className="w-full h-full"
-                  preserveAspectRatio="none"
-                >
-                  <defs>
-                    <linearGradient id="projectAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id="projectEdgeFade" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="white" stopOpacity="0" />
-                      <stop offset="8%" stopColor="white" stopOpacity="1" />
-                      <stop offset="92%" stopColor="white" stopOpacity="1" />
-                      <stop offset="100%" stopColor="white" stopOpacity="0" />
-                    </linearGradient>
-                    <mask id="projectEdgeMask">
-                      <rect x="0" y="0" width={chartWidth} height={chartHeight} fill="url(#projectEdgeFade)" />
-                    </mask>
-                  </defs>
-
-                  <g mask="url(#projectEdgeMask)">
-                    <path d={areaPath} fill="url(#projectAreaGradient)" />
-                    <path
-                      d={linePath}
-                      fill="none"
-                      stroke="var(--accent)"
-                      strokeWidth="1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </g>
-                </svg>
-              </div>
-              <div className="flex justify-between mt-2 text-[10px] text-theme-muted">
-                <span>30h ago</span>
-                <span>now</span>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="p-3 rounded-xl bg-theme-tertiary">
-                <p className="code-label">mcap</p>
-                <p className="text-lg font-medium text-theme-primary">{formatNumber(marketCap)} ETH</p>
-              </div>
-              <div className="p-3 rounded-xl bg-theme-tertiary">
-                <p className="code-label">liquidity</p>
-                <p className="text-lg font-medium text-theme-primary">{formatNumber(liquidity)} ETH</p>
-              </div>
-              <div className="p-3 rounded-xl bg-theme-tertiary">
-                <p className="code-label">eth_reserve</p>
-                <p className="text-lg font-medium text-theme-primary">{formatNumber(Number(formatUnits(ethReserve, 18)))} ETH</p>
-              </div>
-              <div className="p-3 rounded-xl bg-theme-tertiary">
-                <p className="code-label">token_reserve</p>
-                <p className="text-lg font-medium text-theme-primary">{formatNumber(Number(formatUnits(tokenReserve, 18)))}</p>
-              </div>
-            </div>
-
-            {/* Fee info */}
-            {project.feeBps !== undefined && (
-              <div className="p-3 rounded-xl bg-theme-tertiary mb-6">
-                <p className="text-xs text-theme-muted">
-                  // swap fee: {project.feeBps / 100}% — goes to liquidity providers
+          {isLoading ? (
+            <div className="text-center py-8 text-[var(--text-muted)] font-mono text-sm">loading...</div>
+          ) : (
+            <>
+              {/* Price */}
+              <div className="mb-6">
+                <p className="text-[9px] font-mono text-[var(--text-muted)] mb-1 uppercase">
+                  <span className="text-[var(--accent)] opacity-60">// </span>price
                 </p>
+                <div className="flex items-end gap-3">
+                  <span className="text-3xl font-bold text-[var(--text-primary)]">
+                    {formatNumber(currentPrice, 0)}
+                  </span>
+                  <span className="text-sm text-[var(--text-muted)] mb-1">${project.symbol}/ETH</span>
+                  <span
+                    className="text-sm font-medium mb-1"
+                    style={{ color: isPositive ? 'var(--success)' : 'var(--error)' }}
+                  >
+                    {isPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                  </span>
+                </div>
               </div>
-            )}
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => onTrade(project.ammAddress)}
-                className="btn-fn flex-1 py-3"
-              >
-                trade()
-              </button>
-              <a
-                href={`https://basescan.org/address/${project.ammAddress}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-ghost py-3 px-4"
-              >
-                view_contract()
-              </a>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+              {/* Chart */}
+              <div className="rounded-lg p-4 bg-[var(--bg-secondary)] border border-[var(--border)] mb-6">
+                <div className="h-20">
+                  <svg
+                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                    className="w-full h-full"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient id="projectAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                      </linearGradient>
+                      <linearGradient id="projectEdgeFade" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="white" stopOpacity="0" />
+                        <stop offset="8%" stopColor="white" stopOpacity="1" />
+                        <stop offset="92%" stopColor="white" stopOpacity="1" />
+                        <stop offset="100%" stopColor="white" stopOpacity="0" />
+                      </linearGradient>
+                      <mask id="projectEdgeMask">
+                        <rect x="0" y="0" width={chartWidth} height={chartHeight} fill="url(#projectEdgeFade)" />
+                      </mask>
+                    </defs>
+
+                    <g mask="url(#projectEdgeMask)">
+                      <path d={areaPath} fill="url(#projectAreaGradient)" />
+                      <path
+                        d={linePath}
+                        fill="none"
+                        stroke="var(--accent)"
+                        strokeWidth="1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                  </svg>
+                </div>
+                <div className="flex justify-between mt-2 text-[10px] text-[var(--text-muted)]">
+                  <span>30h ago</span>
+                  <span>now</span>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
+                  <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase">
+                    <span className="text-[var(--accent)] opacity-60">// </span>mcap
+                  </p>
+                  <p className="text-lg font-medium text-[var(--text-primary)]">{formatNumber(marketCap)} ETH</p>
+                </div>
+                <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
+                  <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase">
+                    <span className="text-[var(--accent)] opacity-60">// </span>liquidity
+                  </p>
+                  <p className="text-lg font-medium text-[var(--text-primary)]">{formatNumber(liquidity)} ETH</p>
+                </div>
+                <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
+                  <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase">
+                    <span className="text-[var(--accent)] opacity-60">// </span>eth_reserve
+                  </p>
+                  <p className="text-lg font-medium text-[var(--text-primary)]">{formatNumber(Number(formatUnits(ethReserve, 18)))} ETH</p>
+                </div>
+                <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
+                  <p className="text-[9px] font-mono text-[var(--text-muted)] uppercase">
+                    <span className="text-[var(--accent)] opacity-60">// </span>token_reserve
+                  </p>
+                  <p className="text-lg font-medium text-[var(--text-primary)]">{formatNumber(Number(formatUnits(tokenReserve, 18)))}</p>
+                </div>
+              </div>
+
+              {/* Fee info */}
+              {project.feeBps !== undefined && (
+                <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] mb-6">
+                  <p className="text-xs text-[var(--text-muted)] font-mono">
+                    // swap fee: {project.feeBps / 100}% — goes to liquidity providers
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <GlowButton
+                  onClick={() => onTrade(project.ammAddress)}
+                  variant="primary"
+                  className="flex-1"
+                >
+                  trade()
+                </GlowButton>
+                <GlowButton
+                  onClick={() => window.open(`https://basescan.org/address/${project.ammAddress}`, '_blank')}
+                  variant="ghost"
+                >
+                  view_contract()
+                </GlowButton>
+              </div>
+            </>
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

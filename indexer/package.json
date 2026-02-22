@@ -7,7 +7,9 @@
   },
   "scripts": {
     "dev": "ponder dev",
+    "dev:tenderly": "PONDER_NETWORK=tenderly ponder dev",
     "start": "ponder start",
+    "start:tenderly": "PONDER_NETWORK=tenderly ponder start",
     "start:optimized": "tsx scripts/start-optimized.ts",
     "find-activity": "tsx scripts/find-first-activity.ts",
     "codegen": "ponder codegen"

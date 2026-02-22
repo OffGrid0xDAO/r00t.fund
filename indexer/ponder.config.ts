@@ -19,6 +19,12 @@ const SEPOLIA_ZKAMM_PAIR_ADDRESS = "0xdacF977d96840748EB5624508BF98fc5E8CC84E1";
 const SEPOLIA_LP_POOL_ADDRESS = "0x6b0b337D69C3f79f7f0Aac59cc5eaf953D0F8580"; // LPPool (LP commitments)
 const SEPOLIA_RPC = process.env.PONDER_RPC_URL_11155111 || "https://eth-sepolia.g.alchemy.com/v2/demo";
 
+// Tenderly VNet config (CRE + ZK trading simulation environment)
+const TENDERLY_FIRST_BLOCK = 0;
+const TENDERLY_ZKAMM_ADDRESS = "0x79D52AB5EdaCFdC868c53DF8dd685f309cA20884"; // ZkAMM Router
+const TENDERLY_ZKAMM_PAIR_ADDRESS = "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"; // ZkAMM Pair
+const TENDERLY_RPC = process.env.PONDER_RPC_URL_73571 || "https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1";
+
 // ABI for Pair events (NewCommitment AND NewLPCommitment come from Pair, NOT TokenPool/LPPool)
 // The Pair calls tokenPool.insert() which emits LeafInserted, then Pair emits NewCommitment
 // The Pair also emits NewLPCommitment when LP positions are created
@@ -111,23 +117,32 @@ export default createConfig({
         maxRequestsPerSecond: 2,
       },
     }),
+    ...(NETWORK === "tenderly" && {
+      tenderly: {
+        chainId: 73571,
+        transport: http(TENDERLY_RPC),
+        // Tenderly VNet only produces blocks on-demand (no mining without txs)
+        // Poll every 2s for responsive local dev
+        pollingInterval: 2_000,
+      },
+    }),
   },
   contracts: {
     // ZkAMM Router - handles trades, LP operations
     ZkAMMWithToken: {
-      network: NETWORK === "arbitrum" ? "arbitrum" : "sepolia",
+      network: NETWORK === "arbitrum" ? "arbitrum" : NETWORK === "tenderly" ? "tenderly" : "sepolia",
       abi: ZkAMMWithTokenAbi,
-      address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
-      startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
+      address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : NETWORK === "tenderly" ? TENDERLY_ZKAMM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
+      startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
     },
     // ZkAMMPair - handles token AND LP commitments
     // NewCommitment, NewLPCommitment, NullifierSpent, LPNullifierSpent all come from Pair
-    ...(NETWORK === "sepolia" && {
+    ...((NETWORK === "sepolia" || NETWORK === "tenderly") && {
       ZkAMMPair: {
-        network: "sepolia",
+        network: NETWORK === "tenderly" ? "tenderly" : "sepolia",
         abi: PairAbi,
-        address: SEPOLIA_ZKAMM_PAIR_ADDRESS,
-        startBlock: SEPOLIA_FIRST_BLOCK,
+        address: NETWORK === "tenderly" ? TENDERLY_ZKAMM_PAIR_ADDRESS : SEPOLIA_ZKAMM_PAIR_ADDRESS,
+        startBlock: NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
       },
     }),
   },
