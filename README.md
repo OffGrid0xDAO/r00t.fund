@@ -836,7 +836,7 @@ The entire R00t.fund protocol is deployed and fully operational on a [Tenderly V
 | TokenPool | `0x5B1abBF8A76dF814B04E35C0BE4c5baB25bf6b07` |
 | LPPool | `0xc4FA24F7411e32087B0D913bA213C3810d4923E1` |
 | LaunchpadGovernance | `0x7f2f22329D8Cc84837D541DE7fCf7EB8f853649B` |
-| R00TShorts | `0xb2d888F6F030269BD07d1F84cfa535103F1Fe8fb` |
+| R00TShorts | `0xCc67e5664a4996C13ab8499E9ABD4c57B11b0107` |
 
 **CRE Callback Contracts:**
 

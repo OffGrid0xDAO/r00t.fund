@@ -741,8 +741,18 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         setInputAmount('');
         // Refresh ETH balance after successful buy
         refetchEthBalance();
-        // Notify chart to refresh (delay to let Ponder indexer catch up)
-        setTimeout(() => window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT)), 2000);
+        // Inject trade directly into live feed (works even without Ponder)
+        const tradeDetail = {
+          type: 'buy' as const,
+          ethAmount: parseFloat(inputAmount),
+          tokenAmount: result.tokensReceived ? Number(result.tokensReceived) / 1e18 : 0,
+          price: result.tokensReceived ? parseFloat(inputAmount) / (Number(result.tokensReceived) / 1e18) : 0,
+          timestamp: Date.now(),
+          txHash: result.txHash || '',
+          blockNumber: 0,
+        };
+        window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT, { detail: tradeDetail }));
+        // Also retry after delay in case Ponder has the full data
         setTimeout(() => window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT)), 5000);
       } else { setError(result.error || 'Transaction failed'); }
     } catch (err: unknown) {
@@ -912,8 +922,18 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       setInputAmount('');
       // Refresh ETH balance after successful sell (user received ETH)
       refetchEthBalance();
-      // Notify chart to refresh (delay to let Ponder indexer catch up)
-      setTimeout(() => window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT)), 2000);
+      // Inject trade directly into live feed (works even without Ponder)
+      const sellTradeDetail = {
+        type: 'sell' as const,
+        ethAmount: parseFloat(inputAmount),
+        tokenAmount: Number(tokenAmount) / 1e18,
+        price: Number(tokenAmount) > 0 ? parseFloat(inputAmount) / (Number(tokenAmount) / 1e18) : 0,
+        timestamp: Date.now(),
+        txHash: hash,
+        blockNumber: Number(receipt.blockNumber),
+      };
+      window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT, { detail: sellTradeDetail }));
+      // Also retry after delay in case Ponder has the full data
       setTimeout(() => window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT)), 5000);
     } catch (err: unknown) {
       const errorMessage = (err as Error).message || 'Transaction failed';

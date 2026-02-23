@@ -14,6 +14,9 @@ import { formatEther, formatUnits } from 'viem';
 import { NETWORK, TOKEN, CONTRACTS } from '../config';
 import { ZKAMM_PRICE_ABI } from '../abis/zkAMM';
 
+// Trade completion event name — shared constant (also exported from PriceChart for back-compat)
+export const TRADE_COMPLETE_EVENT = 'r00t-trade-complete';
+
 // Convert HTTP URL to WebSocket URL
 function getWebSocketUrl(httpUrl: string): string {
   return httpUrl.replace(/^http/, 'ws') + '/graphql';
@@ -110,7 +113,7 @@ interface PricePoint {
   blockNumber: number;
 }
 
-interface Trade {
+export interface Trade {
   type: 'buy' | 'sell' | 'add_lp' | 'remove_lp' | 'claim_fees';
   ethAmount: number;
   tokenAmount: number;
@@ -612,6 +615,27 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     // Single fetch on mount - no polling (reduces RPC calls)
     fetchReservesRef.current();
   }, [publicClient, zkAMMAddress]);
+
+  // Listen for local trade events — injects trades directly into state
+  // so the live feed works even when Ponder indexer is unreachable
+  useEffect(() => {
+    const handleLocalTrade = (event: Event) => {
+      const detail = (event as CustomEvent).detail as Trade | undefined;
+      if (!detail || !detail.type || !detail.txHash) return;
+
+      console.log('[usePriceHistory] Injecting local trade into live feed:', detail.type, detail.txHash?.slice(0, 16));
+      setTrades(prev => {
+        // Avoid duplicates (Ponder might also deliver this trade)
+        if (prev.some(t => t.txHash === detail.txHash)) return prev;
+        const updated = [detail, ...prev];
+        saveStoredTrades(zkAMMAddress, updated);
+        return updated;
+      });
+    };
+
+    window.addEventListener(TRADE_COMPLETE_EVENT, handleLocalTrade);
+    return () => window.removeEventListener(TRADE_COMPLETE_EVENT, handleLocalTrade);
+  }, [zkAMMAddress]);
 
   // Build price history from trades and calculate stats
   useEffect(() => {

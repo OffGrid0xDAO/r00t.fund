@@ -549,7 +549,7 @@ export function ProjectDetailModal({
                   {creSummary && (
                     <div className="flex gap-4 text-[10px] font-mono text-[var(--text-muted)] pt-3 mt-3 border-t border-[var(--border)]">
                       <span>trees: {creSummary.estimatedLiveTrees.toLocaleString()}/{creSummary.totalTreesPlanted.toLocaleString()}</span>
-                      <span>survival: {creSummary.survivalRatePct}%</span>
+                      <span>survival: {(creSummary.survivalRatePct / 100).toFixed(1)}%</span>
                       <span>reports: {creSummary.totalReports}</span>
                       <span>carbon credits: {creReport?.carbonCredits ?? 0}</span>
                     </div>

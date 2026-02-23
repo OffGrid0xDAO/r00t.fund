@@ -102,29 +102,48 @@ export function LiveProjectCard({
         </div>
       </div>
 
-      {/* Gauges Row */}
-      {(report || summary) && (
-        <div className="flex justify-around mb-4">
-          <DataFeedGauge
-            label="NDVI"
-            value={report?.ndviCurrent ?? 0}
-            max={1}
-            unit=""
-            color="var(--success)"
-          />
-          <DataFeedGauge
-            label="CO₂/yr"
-            value={summary?.annualCO2Kg ? summary.annualCO2Kg / 1000 : (report?.annualCO2 ?? 0) / 1000}
-            max={100}
-            unit="tCO₂"
-            color="var(--accent)"
-          />
-          <DataFeedGauge
-            label="FRI"
-            value={report?.fireRecoveryIndex ?? (summary?.fireRecoveryIndex ?? 0)}
-            max={100}
-            unit="%"
-          />
+      {/* Hero Image + Gauges Row */}
+      {(report || summary || metadata?.coverImageUrl) && (
+        <div className="flex gap-3 mb-4">
+          {/* Hero Image (left) */}
+          {metadata?.coverImageUrl ? (
+            <div className="w-40 h-24 flex-shrink-0 rounded-md overflow-hidden border border-[var(--border)]">
+              <img
+                src={metadata.coverImageUrl}
+                alt={proposal?.name || 'Project'}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-40 h-24 flex-shrink-0 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
+              <span className="text-2xl opacity-30">🌱</span>
+            </div>
+          )}
+          {/* Gauges (right, grouped tight) */}
+          {(report || summary) && (
+            <div className="flex gap-3 items-center ml-auto">
+              <DataFeedGauge
+                label="NDVI"
+                value={report?.ndviCurrent ?? 0}
+                max={1}
+                unit=""
+                color="var(--success)"
+              />
+              <DataFeedGauge
+                label="CO₂/yr"
+                value={summary?.annualCO2Kg ? summary.annualCO2Kg / 1000 : (report?.annualCO2 ?? 0) / 1000}
+                max={100}
+                unit="tCO₂"
+                color="var(--accent)"
+              />
+              <DataFeedGauge
+                label="FRI"
+                value={report?.fireRecoveryIndex ?? (summary?.fireRecoveryIndex ?? 0)}
+                max={100}
+                unit="%"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -148,7 +167,7 @@ export function LiveProjectCard({
       {summary && (
         <div className="flex gap-4 text-[10px] font-mono text-[var(--text-muted)] pt-2 border-t border-[var(--border)]">
           <span>trees: {summary.estimatedLiveTrees.toLocaleString()}/{summary.totalTreesPlanted.toLocaleString()}</span>
-          <span>survival: {summary.survivalRatePct}%</span>
+          <span>survival: {(summary.survivalRatePct / 100).toFixed(1)}%</span>
           <span>reports: {summary.totalReports}</span>
         </div>
       )}

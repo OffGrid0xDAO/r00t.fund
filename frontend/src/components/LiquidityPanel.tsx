@@ -388,7 +388,11 @@ export function LiquidityPanel({
 
   // Update current time for countdown when there are locked positions
   useEffect(() => {
-    const hasLockedPositions = Object.values(lpLockInfo).some(info => info.isLocked);
+    // Use local time-based check, NOT the contract's isLocked field.
+    // The contract computes isLocked using block.timestamp which can differ
+    // from real time on Tenderly VNet, causing the timer to never start.
+    const now = Math.floor(Date.now() / 1000);
+    const hasLockedPositions = Object.values(lpLockInfo).some(info => now < info.unlockTime);
     if (!hasLockedPositions) return;
 
     const interval = setInterval(() => {
@@ -601,14 +605,18 @@ export function LiquidityPanel({
   }, [viewingKey, address]); // Don't include lpPositions to avoid loop
 
   // Save LP position (with token amount for dual-sided LP)
+  // Uses functional update to avoid stale closure — handleAddLiquidity runs for minutes
+  // (proof generation + tx confirmation), during which lpPositions ref can go stale
   const saveLPPosition = useCallback((position: LPPosition) => {
     if (!address) return;
 
     const key = `lp_positions_${address.toLowerCase()}_${zkAMMAddress.toLowerCase()}`;
-    const newPositions = [...lpPositions, position];
-    setLpPositions(newPositions);
-    localStorage.setItem(key, JSON.stringify(newPositions));
-  }, [address, zkAMMAddress, lpPositions]);
+    setLpPositions(prev => {
+      const newPositions = [...prev, position];
+      localStorage.setItem(key, JSON.stringify(newPositions));
+      return newPositions;
+    });
+  }, [address, zkAMMAddress]);
 
   const handleAddLiquidity = async () => {
     if (!walletClient || !publicClient || !selectedCommitment || !tokenAmount || !address || !viewingKey) {
@@ -848,8 +856,19 @@ export function LiquidityPanel({
       // Refresh pool info after successful add
       await fetchPoolInfo();
 
-      // Trigger live feed refresh
-      window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT));
+      // Inject trade directly into live feed (works even without Ponder)
+      window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT, {
+        detail: {
+          type: 'add_lp',
+          ethAmount: parseFloat(requiredEth),
+          tokenAmount: parseFloat(tokenAmount),
+          price: 0,
+          lpShares: parseFloat(estimatedShares),
+          timestamp: Date.now(),
+          txHash: hash,
+          blockNumber: Number(receipt.blockNumber),
+        }
+      }));
     } catch (err: unknown) {
       console.error('[LiquidityPanel] Add liquidity error:', err);
       setError((err as Error).message || 'Failed to add liquidity');
@@ -1187,8 +1206,19 @@ export function LiquidityPanel({
       // Refresh pool info after successful remove
       await fetchPoolInfo();
 
-      // Trigger live feed refresh
-      window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT));
+      // Inject trade directly into live feed (works even without Ponder)
+      window.dispatchEvent(new CustomEvent(TRADE_COMPLETE_EVENT, {
+        detail: {
+          type: 'remove_lp',
+          ethAmount: parseFloat(position.ethAmount),
+          tokenAmount: parseFloat(position.tokenAmount || '0'),
+          price: 0,
+          lpShares: parseFloat(position.lpShares),
+          timestamp: Date.now(),
+          txHash: hash,
+          blockNumber: Number(receipt.blockNumber),
+        }
+      }));
 
       // Refresh balance after LP removal (new token commitment was added)
       if (onRefreshBalance) {

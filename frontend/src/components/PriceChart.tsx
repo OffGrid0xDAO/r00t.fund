@@ -1,12 +1,12 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePriceHistory, TimeFrame } from '../hooks/usePriceHistory';
+import { usePriceHistory, TimeFrame, TRADE_COMPLETE_EVENT } from '../hooks/usePriceHistory';
 import { TOKEN, getExplorerTxUrl } from '../config';
 import { OHLCVChart, ChartToggle, DisplayToggle, type ChartViewMode, type DisplayMode } from './OHLCVChart';
 import { ExpandChartButton } from './ChartModal';
 
-// Custom event name for trade completion notifications
-export const TRADE_COMPLETE_EVENT = 'r00t-trade-complete';
+// Re-export for consumers that import from PriceChart
+export { TRADE_COMPLETE_EVENT };
 
 interface PriceChartProps {
   zkAMMAddress: string;
