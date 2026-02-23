@@ -32,7 +32,7 @@
 
 <br/>
 
-*Built in Portugal 🇵🇹 · Verified by Chainlink · Rooted in the earth*
+*Fund what Heals · Verify On-chain · Built on Chainlink · Rooted in the earth*
 
 </div>
 
@@ -170,7 +170,7 @@ Every project launched through R00t.fund governance goes through the same verifi
  │                        PROJECT VERIFICATION LIFECYCLE                        │
  │                                                                              │
  │  PROPOSE          FUND             VERIFY              ATTEST                │
- │  ────────►   ────────────►   ──────────────────►   ──────────────►          │
+ │  ────────►   ────────────►   ──────────────────►   ──────────────►           │
  │                                                                              │
  │  Community        ZkAMM             Chainlink CRE         On-chain           │
  │  votes via        commits           checks:               attestation        │
@@ -184,7 +184,7 @@ Every project launched through R00t.fund governance goes through the same verifi
  │                                         │                                    │
  │                                         ▼                                    │
  │                                   ┌───────────┐                              │
- │                                   │ VERIFIED?  │                              │
+ │                                   │ VERIFIED?  │                             │
  │                                   └─────┬─────┘                              │
  │                                    YES  │  NO                                │
  │                                   ┌─────┴─────┐                              │
@@ -239,32 +239,32 @@ The same verification pipeline works for any type of regenerative project:
               │                                │                              │
               ▼                                ▼                              ▼
     ┌─────────────────┐          ┌──────────────────────┐         ┌────────────────────┐
-    │ External APIs   │          │  On-Chain Contracts   │         │  Privacy Layer     │
-    │                 │          │                       │         │                    │
-    │ Copernicus      │          │ ConfidentialFunding   │         │ ZkAMMPair        │
-    │  Sentinel-2     │          │  Vault (W1)           │         │  TokenPool (Merkle)│
-    │ ISRIC SoilGrids │          │ RegenProofOfReserve   │         │  Poseidon T3 hash  │
-    │ Global Forest   │          │  (W2)                 │         │  Nullifier Registry│
-    │  Watch          │          │ AIAgentOrchestrator   │         │                    │
-    │ Verra VCS       │          │  (W3)                 │         │ CompliantPrivate   │
-    │ Gold Standard   │          │ RegenPrediction       │         │  Vault (ACE)       │
-    │ APA / CELE      │          │  Market (W4)          │         │ ACE PolicyEngine   │
-    │ Fundo Ambiental │          │ ProtocolHealth        │         │                    │
-    │ IPMA Weather    │          │  Monitor (W5)         │         │ ZK Circuits:       │
-    │ OFAC / EU       │          │ SerraEstrela          │         │  sell, transfer,   │
-    │  Sanctions      │          │  NativeForest (W7)    │         │  merge, withdraw,  │
-    │ Chainalysis     │          │                       │         │  addLiquidity, ... │
+    │ External APIs   │          │  On-Chain Contracts   │        │  Privacy Layer     │
+    │                 │          │                       │        │                    │
+    │ Copernicus      │          │ ConfidentialFunding   │        │ ZkAMMPair          │
+    │  Sentinel-2     │          │  Vault (W1)           │        │  TokenPool (Merkle)│
+    │ ISRIC SoilGrids │          │ RegenProofOfReserve   │        │  Poseidon T3 hash  │
+    │ Global Forest   │          │  (W2)                 │        │  Nullifier Registry│
+    │  Watch          │          │ AIAgentOrchestrator   │        │                    │
+    │ Verra VCS       │          │  (W3)                 │        │ CompliantPrivate   │
+    │ Gold Standard   │          │ RegenPrediction       │        │  Vault (ACE)       │
+    │ APA / CELE      │          │  Market (W4)          │        │ ACE PolicyEngine   │
+    │ Fundo Ambiental │          │ ProtocolHealth        │        │                    │
+    │ IPMA Weather    │          │  Monitor (W5)         │        │ ZK Circuits:       │
+    │ OFAC / EU       │          │ SerraEstrela          │        │  sell, transfer,   │
+    │  Sanctions      │          │  NativeForest (W7)    │        │  merge, withdraw,  │
+    │ Chainalysis     │          │                       │        │  addLiquidity, ... │
     └─────────────────┘          └──────────────────────┘         └────────────────────┘
                                                │
                                                ▼
                                  ┌──────────────────────────┐
-                                 │  Frontend / Agents        │
-                                 │                           │
-                                 │ React + Tailwind UI       │
-                                 │ Trading Agents (6 strats) │
-                                 │ SDK (13 modules)          │
-                                 │ Ponder Indexer             │
-                                 │ MCP Servers (3)            │
+                                 │  Frontend / Agents       │
+                                 │                          │
+                                 │ React + Tailwind UI      │
+                                 │ Trading Agents (6 strats)│
+                                 │ SDK (13 modules)         │
+                                 │ Ponder Indexer           │
+                                 │ MCP Servers (3)          │
                                  └──────────────────────────┘
 ```
 
@@ -1006,5 +1006,5 @@ MIT
 <p align="center">
   <strong>R00t.fund</strong> — Where privacy meets regeneration.
   <br/>
-  Built in Portugal. Verified by Chainlink. Rooted in the earth.
+  Built for the Land. Verified by Chainlink. Rooted in the earth.
 </p>
