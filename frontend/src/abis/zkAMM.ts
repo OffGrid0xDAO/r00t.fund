@@ -119,6 +119,22 @@ export const ZKAMM_ABI = [
   //   ],
   //   outputs: [],
   // },
+  // Router: atomic ETH -> Project Token swap
+  {
+    name: 'swapETHForProjectToken',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'pool', type: 'address' },
+      { name: 'minR00TOut', type: 'uint256' },
+      { name: 'minTokensOut', type: 'uint256' },
+      { name: 'projectTokenCommitment', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'encryptedNote', type: 'bytes' },
+      { name: 'userEntropy', type: 'bytes32' },
+    ],
+    outputs: [],
+  },
   // View functions
   {
     name: 'getAmountOut',
@@ -158,6 +174,21 @@ export const ZKAMM_ABI = [
     stateMutability: 'view',
     inputs: [],
     outputs: [{ type: 'address' }],
+  },
+  // Project pool reserve (ROOT/Token pairs use r00tReserve instead of ethReserve)
+  {
+    name: 'r00tReserve',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'getReserves',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }, { type: 'uint256' }],
   },
   // Pair validation functions (for pre-flight checks)
   {

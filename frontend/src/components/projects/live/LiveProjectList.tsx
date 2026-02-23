@@ -8,7 +8,7 @@ interface LiveProjectListProps {
   report?: CreDataFeedReport | null;
   summary?: ProjectSummary | null;
   creWorkflowStatus?: CreWorkflowStatus;
-  onSelectProject: (project: { name: string; symbol: string; ammAddress: string; totalSupply?: bigint; feeBps?: number }) => void;
+  onSelectProject: (project: { name: string; symbol: string; ammAddress: string; totalSupply?: bigint; feeBps?: number; metadataHash?: string }) => void;
   onTradeProject?: (ammAddress: string, name: string, symbol: string) => void;
 }
 
@@ -60,6 +60,7 @@ export function LiveProjectList({
                 ammAddress,
                 totalSupply: proposal?.totalSupply,
                 feeBps: proposal?.feeBps,
+                metadataHash: proposal?.metadataHash,
               })
             }
             onTrade={onTradeProject ? () => onTradeProject(ammAddress, proposal?.name || 'Token', proposal?.symbol || 'TOKEN') : undefined}

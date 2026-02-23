@@ -54,7 +54,7 @@ const configSchema = z.object({
   r00tShortsAddress: z.string(),
   proofOfReserveAddress: z.string(),
   fundingVaultAddress: z.string(),
-  liquidationExecutorAddress: z.string(),
+  liquidationExecutorAddress: z.string().optional().default(""),
   gasLimit: z.string(),
 })
 
@@ -395,7 +395,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   // ---- Step 7: Execute liquidations (conditional) ----
   let liqResult = 'no liquidatable positions'
 
-  if (liquidatableIds.length > 0) {
+  if (liquidatableIds.length > 0 && config.liquidationExecutorAddress) {
     const liqPayload = encodeAbiParameters(
       parseAbiParameters('uint256[], uint256[]'),
       [liquidatableIds, repurchaseCosts]
@@ -415,6 +415,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     }).result()
 
     liqResult = `${liquidatableIds.length} positions liquidated, TX: ${liqWriteResp}`
+  } else if (liquidatableIds.length > 0) {
+    liqResult = `${liquidatableIds.length} positions liquidatable (no executor configured)`
   }
 
   return `PoR Report: ethReserve=${ethReserve}, tokenReserve=${tokenReserve}, ` +

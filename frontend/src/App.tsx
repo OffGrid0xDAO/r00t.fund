@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useConnect, useChainId, useSwitchChain, usePublicClient } from 'wagmi';
 import { SwapPanel, TokenOption } from './components/SwapPanel';
 import { ShortsPanel } from './components/ShortsPanel';
 import { GlowButton } from './components/ui/GlowButton';
@@ -314,6 +314,34 @@ function App() {
       return updated;
     });
   }, []);
+
+  // Fetch live project tokens from launchpad on mount (independent of which tab is active)
+  const publicClient = usePublicClient();
+  useEffect(() => {
+    if (!publicClient || CONTRACTS.launchpad === '0x...') return;
+    const launchpadAddr = CONTRACTS.launchpad as `0x${string}`;
+    const abi = [
+      { name: 'proposalCount', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+      { name: 'getProposal', type: 'function', stateMutability: 'view', inputs: [{ name: 'proposalId', type: 'uint256' }], outputs: [{ type: 'tuple', components: [{ name: 'creator', type: 'address' },{ name: 'pledgedR00t', type: 'uint256' },{ name: 'name', type: 'string' },{ name: 'symbol', type: 'string' },{ name: 'metadataHash', type: 'bytes32' },{ name: 'totalSupply', type: 'uint256' },{ name: 'feeBps', type: 'uint256' },{ name: 'deployerBps', type: 'uint256' },{ name: 'votesFor', type: 'uint256' },{ name: 'votesAgainst', type: 'uint256' },{ name: 'votingEnds', type: 'uint256' },{ name: 'status', type: 'uint8' },{ name: 'ammAddress', type: 'address' },{ name: 'tokenAddress', type: 'address' },{ name: 'createdAt', type: 'uint256' }] }] },
+    ] as const;
+
+    (async () => {
+      try {
+        const count = await publicClient.readContract({ address: launchpadAddr, abi, functionName: 'proposalCount' });
+        const proposals = await Promise.all(
+          Array.from({ length: Number(count) }, (_, i) =>
+            publicClient.readContract({ address: launchpadAddr, abi, functionName: 'getProposal', args: [BigInt(i)] })
+          )
+        );
+        const liveTokens = proposals
+          .filter(p => p.ammAddress && p.ammAddress !== '0x0000000000000000000000000000000000000000')
+          .map(p => ({ address: p.ammAddress, name: p.name, symbol: p.symbol }));
+        if (liveTokens.length > 0) handleLiveTokensDiscovered(liveTokens);
+      } catch (err) {
+        console.error('[App] Failed to fetch live project tokens:', err);
+      }
+    })();
+  }, [publicClient, handleLiveTokensDiscovered]);
 
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
   const expectedChainId = NETWORK.chainId;

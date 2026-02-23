@@ -365,7 +365,15 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const isOnCorrectChain = chainId === CHAIN.id;
   const handleSwitchToCorrectChain = useCallback(() => switchChain({ chainId: CHAIN.id }), [switchChain]);
 
-  const { isLoading: isBuyLoading, progress: buyProgress, buyQuickPrivate } = useRailgunBuy(zkAMMAddress);
+  // Token identification — must be before useRailgunBuy so it can route correctly
+  const currentToken = availableTokens?.find(t => t.address === selectedToken) || availableTokens?.find(t => t.isRoot) || { address: zkAMMAddress, name: 'r00t', symbol: 'ROOT', isRoot: true };
+  const isProjectToken = !currentToken.isRoot;
+  const activeAMMAddress = selectedToken || zkAMMAddress;
+
+  const { isLoading: isBuyLoading, progress: buyProgress, buyQuickPrivate } = useRailgunBuy(zkAMMAddress, {
+    isProjectToken,
+    projectPoolAddress: isProjectToken ? activeAMMAddress : undefined,
+  });
 
   useEffect(() => {
     if (isConnected && !walletClient && !isWalletLoading) refetchWallet();
@@ -400,8 +408,12 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const [showSlippageSettings, setShowSlippageSettings] = useState(false);
   const [showTokenSelector, setShowTokenSelector] = useState(false);
 
-  const currentToken = availableTokens?.find(t => t.address === selectedToken) || availableTokens?.find(t => t.isRoot) || { address: zkAMMAddress, name: 'r00t', symbol: 'ROOT', isRoot: true };
-  const activeAMMAddress = selectedToken || zkAMMAddress;
+  // Auto-switch to buy mode when project token is selected (sell not supported yet)
+  useEffect(() => {
+    if (isProjectToken && direction === 'sell') {
+      setDirection('buy');
+    }
+  }, [isProjectToken, direction]);
 
   // Calculate the max sellable from a single commitment (ZK circuits can only spend one at a time)
   const maxSellableFromSingleCommitment = useMemo(() => {
@@ -460,6 +472,9 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const [ethReserve, setEthReserve] = useState<bigint>(0n);
   const [tokenReserve, setTokenReserve] = useState<bigint>(0n);
   const [tokenPrice, setTokenPrice] = useState<bigint>(0n);
+  // Project pool reserves (for two-hop swaps: ETH → ROOT → ProjectToken)
+  const [projectR00tReserve, setProjectR00tReserve] = useState<bigint>(0n);
+  const [projectTokenReserve, setProjectTokenReserve] = useState<bigint>(0n);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [, setPoolStateLoaded] = useState(false);
 
@@ -513,6 +528,36 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           if (ethRes > 0n) {
             setTokenPrice(rootRes * BigInt(1e18) / ethRes);
           }
+
+          // For project tokens, also fetch the project pool reserves (ROOT/Token)
+          if (isProjectToken && activeAMMAddress !== zkAMMAddress) {
+            try {
+              const poolAddress = activeAMMAddress as `0x${string}`;
+              console.log('[SwapPanel] Fetching project pool reserves from:', poolAddress);
+              const [r00tRes, projTokenRes] = await Promise.all([
+                publicClient.readContract({ address: poolAddress, abi: ZKAMM_ABI, functionName: 'r00tReserve' }),
+                publicClient.readContract({ address: poolAddress, abi: ZKAMM_ABI, functionName: 'tokenReserve' }),
+              ]);
+              console.log('[SwapPanel] Project pool reserves:', { r00tReserve: r00tRes.toString(), tokenReserve: projTokenRes.toString() });
+              setProjectR00tReserve(r00tRes);
+              setProjectTokenReserve(projTokenRes);
+
+              // Calculate combined price: ETH → ROOT → Token
+              if (ethRes > 0n && r00tRes > 0n) {
+                // ROOT per ETH * Token per ROOT = Token per ETH
+                const rootPerEth = rootRes * BigInt(1e18) / ethRes;
+                const tokenPerRoot = projTokenRes * BigInt(1e18) / r00tRes;
+                setTokenPrice(rootPerEth * tokenPerRoot / BigInt(1e18));
+              }
+            } catch (err) {
+              console.error('[SwapPanel] Failed to fetch project pool reserves:', err);
+            }
+          } else {
+            // Reset project reserves when switching back to ROOT
+            setProjectR00tReserve(0n);
+            setProjectTokenReserve(0n);
+          }
+
           setPoolStateLoaded(true);
           return;
         }
@@ -568,7 +613,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
     // Poll every 60s to minimize RPC calls
     const interval = window.setInterval(fetchPoolState, 60000);
     return () => window.clearInterval(interval);
-  }, [publicClient, activeAMMAddress, isRateLimited, isPageVisible]);
+  }, [publicClient, activeAMMAddress, isRateLimited, isPageVisible, isProjectToken, zkAMMAddress]);
 
   // Calculate estimated output from reserves (standard AMM formula with 0.3% fee)
   const estimatedOutput = useMemo((): string => {
@@ -595,20 +640,40 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         amountIn: amountIn.toString(),
         ethReserve: ethReserve.toString(),
         tokenReserve: tokenReserve.toString(),
-        direction
+        direction,
+        isProjectToken,
       });
 
       if (direction === 'buy') {
-        // ETH -> Token: standard AMM formula with 0.3% fee
-        const amountInWithFee = amountIn * 997n;
-        const numerator = amountInWithFee * tokenReserve;
-        const denominator = ethReserve * 1000n + amountInWithFee;
-        const tokensOut = numerator / denominator;
-        const result = formatUnits(tokensOut, 18);
-        console.log('[SwapPanel] Buy quote result:', result);
-        return result;
+        if (isProjectToken && projectR00tReserve > 0n && projectTokenReserve > 0n) {
+          // Two-hop: ETH → ROOT → ProjectToken
+          // Hop 1: ETH → ROOT (ROOT/ETH pair, 0.3% fee)
+          const hop1InWithFee = amountIn * 997n;
+          const hop1Numerator = hop1InWithFee * tokenReserve; // tokenReserve = ROOT in ROOT/ETH pair
+          const hop1Denominator = ethReserve * 1000n + hop1InWithFee;
+          const rootOut = hop1Numerator / hop1Denominator;
+
+          // Hop 2: ROOT → ProjectToken (project pool, 0.3% fee)
+          const hop2InWithFee = rootOut * 997n;
+          const hop2Numerator = hop2InWithFee * projectTokenReserve;
+          const hop2Denominator = projectR00tReserve * 1000n + hop2InWithFee;
+          const tokensOut = hop2Numerator / hop2Denominator;
+
+          const result = formatUnits(tokensOut, 18);
+          console.log('[SwapPanel] Project token buy quote (two-hop):', { rootOut: rootOut.toString(), tokensOut: tokensOut.toString(), result });
+          return result;
+        } else {
+          // Single hop: ETH → ROOT
+          const amountInWithFee = amountIn * 997n;
+          const numerator = amountInWithFee * tokenReserve;
+          const denominator = ethReserve * 1000n + amountInWithFee;
+          const tokensOut = numerator / denominator;
+          const result = formatUnits(tokensOut, 18);
+          console.log('[SwapPanel] Buy quote result:', result);
+          return result;
+        }
       } else {
-        // Token -> ETH
+        // Token -> ETH (ROOT only — project token sell disabled)
         const amountInWithFee = amountIn * 997n;
         const numerator = amountInWithFee * ethReserve;
         const denominator = tokenReserve * 1000n + amountInWithFee;
@@ -621,7 +686,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       console.error('[SwapPanel] Quote calculation error:', err);
       return '0';
     }
-  }, [debouncedInputAmount, ethReserve, tokenReserve, direction]);
+  }, [debouncedInputAmount, ethReserve, tokenReserve, direction, isProjectToken, projectR00tReserve, projectTokenReserve]);
 
   // Calculate price impact
   const priceImpact = useMemo((): { value: number; color: string } => {
@@ -1156,7 +1221,17 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           onTokenClick={direction === 'sell' ? () => setShowTokenSelector(true) : undefined}
         />
 
-        <SwapArrow onClick={() => setDirection(direction === 'buy' ? 'sell' : 'buy')} />
+        <SwapArrow onClick={() => {
+          if (isProjectToken) {
+            // Project tokens can only be bought (ETH → ROOT → Token)
+            // Selling requires a different ZK circuit (swapTokenForR00t)
+            if (direction === 'buy') {
+              setError('Sell not available for project tokens yet — requires a different ZK circuit');
+              return;
+            }
+          }
+          setDirection(direction === 'buy' ? 'sell' : 'buy');
+        }} />
 
         <SwapInput
           label="you_receive"

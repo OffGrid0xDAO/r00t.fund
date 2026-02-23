@@ -90,7 +90,7 @@ If the project meets its targets, the next funding milestone is released. If it 
 
 ### 4. Comply — Privacy with Regulatory Compliance
 
-The Chainlink ACE (Anonymous Compliant Exchange) pattern ensures that privacy and compliance coexist. The `R00tPolicyEngine` stores compliance attestations using address hashes (never raw addresses), and the CRE DON queries the on-chain PolicyEngine to check compliance levels, daily volume limits, and jurisdiction rules before authorizing any private transfer.
+The Chainlink ACE (Anonymous Compliant Exchange) pattern ensures that privacy and compliance coexist. The official `@chainlink/policy-management` PolicyEngine uses modular policies (SanctionsPolicy, VolumePolicy, etc.) with address hashes (never raw addresses), and the CRE DON queries `PolicyEngine.check()` to verify compliance before authorizing any private transfer via `authorizeAndBuy()` — giving users real AMM-priced tokens.
 
 Result: institutional capital can participate in regenerative project funding while meeting EU MiCA, Portuguese CMVM, and FATF requirements — without sacrificing the privacy that makes the protocol work.
 
@@ -248,7 +248,7 @@ The same verification pipeline works for any type of regenerative project:
     │  Watch          │          │ AIAgentOrchestrator   │         │                    │
     │ Verra VCS       │          │  (W3)                 │         │ CompliantPrivate   │
     │ Gold Standard   │          │ RegenPrediction       │         │  Vault (ACE)       │
-    │ APA / CELE      │          │  Market (W4)          │         │ R00tPolicyEngine   │
+    │ APA / CELE      │          │  Market (W4)          │         │ ACE PolicyEngine   │
     │ Fundo Ambiental │          │ ProtocolHealth        │         │                    │
     │ IPMA Weather    │          │  Monitor (W5)         │         │ ZK Circuits:       │
     │ OFAC / EU       │          │ SerraEstrela          │         │  sell, transfer,   │
@@ -628,7 +628,11 @@ commitment = Poseidon(nullifier, secret, amount)
 
 ### Chainlink CRE + Privacy Integration
 
-The `insertCommitmentFromCRE()` function on `ZkAMMPair` allows authorized CRE callback contracts to insert commitments directly into the Merkle tree — bridging the compliance layer (W6) with the privacy layer:
+The compliance layer (W6) bridges to the privacy layer via two paths:
+
+1. **`authorizeAndBuy()`** (primary) — `CompliantPrivateVault` forwards escrowed ETH to `ZkAMMRouter.buyPrivate()`, giving users ZK commitments backed by real AMM-priced tokens after ACE PolicyEngine compliance passes.
+
+2. **`insertCommitmentFromCRE()`** (legacy) — Direct Merkle tree insertion on `ZkAMMPair` for authorized CRE callback contracts:
 
 ```solidity
 function insertCommitmentFromCRE(
@@ -666,8 +670,8 @@ Authorization flows through `ZkAMMAdmin.authorizedCRECallback` with a timelock.
 | `AIAgentOrchestrator` | W3 | Market analysis + governance advisory storage |
 | `RegenPredictionMarket` | W4 | Full prediction market with CRE settlement |
 | `ProtocolHealthMonitor` | W5 | Health reports + auto circuit breaker |
-| `R00tPolicyEngine` | W6 | Compliance oracle (5 levels, 5 transfer types, 32 jurisdictions) |
-| `CompliantPrivateVault` | W6 | ACE-pattern vault with compliance-gated commitments |
+| `CompliantPrivateVault` | W6 | ACE PolicyEngine compliance + `authorizeAndBuy()` → `buyPrivate()` |
+| `IACEPolicyEngine` | W6 | Official Chainlink `@chainlink/policy-management` interface |
 | `SerraEstrelaNativeForest` | W7 | `AggregatorV3Interface` — Fire Recovery Index feed |
 | `WorldIDGatekeeper` | W8 | Sybil-resistant World ID verification bridge |
 
@@ -774,8 +778,8 @@ cre login
 # Install dependencies for all workflows
 cd cre-workflows && npm run install:all
 
-# Simulate a specific workflow
-cd cre-workflows && cre workflow simulate workflow-5-risk
+# Simulate a specific workflow (requires -T target and -R project root)
+cd cre-workflows/workflow-5-risk && cre -T tenderly-settings -R . workflow simulate . --non-interactive --trigger-index 0
 
 # Simulate all workflows
 cd cre-workflows && npm run simulate:all
@@ -787,14 +791,14 @@ All 8 workflows pass `cre workflow simulate` against the Tenderly Virtual TestNe
 
 | Workflow | Status | Result |
 |----------|:------:|--------|
-| W1: Privacy | PASS | No proposals found (expected — no active proposals) |
-| W2: DeFi/PoR | PASS | `ethReserve=100M wei, tokenReserve=59M ROOT, backingRatio=50000` |
-| W3: AI Validator | PASS | No proposals found (expected — no active proposals) |
-| W4: Prediction | PASS | `Market 0 resolved: NEGATIVE, actual=160 vs target=700` |
-| W5: Risk Monitor | PASS | `reserveRatio=50000, shortsUtil=0, risk=LOW, action=NONE` |
-| W6: Compliance | PASS | `Scanned 4 requests, processed=0, authorized=0, denied=0` |
-| W7: Serra da Estrela | PASS | `NDVI=0.3158, recovery=50.2%, FRI=577/1000, trees=2201/2550` |
-| W8: World ID | PASS | `Scanned requests, verified=2, rejected=1 (sybil resistance active)` |
+| W1: Privacy | PASS | `Proposal 2 not executed (status=2)` (expected — proposal pending vote) |
+| W2: DeFi/PoR | PASS | `ethReserve=1.37 ETH, tokenReserve=5094T ROOT, backingRatio=339089, carbonPrice=$30/tonne` |
+| W3: AI Validator | PASS | `Algarve Coastal Rewilding: REGENERATING, score=590/1000, carbon=225 tCO2e/yr, eligible=true` |
+| W4: Prediction | PASS | `Market 0 resolved: NEGATIVE, actual=160 vs target=700, sources=3` |
+| W5: Risk Monitor | PASS | `reserveRatio=821974, shortsUtil=18388, risk=ELEVATED, action=REDUCE_EXPOSURE` |
+| W6: Compliance | PASS | `Scanned 5 requests, processed=0, authorized=0, denied=0` (ACE PolicyEngine + buyPrivate) |
+| W7: Serra da Estrela | PASS | `NDVI=0.3163, recovery=50.3%, FRI=577/1000, trees=2201/2550, CO2=1.06 tCO2e/yr` |
+| W8: World ID | PASS | `Scanned 1 requests, processed=0, verified=0, rejected=0` |
 
 ---
 
@@ -837,7 +841,7 @@ The entire R00t.fund protocol is deployed and fully operational on a [Tenderly V
 | AIAgentOrchestrator | W3 | `0xE9D7284DDBF635B35e0C3bCB9d9d0F607D08F824` |
 | RegenPredictionMarket | W4 | `0xC8BeE963FB020F41AAf26d79c1BB043C291865e1` |
 | ProtocolHealthMonitor | W5 | `0x50F8beE2E560F2335B268d0b6dC64F7153cC852d` |
-| R00tPolicyEngine | W6 | `0x89b493be4262D6786Be6D1b595BD5E829CFd152e` |
+| ACE PolicyEngine | W6 | `0x89b493be4262D6786Be6D1b595BD5E829CFd152e` |
 | CompliantPrivateVault | W6 | `0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49` |
 | SerraEstrelaNativeForest | W7 | `0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B` |
 | WorldIDGatekeeper | W8 | `0x512d4a66760Aba053f4162205d729c8540d00145` |
@@ -956,8 +960,8 @@ Per hackathon requirements, here are the key files for each track:
 - [`cre-workflows/workflow-1-privacy/main.ts`](cre-workflows/workflow-1-privacy/main.ts) — Confidential carbon credit verification
 - [`cre-workflows/workflow-6-compliance/main.ts`](cre-workflows/workflow-6-compliance/main.ts) — ACE compliant private transfers
 - [`contracts/src/cre/ConfidentialFundingVault.sol`](contracts/src/cre/ConfidentialFundingVault.sol) — Carbon attestation vault
-- [`contracts/src/cre/R00tPolicyEngine.sol`](contracts/src/cre/R00tPolicyEngine.sol) — Compliance oracle
-- [`contracts/src/cre/CompliantPrivateVault.sol`](contracts/src/cre/CompliantPrivateVault.sol) — ACE vault
+- [`contracts/src/cre/CompliantPrivateVault.sol`](contracts/src/cre/CompliantPrivateVault.sol) — ACE vault with `authorizeAndBuy()` → `buyPrivate()`
+- [`contracts/src/cre/interfaces/IACEPolicyEngine.sol`](contracts/src/cre/interfaces/IACEPolicyEngine.sol) — Chainlink ACE PolicyEngine interface
 
 ### DeFi & Tokenization Track ($20,000)
 - [`cre-workflows/workflow-2-defi/main.ts`](cre-workflows/workflow-2-defi/main.ts) — Regenerative Proof of Reserve

@@ -628,6 +628,38 @@ export function useZkProver() {
 
       const { commitment, tokenAmount, lpShares, allCommitments, treeState } = params;
 
+      console.log(`[useZkProver] Building addLP tree with ${allCommitments.length} commitments`);
+
+      if (allCommitments.length === 0) {
+        throw new Error('Merkle tree is empty. Please wait for the indexer to sync or check your connection.');
+      }
+
+      if (commitment.leafIndex >= allCommitments.length) {
+        throw new Error(`Leaf index ${commitment.leafIndex} is out of bounds (tree has ${allCommitments.length} leaves). Your local wallet has stale data. Please click "Scan" in the wallet section to resync with the blockchain, or use "Reset Wallet" if the problem persists.`);
+      }
+
+      // Verify commitment integrity (derived vs on-chain) — same check as sell proof
+      const calculatedCommitment = hashCommitment(commitment.nullifier, commitment.secret, commitment.amount);
+      const onChainCommitmentNode = allCommitments.find(c => c.leafIndex === commitment.leafIndex);
+
+      if (!onChainCommitmentNode) {
+        throw new Error(`Commitment at leaf index ${commitment.leafIndex} not found in the provided list.`);
+      }
+
+      if (calculatedCommitment !== onChainCommitmentNode.commitment) {
+        console.error('[useZkProver] AddLP commitment mismatch:', {
+          leafIndex: commitment.leafIndex,
+          stored: {
+            nullifier: commitment.nullifier.toString(),
+            secret: commitment.secret.toString(),
+            amount: commitment.amount.toString(),
+            calculatedHash: calculatedCommitment.toString()
+          },
+          onChain: onChainCommitmentNode.commitment.toString()
+        });
+        throw new Error(`Commitment integrity check failed! The stored secrets do not match the on-chain commitment at index ${commitment.leafIndex}. This usually means your wallet data is from a different network. Try "Reset Wallet" and re-buy tokens on the current network.`);
+      }
+
       // Debug: Log tree building stats (avoid spread operator with large arrays)
       const maxLeafIndex = allCommitments.reduce((max, c) => Math.max(max, c.leafIndex), 0);
       console.log(`[useZkProver] Building addLP tree: ${allCommitments.length} commitments, maxLeafIndex=${maxLeafIndex}, targetLeafIndex=${commitment.leafIndex}`);

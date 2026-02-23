@@ -52,7 +52,7 @@ export function ProjectsPanel({
   void _hiddenPoolAddress;
   const { isConnected, address } = useAccount();
 
-  const [activeTab, setActiveTab] = useState<TabType>('proposals');
+  const [activeTab, setActiveTab] = useState<TabType>('live');
   const [voteModal, setVoteModal] = useState<{ proposalId: number; support: boolean } | null>(null);
   const [selectedProject, setSelectedProject] = useState<{
     name: string;
@@ -60,6 +60,7 @@ export function ProjectsPanel({
     ammAddress: string;
     totalSupply?: bigint;
     feeBps?: number;
+    metadataHash?: string;
   } | null>(null);
 
   const {
@@ -132,8 +133,8 @@ export function ProjectsPanel({
   }, [proposals, onLiveTokensDiscovered]);
 
   const tabs = [
-    { id: 'proposals' as const, label: '_proposals' },
     { id: 'live' as const, label: '_live' },
+    { id: 'proposals' as const, label: '_proposals' },
     { id: 'create' as const, label: '_create' },
   ];
 
@@ -305,6 +306,9 @@ export function ProjectsPanel({
             setSelectedProject(null);
             onTradeProject?.(ammAddress, selectedProject.name, selectedProject.symbol);
           }}
+          creReport={report}
+          creSummary={summary}
+          creWorkflowStatus={creWorkflowStatus}
         />
       )}
     </div>

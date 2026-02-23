@@ -222,13 +222,14 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
   }).result()
 
-  const proposal = decodeFunctionResult({
+  const proposalDecoded = decodeFunctionResult({
     abi: LaunchpadGovernanceABI,
     functionName: 'getProposal',
     data: bytesToHex(proposalResult.data),
-  }) as readonly [string, bigint, string, string, string, bigint, bigint, bigint, number]
+  }) as any
 
-  const proposalName = String(proposal[2] ?? 'Unknown')
+  const proposal = proposalDecoded as any
+  const proposalName = String(proposal.name ?? proposal[2] ?? 'Unknown')
 
   // Sample coordinates: Central Portugal reforestation area
   const project: ProjectLocation = {

@@ -5,7 +5,7 @@ import { formatEther, parseEther } from 'viem';
 import { Wallet } from 'ethers';
 import { GlowButton } from './ui/GlowButton';
 import { AnimatedTabs } from './ui/AnimatedTabs';
-import { getExplorerTxUrl, CHAIN, CONTRACTS, NETWORK, EVENTS } from '../config';
+import { getExplorerTxUrl, CHAIN, CONTRACTS, NETWORK, EVENTS, TOKEN } from '../config';
 import { TRADE_COMPLETE_EVENT } from './PriceChart';
 import { encryptNote, decryptNote } from '@r00t-fund/sdk';
 import { getBytes } from 'ethers';
@@ -169,6 +169,11 @@ interface TokenCommitment {
   spent: boolean;
 }
 
+interface CommitmentsResult {
+  commitments: { commitment: bigint; leafIndex: number }[];
+  treeState?: { filledSubtrees: bigint[]; root: bigint };
+}
+
 interface LiquidityPanelProps {
   zkAMMAddress: string;
   viewingKey: string | null;
@@ -183,6 +188,7 @@ interface LiquidityPanelProps {
     blockNumber: number
   ) => void;
   onRefreshBalance?: () => void; // Called after LP removal to refresh token balance
+  fetchAllOnChainCommitments?: (targetAddress?: string) => Promise<CommitmentsResult>;
 }
 
 type LPTab = 'add' | 'remove' | 'claim';
@@ -194,6 +200,7 @@ export function LiquidityPanel({
   onCommitmentSpent,
   onStoreCommitment,
   onRefreshBalance,
+  fetchAllOnChainCommitments,
 }: LiquidityPanelProps) {
   const { isConnected, address } = useAccount();
   const publicClient = usePublicClient();
@@ -637,108 +644,16 @@ export function LiquidityPanel({
         throw new Error('Token amount exceeds commitment balance');
       }
 
-      // Fetch all commitments from Ponder indexer (avoids Alchemy block range limits)
-      // CRITICAL: Filter by the Pair contract address to only get commitments for THIS pool
-      const indexerUrl = NETWORK.indexerUrl;
-      const pairAddressLower = CONTRACTS.zkAMMPair.toLowerCase();
-
-      // FAST PATH: Try to fetch pre-built Merkle tree state from Ponder
-      // This is much faster than rebuilding from individual commitments (O(n) Poseidon hashes saved)
-      let treeState: { filledSubtrees: bigint[]; root: bigint } | undefined;
-      let commitmentsWithIndex: { commitment: bigint; leafIndex: number }[] = [];
-
-      try {
-        console.log('[LiquidityPanel] Trying fast path: fetching pre-built tree state...');
-        const treeStateResponse = await fetch(`${indexerUrl}/graphql`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `query GetMerkleTreeState { merkleTreeStates(where: { id: "${pairAddressLower}" }, limit: 1) { items { id nextIndex currentRoot filledSubtrees leaves updatedAt } } }`
-          })
-        });
-
-        const treeStateData = await treeStateResponse.json();
-        const treeStateItems = treeStateData?.data?.merkleTreeStates?.items;
-
-        if (treeStateItems?.length > 0) {
-          const treeData = treeStateItems[0];
-          const leaves: string[] = JSON.parse(treeData.leaves);
-          const filledSubtrees: string[] = JSON.parse(treeData.filledSubtrees);
-
-          console.log(`[LiquidityPanel] ⚡ FAST PATH SUCCESS: Got ${leaves.length} leaves + pre-computed tree state`);
-
-          commitmentsWithIndex = leaves.map((leaf: string, i: number) => ({
-            commitment: BigInt(leaf),
-            leafIndex: i
-          }));
-
-          treeState = {
-            filledSubtrees: filledSubtrees.map((s: string) => BigInt(s)),
-            root: BigInt(treeData.currentRoot)
-          };
-        }
-      } catch (treeErr) {
-        console.warn('[LiquidityPanel] Tree state fetch failed, falling back to paginated fetch:', treeErr);
+      // Fetch all on-chain commitments using the shared function (has Ponder + RPC fallback)
+      if (!fetchAllOnChainCommitments) {
+        throw new Error('fetchAllOnChainCommitments not available — cannot build merkle tree');
       }
 
-      // SLOW PATH: Fall back to paginated commitments fetch if tree state not available
+      console.log('[LiquidityPanel] Fetching commitments via fetchAllOnChainCommitments...');
+      const { commitments: commitmentsWithIndex, treeState } = await fetchAllOnChainCommitments();
+
       if (commitmentsWithIndex.length === 0) {
-        console.log('[LiquidityPanel] Using slow path: paginated commitments fetch...');
-
-        // Paginate to get ALL commitments (Ponder limit is 1000)
-        let allCommitmentItems: { commitment: string; leafIndex: string }[] = [];
-        let afterLeafIndex = 0;
-        let hasMore = true;
-        const PAGE_SIZE = 1000;
-
-        while (hasMore) {
-          const commitmentsResponse = await fetch(`${indexerUrl}/graphql`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: `query GetCommitments($limit: Int, $afterLeafIndex: BigInt, $address: String) {
-                commitmentss(limit: $limit, orderBy: "leafIndex", orderDirection: "asc", where: { leafIndex_gte: $afterLeafIndex, address_in: [$address] }) {
-                  items { commitment leafIndex }
-                }
-              }`,
-              variables: { limit: PAGE_SIZE, afterLeafIndex: afterLeafIndex.toString(), address: pairAddressLower }
-            })
-          });
-
-          const commitmentsData = await commitmentsResponse.json();
-          const pageItems = commitmentsData?.data?.commitmentss?.items || [];
-
-          if (pageItems.length > 0) {
-            allCommitmentItems.push(...pageItems);
-            afterLeafIndex = Number(pageItems[pageItems.length - 1].leafIndex) + 1;
-            console.log(`[LiquidityPanel] Fetched page: ${pageItems.length} items (total: ${allCommitmentItems.length})`);
-          }
-
-          if (pageItems.length < PAGE_SIZE) {
-            hasMore = false;
-          }
-        }
-
-        if (allCommitmentItems.length === 0) {
-          throw new Error('No commitments found. Please wait for the indexer to sync.');
-        }
-
-        // Build array with commitments at their correct leaf indices
-        const maxLeafIndex = allCommitmentItems.reduce((max, c) => Math.max(max, Number(c.leafIndex)), 0);
-
-        // Initialize with zeros (ZERO_VALUE from TokenPool)
-        const ZERO_VALUE = 21663839004416932945382355908790599225266501822907911457504978515578255421292n;
-        const allCommitments: bigint[] = new Array(maxLeafIndex + 1).fill(ZERO_VALUE);
-
-        for (const item of allCommitmentItems) {
-          const leafIndex = Number(item.leafIndex);
-          allCommitments[leafIndex] = BigInt(item.commitment);
-        }
-
-        commitmentsWithIndex = allCommitments.map((commitment, index) => ({
-          commitment,
-          leafIndex: index,
-        }));
+        throw new Error('No commitments found. Please wait for the indexer to sync or check your connection.');
       }
 
       console.log(`[LiquidityPanel] Generating proof with ${commitmentsWithIndex.length} commitments, treeState: ${treeState ? 'available' : 'NOT available'}`);
@@ -1664,7 +1579,7 @@ export function LiquidityPanel({
             {Number(formatEther(poolInfo.ethReserve)).toFixed(4)} <span className="text-sm text-[var(--text-muted)]">ETH</span>
           </p>
           <p className="text-xs text-[var(--text-muted)]">
-            + {Number(formatEther(poolInfo.tokenReserve)).toFixed(0)} $HIDDEN
+            + {Number(formatEther(poolInfo.tokenReserve)).toFixed(0)} ${TOKEN.symbol}
           </p>
         </div>
         <div className="p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
@@ -1768,7 +1683,7 @@ export function LiquidityPanel({
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-mono text-[var(--text-primary)]">
-                          {Number(formatEther(BigInt(c.amount))).toFixed(4)} $HIDDEN
+                          {Number(formatEther(BigInt(c.amount))).toFixed(4)} ${TOKEN.symbol}
                         </span>
                         <span className="text-[10px] text-[var(--text-muted)]">
                           leaf #{c.leafIndex}
@@ -1804,7 +1719,7 @@ export function LiquidityPanel({
                   </button>
                 </div>
                 <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                  available: {Number(formatEther(BigInt(selectedCommitment.amount))).toFixed(4)} $HIDDEN
+                  available: {Number(formatEther(BigInt(selectedCommitment.amount))).toFixed(4)} ${TOKEN.symbol}
                 </p>
               </div>
             )}
@@ -1833,7 +1748,7 @@ export function LiquidityPanel({
                   <div className="flex justify-between text-xs pt-1 border-t border-[var(--border)]">
                     <span className="text-[var(--text-muted)]">change returned</span>
                     <span className="text-[var(--text-primary)] font-mono">
-                      {(Number(formatEther(BigInt(selectedCommitment.amount))) - parseFloat(tokenAmount)).toFixed(4)} $HIDDEN
+                      {(Number(formatEther(BigInt(selectedCommitment.amount))) - parseFloat(tokenAmount)).toFixed(4)} ${TOKEN.symbol}
                     </span>
                   </div>
                 )}

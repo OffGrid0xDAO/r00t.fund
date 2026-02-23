@@ -1791,6 +1791,7 @@ export function PortfolioPanel({
               onCommitmentSpent={spendCommitment}
               onStoreCommitment={storeCommitment}
               onRefreshBalance={scan}
+              fetchAllOnChainCommitments={fetchAllOnChainCommitments}
             />
           </motion.div>
         )}
