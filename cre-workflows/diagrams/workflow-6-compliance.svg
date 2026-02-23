@@ -54,7 +54,7 @@
   <!-- CRON Trigger (centered) -->
   <rect x="110" y="178" width="180" height="28" rx="14" fill="white" stroke="#0847F7" stroke-width="1.5"/>
   <text x="200" y="196" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="500">CRON Trigger</text>
-  <text x="200" y="217" text-anchor="middle" fill="#6B7280" font-size="11" font-style="italic">every 60s</text>
+  <text x="200" y="217" text-anchor="middle" fill="#6B7280" font-size="11" font-style="italic">every 6h</text>
 
   <!-- Down arrow from CRON to step 1 -->
   <line x1="200" y1="225" x2="200" y2="240" stroke="#0847F7" stroke-width="1.5" marker-end="url(#arrowDown)"/>

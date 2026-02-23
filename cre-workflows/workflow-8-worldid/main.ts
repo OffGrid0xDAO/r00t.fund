@@ -10,13 +10,13 @@
  * CRE bridges this capability to any chain — including Tenderly VNet.
  *
  * Flow:
- * 1. CronCapability triggers every 60 seconds
+ * 1. CronCapability triggers every 5 minutes
  * 2. EVMClient reads pending verification requests from WorldIDGatekeeper
  * 3. HTTPClient calls Worldcoin cloud API → POST /api/v2/verify/{app_id}
  * 4. runtime.report → encode receiveVerificationResult(id, bool, reason)
  * 5. EVMClient.writeReport → WorldIDGatekeeper receives result
  *
- * Trigger: CronCapability (every 60 seconds)
+ * Trigger: CronCapability (every 5 minutes)
  * Capabilities: EVMClient, HTTPClient
  */
 

@@ -32,7 +32,7 @@
   <text x="92" y="63" fill="white" font-size="20" font-weight="600">CRE Workflow</text>
 
   <!-- Step 1: CRON Trigger -->
-  <text x="118" y="130" fill="#6B7280" font-size="11" font-style="italic" text-anchor="end">every 60s</text>
+  <text x="118" y="130" fill="#6B7280" font-size="11" font-style="italic" text-anchor="end">every hour</text>
   <rect x="125" y="106" width="210" height="36" rx="4" fill="white" stroke="#0847F7" stroke-width="1.5"/>
   <text x="230" y="130" text-anchor="middle" fill="#1a1a1a" font-size="14" font-weight="500">CRON Trigger</text>
 

@@ -464,7 +464,7 @@ Prediction markets for environmental milestones: "Will project X achieve 50% NDV
 
 Real-time monitoring of the entire protocol stack — reserves, shorts utilization, LP health — with automatic circuit breaker triggers.
 
-**What it does (every 60 seconds):**
+**What it does (every hour):**
 1. Reads `ZkAMMPair`: ethReserve, tokenReserve, totalLPShares, fees
 2. Reads `R00TShorts`: totalOpenInterest, totalCollateralLocked, liquidatable positions
 3. Computes: reserve ratio, shorts utilization, composite risk score (0-100)
@@ -494,7 +494,7 @@ Adapts the **Chainlink ACE (Anonymous Compliant Exchange)** pattern for R00t.fun
 User sends ETH to CompliantPrivateVault.requestDeposit()
   → Request stored on-chain with status PENDING
 
-CRE W6 (cron every 60s):
+CRE W6 (cron every 6h):
   1. Polls nextRequestId() and scans recent requests for PENDING status
 
   2. For each pending request:
@@ -580,7 +580,7 @@ Sybil-resistant identity verification for proposal creation. The World ID Router
 **Flow:**
 1. User generates ZK proof via IDKit widget (frontend)
 2. User submits proof on-chain to `WorldIDGatekeeper.requestVerification()`
-3. CRE W8 polls for PENDING requests every 60 seconds
+3. CRE W8 polls for PENDING requests every 5 minutes
 4. For each pending request, CRE reads the full proof data via `EVMClient.callContract`
 5. CRE calls Worldcoin cloud API (`POST /api/v2/verify/{app_id}`) with the proof
 6. CRE writes verification result on-chain via `receiveVerificationResult(requestId, isValid, reason)`

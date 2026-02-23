@@ -13,7 +13,7 @@
  * 4. Determines outcome (POSITIVE if actual >= target, else NEGATIVE)
  * 5. Writes resolution report to RegenPredictionMarket
  *
- * Trigger: CronCapability (every 10 minutes)
+ * Trigger: CronCapability (every 6 hours)
  * Capabilities: HTTPClient, EVMClient
  */
 

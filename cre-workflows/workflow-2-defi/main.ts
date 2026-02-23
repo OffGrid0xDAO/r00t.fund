@@ -15,7 +15,7 @@
  * 6. Writes report to RegenProofOfReserve
  * 7. Writes liquidation batch to LiquidationExecutor (conditional)
  *
- * Trigger: CronCapability (every 30 minutes)
+ * Trigger: CronCapability (every 12 hours)
  * Capabilities: HTTPClient, EVMClient
  */
 

@@ -21,7 +21,7 @@
  * satellite imagery metrics, soil data, and forest monitoring signals to
  * produce a confidence-scored regeneration verdict.
  *
- * Trigger: CronCapability (every 5 minutes)
+ * Trigger: CronCapability (every 12 hours)
  * Capabilities: HTTPClient (external APIs + LLM), EVMClient
  */
 

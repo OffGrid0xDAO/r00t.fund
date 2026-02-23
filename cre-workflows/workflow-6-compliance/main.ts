@@ -30,7 +30,7 @@
  * - On-chain: only sees "transfer authorized/denied" — no identity linkage
  * - ZK proofs ensure commitment ownership without revealing user identity
  *
- * Trigger: CronCapability (every 60 seconds)
+ * Trigger: CronCapability (every 6 hours)
  * Capabilities: EVMClient
  */
 

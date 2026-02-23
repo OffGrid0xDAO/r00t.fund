@@ -6,7 +6,7 @@
  * to compute composite risk scores and push health reports on-chain.
  * Supports automated circuit breaker triggers.
  *
- * Trigger: CronCapability (every 60 seconds)
+ * Trigger: CronCapability (every hour)
  * Capabilities: EVMClient
  */
 

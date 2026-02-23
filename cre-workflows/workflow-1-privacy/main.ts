@@ -19,7 +19,7 @@
  * 5. Checks for double-counting against national registries
  * 6. Pushes encrypted attestation on-chain (attestation hash + impact score)
  *
- * Trigger: CronCapability (every 5 minutes)
+ * Trigger: CronCapability (every 6 hours)
  * Capabilities: HTTPClient, EVMClient
  */
 
