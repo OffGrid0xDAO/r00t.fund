@@ -140,9 +140,15 @@ Traditional launchpads and crowdfunding platforms have no mechanism to verify wh
 
 ## Real Project: Serra da Estrela Native Forest Restoration
 
-This is not a hypothetical. After the **2025 summer fires** devastated Serra da Estrela Natural Park in Portugal, we are reforesting **9 hectares** with native Iberian species:
+This is not a hypothetical. After the **September 2025 fires** devastated Serra da Estrela Natural Park in Portugal, our land was destroyed. We've started small — **25+ kg of ground cover seed** to begin regenerating the soil, and a few trees planted by hand — but nothing that compares to what's possible with proper funding.
 
-| Species | Portuguese Name | Trees Planted | CO2/tree/year |
+**The honest situation:** Portugal's bureaucracy is a nightmare. We haven't received any of the promised government funds to help with fire damage on our land, nor the agriculture support to restore productivity of our farm. ICNF processes move at glacial speed. The burned land needs thousands of trees, not the handful we can afford out of pocket.
+
+**This is why we're building r00t.fund with Chainlink.** This is why we're applying to every prize track in this hackathon — not out of greed, but for the land. **Every dollar we win in prizes goes straight to funding the land restoration and replanting our forest.**
+
+### Restoration Plan: 9 Hectares, 2,550 Native Trees
+
+| Species | Portuguese Name | Target Trees | CO2/tree/year |
 |---------|----------------|:------------:|:-------------:|
 | *Quercus robur* | Carvalho-roble | 800 | 22 kg |
 | *Quercus pyrenaica* | Carvalho-negral | 600 | 18 kg |
@@ -154,10 +160,10 @@ This is not a hypothetical. After the **2025 summer fires** devastated Serra da 
 | | **Total** | **2,550** | |
 
 **Location:** 40.3228°N, 7.6114°W — Seia, Serra da Estrela Natural Park, Portugal
-**Fire date:** July 2025 | **Planting began:** November 2025
+**Fire date:** September 2025 | **Planting target:** Spring 2026 (pending funding)
 **ICNF Reference:** PRRF-SE-2025-0042
 
-A dedicated Chainlink CRE Custom Data Feed ([Workflow 7](#workflow-7-serra-da-estrela-data-feed)) publishes the restoration's NDVI recovery, fire scar healing, tree survival estimates, and carbon sequestration on-chain every 6 hours as an AggregatorV3Interface-compatible feed.
+A dedicated Chainlink CRE Custom Data Feed ([Workflow 7](#workflow-7-serra-da-estrela-data-feed)) is designed to publish the restoration's NDVI recovery, fire scar healing, tree survival estimates, and carbon sequestration on-chain weekly as an AggregatorV3Interface-compatible feed. Right now the workflow runs with simulated baseline data from the burned land — once planting begins, it tracks real progress with full transparency. No middlemen, no bureaucratic delays, just on-chain proof that trees are going in the ground.
 
 ---
 
@@ -528,7 +534,7 @@ CRE W6 (cron every 60s):
   <img src="cre-workflows/diagrams/workflow-7-serra-estrela.svg" alt="Workflow 7 — Serra da Estrela Data Feed" width="100%"/>
 </p>
 
-A dedicated `AggregatorV3Interface`-compatible data feed for our real reforestation project. Published every 6 hours.
+A dedicated `AggregatorV3Interface`-compatible data feed for our real reforestation project. Published weekly.
 
 **Data published on-chain:**
 

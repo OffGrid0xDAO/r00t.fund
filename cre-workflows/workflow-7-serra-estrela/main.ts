@@ -1,8 +1,8 @@
 /**
  * Workflow 7: Serra da Estrela Native Forest Restoration -- Custom Data Feed
  *
- * REAL PROJECT: After the 2025 summer fires devastated Serra da Estrela Natural Park,
- * we are reforesting 9 hectares with native Iberian species:
+ * REAL PROJECT: After the September 2025 fires devastated Serra da Estrela Natural Park,
+ * we plan to reforest 9 hectares with native Iberian species:
  *
  *   Quercus robur (Carvalho-roble)         -- 800 trees
  *   Quercus pyrenaica (Carvalho-negral)     -- 600 trees
@@ -15,7 +15,7 @@
  *
  * Location: 40.3228N, 7.6114W -- Serra da Estrela Natural Park, Seia, Portugal
  * Area: 9 hectares (90,000 m2)
- * Fire date: July 2025 | Planting: November 2025
+ * Fire date: September 2025 | Planting target: Spring 2026 (pending funding)
  * ICNF Project: PRRF-SE-2025-0042
  *
  * This CRE workflow creates a Chainlink-compatible data feed that publishes:
@@ -25,7 +25,7 @@
  * - Carbon sequestration estimate (tCO2e/year)
  * - Fire recovery index (composite 0-1000 score)
  *
- * Trigger: CronCapability (every 6 hours)
+ * Trigger: CronCapability (weekly)
  * Capabilities: HTTPClient, EVMClient
  */
 

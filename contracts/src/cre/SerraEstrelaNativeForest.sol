@@ -15,7 +15,7 @@ import "../interfaces/AggregatorV3Interface.sol";
 ///      - Species: Quercus robur, Q. pyrenaica, Castanea sativa, Crataegus monogyna,
 ///                 Prunus spinosa, Arbutus unedo, Fraxinus angustifolia
 ///      - Total trees: 2,550 native specimens
-///      - Fire date: July 2025 | Planting: November 2025
+///      - Fire date: September 2025 | Planting target: Spring 2026 (pending funding)
 ///      - ICNF Reference: PRRF-SE-2025-0042
 ///
 ///      Data Feed publishes:
