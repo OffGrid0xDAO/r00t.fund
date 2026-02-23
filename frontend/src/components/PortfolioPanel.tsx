@@ -895,8 +895,9 @@ export function PortfolioPanel({
       // mergeCommitments is on the Router, not the Pair
       const routerAddress = CONTRACTS.zkAMMRouter as `0x${string}`;
 
-      // 10-minute deadline
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+      // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
+      const latestBlock = await publicClient.getBlock();
+      const deadline = latestBlock.timestamp + 600n;
 
       // Simulate first to get better error message
       try {

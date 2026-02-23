@@ -303,6 +303,7 @@ export function ShortsPanel() {
   const [slippageBps, setSlippageBps] = useState(100); // 1% default
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [txConfirmed, setTxConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [positions, setPositions] = useState<Position[]>([]);
@@ -447,6 +448,7 @@ export function ShortsPanel() {
     setIsLoading(true);
     setError(null);
     setTxHash(null);
+    setTxConfirmed(false);
 
     try {
       const ethValue = parseEther(collateralAmount);
@@ -475,8 +477,13 @@ export function ShortsPanel() {
       });
 
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
+      if (receipt.status === 'reverted') {
+        throw new Error('Transaction reverted on-chain');
+      }
+
+      setTxConfirmed(true);
       setCollateralAmount('');
       refetchBalance();
       fetchPositions();
@@ -529,7 +536,13 @@ export function ShortsPanel() {
       });
 
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      if (receipt.status === 'reverted') {
+        throw new Error('Transaction reverted on-chain');
+      }
+
+      setTxConfirmed(true);
       refetchBalance();
       fetchPositions();
     } catch (err: unknown) {
@@ -734,11 +747,13 @@ export function ShortsPanel() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="p-3 rounded-lg border border-[var(--success)]/30 mb-4"
-              style={{ background: 'rgba(76, 175, 80, 0.1)' }}
+              className={`p-3 rounded-lg border mb-4 ${txConfirmed ? 'border-[var(--success)]/30' : 'border-[var(--warning)]/30'}`}
+              style={{ background: txConfirmed ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 193, 7, 0.1)' }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--success)]">Short opened!</span>
+                <span className={`text-sm ${txConfirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+                  {txConfirmed ? 'Short opened!' : 'Transaction pending...'}
+                </span>
                 {getExplorerTxUrl(txHash) ? (
                   <a
                     href={getExplorerTxUrl(txHash)}

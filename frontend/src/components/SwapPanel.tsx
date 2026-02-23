@@ -888,8 +888,9 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       }
 
       const proof: [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] = [proofResult.proof[0], proofResult.proof[1], proofResult.proof[2], proofResult.proof[3], proofResult.proof[4], proofResult.proof[5], proofResult.proof[6], proofResult.proof[7]];
-      // Deadline: 20 minutes from now
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
+      // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
+      const latestBlock = await publicClient.getBlock();
+      const deadline = latestBlock.timestamp + 1200n;
       const hash = await walletClient.writeContract({
         address: sellAddress as `0x${string}`, abi: ZKAMM_ABI, functionName: 'sellPrivate',
         args: [proof, proofResult.merkleRoot, proofResult.nullifierHash, tokenAmount, minEthOut, address, '0x0000000000000000000000000000000000000000', 0n, proofResult.changeCommitment, proofResult.publicInputsBinding, deadline, changeNote],

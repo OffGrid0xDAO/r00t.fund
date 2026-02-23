@@ -696,8 +696,9 @@ export function LiquidityPanel({
         );
       }
 
-      // Deadline: 30 minutes from now
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+      // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
+      const latestBlock = await publicClient.getBlock();
+      const deadline = latestBlock.timestamp + 1800n;
 
       console.log('[LiquidityPanel] Adding liquidity with ZK proof:', {
         proof: proofResult.proof.map(p => p.toString()),
@@ -1099,7 +1100,9 @@ export function LiquidityPanel({
         );
       }
 
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+      // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
+      const latestBlock = await publicClient.getBlock();
+      const deadline = latestBlock.timestamp + 1800n;
 
       const routerForRemove = CONTRACTS.zkAMMRouter as `0x${string}`;
       console.log('[LiquidityPanel] Sending removeLiquidityPrivate to Router:', routerForRemove);

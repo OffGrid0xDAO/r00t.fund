@@ -116,7 +116,9 @@ export function useRailgunBuy(_zkAMMAddress: string, options?: UseRailgunBuyOpti
       const encryptedNoteData = await encryptNote(nullifier, secret, tokensOut, viewingPublicKey);
 
       const minTokensOut = tokensOut * BigInt(10000 - slippageBps) / 10000n;
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
+      // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
+      const latestBlock = await publicClient.getBlock();
+      const deadline = latestBlock.timestamp + 1200n;
 
       onProgress?.('Sending transaction...', 50);
       setProgress('Sending transaction...');

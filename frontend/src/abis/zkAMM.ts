@@ -223,4 +223,17 @@ export const ZKAMM_PRICE_ABI = [
     outputs: [{ type: 'uint256' }],
     stateMutability: 'view',
   },
+  // Custom errors (for viem decoding)
+  { type: 'error', name: 'TransactionExpired', inputs: [] },
+  { type: 'error', name: 'InvalidProof', inputs: [] },
+  { type: 'error', name: 'SlippageExceeded', inputs: [] },
+  { type: 'error', name: 'NullifierAlreadySpent', inputs: [] },
+  { type: 'error', name: 'UnknownMerkleRoot', inputs: [] },
+  { type: 'error', name: 'InvalidLPShares', inputs: [] },
+  { type: 'error', name: 'NoETH', inputs: [] },
+  { type: 'error', name: 'ZeroAmount', inputs: [] },
+  { type: 'error', name: 'TransferFailed', inputs: [] },
+  { type: 'error', name: 'CommitmentAlreadyExists', inputs: [] },
+  { type: 'error', name: 'Unauthorized', inputs: [] },
+  { type: 'error', name: 'InsufficientLiquidity', inputs: [] },
 ] as const;

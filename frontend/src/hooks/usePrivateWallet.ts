@@ -733,13 +733,31 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       // The indexer may lag behind the chain, so a recently-stored commitment from a buy
       // might not appear in the on-chain set yet. Discarding it would cause permanent data loss
       // (especially since encrypted notes on-chain are empty and can't be used for recovery).
+      //
+      // HOWEVER: If the leaf index is occupied by a DIFFERENT on-chain commitment,
+      // the local data is stale (e.g., from a previous deployment) and must be removed.
       const foundCommitmentHashes = new Set(foundCommitments.map(c => BigInt(c.commitment).toString()));
+
+      // Build map: leafIndex -> on-chain commitment hash (to detect stale data)
+      const onChainLeafToCommitment = new Map<number, string>();
+      for (const log of commitmentLogs) {
+        const leafIdx = Number(BigInt(log.topics[2] || '0'));
+        const commitHash = BigInt(log.topics[1]).toString();
+        onChainLeafToCommitment.set(leafIdx, commitHash);
+      }
+
       const preservedLocal: typeof foundCommitments = [];
       for (const c of localCommitmentsWithSecrets) {
         const localHash = c.commitment.startsWith('0x')
           ? BigInt(c.commitment).toString()
           : c.commitment;
         if (!foundCommitmentHashes.has(localHash)) {
+          // Check if this leaf index is occupied by a different on-chain commitment
+          const onChainHash = onChainLeafToCommitment.get(c.leafIndex);
+          if (onChainHash && onChainHash !== localHash) {
+            console.warn(`[usePrivateWallet] ⚠️ REMOVING stale local commitment at leafIndex ${c.leafIndex} — leaf is occupied by a different on-chain commitment (deployment changed)`);
+            continue; // Don't preserve — this is stale data
+          }
           console.warn(`[usePrivateWallet] ⚠️ Preserving local commitment at leafIndex ${c.leafIndex} (not yet found on-chain - indexer may be lagging)`);
           preservedLocal.push(c);
         }

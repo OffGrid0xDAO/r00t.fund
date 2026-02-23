@@ -258,15 +258,12 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         // ============ INTERACTIONS ============
 
         // Execute REAL buy: send ETH to pool, receive ROOT tokens back
-        // SECURITY FIX (Vuln 7): Track actual tokens received to update totalOpenInterest accurately
-        uint256 actualTokensReceived = 0;
         if (actualRepurchaseCost > 0) {
-            uint256 tokenBalBefore = rootToken.balanceOf(address(this));
             pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
-            actualTokensReceived = rootToken.balanceOf(address(this)) - tokenBalBefore;
         }
-        // Deduct only actual tokens received from totalOpenInterest (partial fills possible in underwater positions)
-        totalOpenInterest -= actualTokensReceived;
+        // Always decrement by the full shorted amount — this was added at open time
+        // and must be fully removed at close regardless of partial fills
+        totalOpenInterest -= position.tokenAmountShorted;
 
         // Pay user their payout
         if (payout > 0) {
@@ -321,14 +318,12 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         // ============ INTERACTIONS ============
 
         // Execute REAL buy to close position - tokens return to this contract
-        // SECURITY FIX (Vuln 7): Track actual tokens received to update totalOpenInterest accurately
-        uint256 actualTokensReceived = 0;
         if (actualRepurchaseCost > 0) {
-            uint256 tokenBalBefore = rootToken.balanceOf(address(this));
             pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
-            actualTokensReceived = rootToken.balanceOf(address(this)) - tokenBalBefore;
         }
-        totalOpenInterest -= actualTokensReceived;
+        // Always decrement by the full shorted amount — this was added at open time
+        // and must be fully removed at liquidation regardless of partial fills
+        totalOpenInterest -= position.tokenAmountShorted;
 
         // Pay liquidator their bonus
         if (liquidatorBonus > 0) {
