@@ -244,7 +244,7 @@ The same verification pipeline works for any type of regenerative project:
               ┌────────────────────────────────┼──────────────────────────────┐
               │                                │                              │
               ▼                                ▼                              ▼
-    ┌─────────────────┐          ┌──────────────────────┐         ┌────────────────────┐
+    ┌─────────────────┐          ┌───────────────────────┐        ┌────────────────────┐
     │ External APIs   │          │  On-Chain Contracts   │        │  Privacy Layer     │
     │                 │          │                       │        │                    │
     │ Copernicus      │          │ ConfidentialFunding   │        │ ZkAMMPair          │
@@ -260,7 +260,7 @@ The same verification pipeline works for any type of regenerative project:
     │ OFAC / EU       │          │ SerraEstrela          │        │  sell, transfer,   │
     │  Sanctions      │          │  NativeForest (W7)    │        │  merge, withdraw,  │
     │ Chainalysis     │          │                       │        │  addLiquidity, ... │
-    └─────────────────┘          └──────────────────────┘         └────────────────────┘
+    └─────────────────┘          └───────────────────────┘        └────────────────────┘
                                                │
                                                ▼
                                  ┌──────────────────────────┐
