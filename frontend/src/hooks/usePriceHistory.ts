@@ -125,8 +125,9 @@ export interface Trade {
   blockNumber: number;
 }
 
-// Event ABIs removed - using Ponder indexer for trade history instead of RPC event watching
-// This avoids "filter not found" errors on public RPC nodes
+// Event topics for RPC log fetching (fallback when indexer is down)
+const TOKEN_PURCHASED_TOPIC = '0x2a03ce910939b5a6fe6bfa3c4099f7af3dedb45b7078e6e7173c2216032ac054';
+const TOKEN_SOLD_TOPIC = '0x9745885914207e14787933537f5e0fc3685e9b3a89eeeecbc1d10207baa4c790';
 
 // Hook to track page visibility
 function usePageVisibility() {
@@ -389,6 +390,90 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     return [];
   }, [zkAMMAddress]);
 
+  // Fetch trades from RPC event logs (fallback when indexer is unavailable)
+  const fetchTradesFromRPC = useCallback(async (): Promise<Trade[]> => {
+    if (!publicClient) return [];
+    const pairAddress = CONTRACTS.zkAMMPair as `0x${string}`;
+
+    try {
+      console.log('[usePriceHistory] Fetching trades from RPC event logs...');
+      const [buyLogs, sellLogs] = await Promise.all([
+        publicClient.getLogs({
+          address: pairAddress,
+          event: {
+            type: 'event',
+            name: 'TokensPurchased',
+            inputs: [
+              { name: 'ethIn', type: 'uint256', indexed: false },
+              { name: 'tokensOut', type: 'uint256', indexed: false },
+            ],
+          },
+          fromBlock: 0n,
+          toBlock: 'latest',
+        }),
+        publicClient.getLogs({
+          address: pairAddress,
+          event: {
+            type: 'event',
+            name: 'TokensSold',
+            inputs: [
+              { name: 'tokensIn', type: 'uint256', indexed: false },
+              { name: 'ethOut', type: 'uint256', indexed: false },
+            ],
+          },
+          fromBlock: 0n,
+          toBlock: 'latest',
+        }),
+      ]);
+
+      const rpcTrades: Trade[] = [];
+
+      for (const log of buyLogs) {
+        const ethAmt = Number(formatEther(log.args.ethIn ?? 0n));
+        const tokenAmt = Number(formatUnits(log.args.tokensOut ?? 0n, 18));
+        const block = await publicClient.getBlock({ blockNumber: log.blockNumber! });
+        rpcTrades.push({
+          type: 'buy',
+          ethAmount: ethAmt,
+          tokenAmount: tokenAmt,
+          price: tokenAmt > 0 ? ethAmt / tokenAmt : 0,
+          timestamp: Number(block.timestamp) * 1000,
+          txHash: log.transactionHash!,
+          blockNumber: Number(log.blockNumber),
+        });
+      }
+
+      for (const log of sellLogs) {
+        const tokenAmt = Number(formatUnits(log.args.tokensIn ?? 0n, 18));
+        const ethAmt = Number(formatEther(log.args.ethOut ?? 0n));
+        const block = await publicClient.getBlock({ blockNumber: log.blockNumber! });
+        rpcTrades.push({
+          type: 'sell',
+          ethAmount: ethAmt,
+          tokenAmount: tokenAmt,
+          price: tokenAmt > 0 ? ethAmt / tokenAmt : 0,
+          timestamp: Number(block.timestamp) * 1000,
+          txHash: log.transactionHash!,
+          blockNumber: Number(log.blockNumber),
+        });
+      }
+
+      // Sort by timestamp ascending
+      rpcTrades.sort((a, b) => a.timestamp - b.timestamp);
+      console.log(`[usePriceHistory] Loaded ${rpcTrades.length} trades from RPC logs`);
+
+      if (rpcTrades.length > 0) {
+        setTrades(rpcTrades);
+        saveStoredTrades(zkAMMAddress, rpcTrades);
+      }
+
+      return rpcTrades;
+    } catch (err) {
+      console.warn('[usePriceHistory] RPC log fetch failed:', err);
+      return [];
+    }
+  }, [publicClient, zkAMMAddress]);
+
   // Fetch stats from Ponder indexer
   const fetchStatsFromIndexer = useCallback(async () => {
     interface StatsResponse {
@@ -449,24 +534,29 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
   const wsReconnectTimeout = useRef<NodeJS.Timeout | null>(null);
   const [useWebSocket, setUseWebSocket] = useState(false); // Disabled - Ponder is HTTP only
 
-  // Fetch function that updates isConnected based on success
+  // Fetch function — tries indexer first, falls back to RPC event logs
   const fetchFromPonder = useCallback(async () => {
-    try {
-      await fetchTradesFromIndexer();
-      await fetchStatsFromIndexer();
-      // Try to get pool state from Ponder (faster than RPC)
-      const gotPoolState = await fetchPoolStateFromIndexer();
-      if (!gotPoolState) {
-        // Fall back to RPC if Ponder doesn't have pool state yet
-        await fetchReservesRef.current();
+    // Always fetch reserves from RPC (fast, reliable)
+    await fetchReservesRef.current();
+
+    if (NETWORK.indexerUrl) {
+      // Indexer available — use it
+      try {
+        await fetchTradesFromIndexer();
+        await fetchStatsFromIndexer();
+        const gotPoolState = await fetchPoolStateFromIndexer();
+        if (!gotPoolState) await fetchReservesRef.current();
+        setIsConnected(true);
+        return;
+      } catch (err) {
+        console.warn('[usePriceHistory] Ponder fetch failed:', err);
       }
-      setIsConnected(true);
-    } catch (err) {
-      console.warn('[usePriceHistory] Ponder fetch failed:', err);
-      setIsConnected(false);
-      await fetchReservesRef.current();
     }
-  }, [fetchTradesFromIndexer, fetchStatsFromIndexer, fetchPoolStateFromIndexer]);
+
+    // No indexer — fetch trades from RPC event logs
+    await fetchTradesFromRPC();
+    setIsConnected(true);
+  }, [fetchTradesFromIndexer, fetchStatsFromIndexer, fetchPoolStateFromIndexer, fetchTradesFromRPC]);
 
   // WebSocket subscription for real-time updates
   useEffect(() => {
