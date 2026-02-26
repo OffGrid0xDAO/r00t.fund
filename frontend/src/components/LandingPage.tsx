@@ -526,7 +526,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                     </svg>
                   </span>
                   <div>
-                    <p className="text-xs font-mono text-[var(--text-muted)]">40.3228&deg;N, 7.6114&deg;W</p>
+                    <p className="text-xs font-mono text-[var(--text-muted)]">Serra da Estrela Natural Park</p>
                     <p className="text-sm text-[var(--text-primary)] font-medium">Seia, Portugal</p>
                   </div>
                 </div>
@@ -596,6 +596,160 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 </p>
               </div>
 
+              {/* Phase 1 Budget — Clearing */}
+              <div
+                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
+                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Phase 1 — Ground Clearing</h4>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[9px] font-mono text-[var(--accent)] uppercase tracking-wider">
+                    Funding needed
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
+                  Clear 9 ha of burned forest, woodchip biomass to build soil fertility, salvage trunks for contour erosion barriers. Preparing ground for native tree planting in Sep–Oct 2026.
+                </p>
+                <div className="space-y-2 mb-4">
+                  {[
+                    { op: 'Tree cutting + contour barriers', detail: '9 ha × €1,500/ha', cost: '13,500' },
+                    { op: 'Equipa (4 workers × 15 days)', detail: '€125/day/person', cost: '7,500' },
+                    { op: 'Biotriturador (woodchipper)', detail: '60 h × €65/h', cost: '3,900' },
+                    { op: 'Giratória (excavator)', detail: '45 h × €50/h', cost: '2,250' },
+                  ].map((item) => (
+                    <div key={item.op} className="flex items-center justify-between text-sm">
+                      <div>
+                        <span className="text-[var(--text-secondary)]">{item.op}</span>
+                        <span className="text-[var(--text-muted)] ml-2 text-[10px] font-mono">{item.detail}</span>
+                      </div>
+                      <span className="font-mono text-[var(--text-primary)] text-xs">€{item.cost}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Total Phase 1</span>
+                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€27,150</span>
+                </div>
+              </div>
+
+              {/* Phase 2 Budget — Replanting */}
+              <div
+                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
+                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Phase 2 — Native Replanting</h4>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
+                    Sep–Oct 2026
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
+                  Plant 2,550 native Iberian trees across 9 ha — 7 species selected for fire resilience, biodiversity, and carbon sequestration. Includes tree guards and first-year irrigation aftercare.
+                </p>
+                <div className="space-y-2 mb-4">
+                  {[
+                    { op: 'Native seedlings (2,550 trees)', detail: '7 species, avg €1.60/tree', cost: '4,100' },
+                    { op: 'Planting team (4 workers × 10 days)', detail: '€125/day/person', cost: '5,000' },
+                    { op: 'Tree guards + stakes', detail: '2,550 units × €2.00', cost: '5,100' },
+                    { op: 'Transport & logistics', detail: 'nursery → site', cost: '600' },
+                    { op: 'Year 1 aftercare', detail: 'irrigation + replacements', cost: '2,500' },
+                  ].map((item) => (
+                    <div key={item.op} className="flex items-center justify-between text-sm">
+                      <div>
+                        <span className="text-[var(--text-secondary)]">{item.op}</span>
+                        <span className="text-[var(--text-muted)] ml-2 text-[10px] font-mono">{item.detail}</span>
+                      </div>
+                      <span className="font-mono text-[var(--text-primary)] text-xs">€{item.cost}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Total Phase 2</span>
+                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€17,300</span>
+                </div>
+              </div>
+
+              {/* Combined Total */}
+              <div
+                className="p-4 rounded-xl border border-[var(--accent)]/30"
+                style={{ background: 'rgba(93, 168, 112, 0.05)' }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-[var(--text-primary)]">Total Project Budget</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono ml-2">Phase 1 + Phase 2</span>
+                  </div>
+                  <span className="font-mono text-xl text-[var(--accent)] font-semibold">€44,450</span>
+                </div>
+              </div>
+
+              {/* Carbon Economics / Investor Returns */}
+              <div
+                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
+                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
+              >
+                <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase mb-4 font-mono">Carbon Economics — 25-Year Projection</h4>
+                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
+                  2,550 native trees across 9 ha sequestering ~52 tCO₂/yr at maturity. Credits verified on-chain via Chainlink CRE and registered on Portugal's Voluntary Carbon Market.
+                </p>
+
+                {/* CO2 growth curve */}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {[
+                    { yr: 'Yr 3', co2: '8', pct: '15' },
+                    { yr: 'Yr 5', co2: '18', pct: '35' },
+                    { yr: 'Yr 10', co2: '32', pct: '62' },
+                    { yr: 'Yr 20+', co2: '52', pct: '100' },
+                  ].map((p) => (
+                    <div key={p.yr} className="text-center">
+                      <div className="text-[10px] text-[var(--text-muted)] font-mono mb-1">{p.yr}</div>
+                      <div className="w-full bg-[var(--bg-secondary)] rounded-full h-16 relative overflow-hidden flex items-end">
+                        <motion.div
+                          initial={{ height: 0 }}
+                          whileInView={{ height: `${p.pct}%` }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 1, delay: 0.2 }}
+                          className="w-full rounded-full"
+                          style={{ background: 'linear-gradient(180deg, var(--accent), rgba(93, 168, 112, 0.4))' }}
+                        />
+                      </div>
+                      <div className="text-xs font-mono text-[var(--text-primary)] mt-1">{p.co2}</div>
+                      <div className="text-[9px] text-[var(--text-muted)]">tCO₂/yr</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Revenue streams */}
+                <h5 className="text-[9px] tracking-[0.15em] text-[var(--text-muted)] uppercase mb-2 font-mono">Revenue Stacking (25-year)</h5>
+                <div className="space-y-1.5 mb-4">
+                  {[
+                    { stream: 'Carbon credits', detail: '~850 tCO₂ × €25/t', value: '21,250' },
+                    { stream: 'PT forestry payments', detail: '9 ha × €150/ha/yr', value: '33,750' },
+                    { stream: 'Chestnut harvest', detail: '350 Castanea sativa, from yr 7', value: '9,500' },
+                    { stream: 'Firewood offset', detail: 'Phase 1 salvaged timber', value: '-3,000' },
+                  ].map((s) => (
+                    <div key={s.stream} className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[var(--text-secondary)]">{s.stream}</span>
+                        <span className="text-[var(--text-muted)] ml-1.5 text-[9px] font-mono">{s.detail}</span>
+                      </div>
+                      <span className="font-mono text-[var(--text-primary)]">€{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)] mb-3">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Projected 25yr revenue</span>
+                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€61,500</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--text-muted)]">Investment: €44,450 → Net return</span>
+                  <span className="font-mono text-[var(--accent)]">~38% (+€17,050)</span>
+                </div>
+                <p className="text-[10px] text-[var(--text-muted)] mt-3 leading-relaxed italic">
+                  Conservative estimate at €25/tCO₂. If carbon prices reach projected €40–50/tCO₂ by 2030, 25yr return rises to ~74%. Does not include biodiversity credits, ecotourism, or $SERRA token appreciation.
+                </p>
+              </div>
+
               {/* Monitoring status */}
               <div
                 className="p-6 rounded-xl border border-[var(--border)]"
@@ -651,7 +805,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               { num: 'W4', name: 'Prediction Markets', desc: 'Community stakes on project outcomes — aligned incentives for verification', track: 'DeFi' },
               { num: 'W5', name: 'Health Monitor', desc: 'Real-time NDVI, soil moisture, and canopy density tracking via CRE', track: 'Data' },
               { num: 'W6', name: 'ACE Compliance', desc: 'Automated EU MiCA compliance without sacrificing transaction privacy', track: 'Privacy' },
-              { num: 'W7', name: 'Serra da Estrela Feed', desc: 'Custom data feed for fire recovery monitoring in the Serra da Estrela project', track: 'Data' },
+              { num: 'W7', name: 'Serra da Estrela Feed', desc: 'Fire recovery pipeline — Phase 1: clear 9 ha of burned forest, woodchip biomass for soil fertility, contour barriers from salvaged trunks. Planting Sep/Oct 2026.', track: 'Data' },
             ].map((w, i) => (
               <motion.div
                 key={w.num}

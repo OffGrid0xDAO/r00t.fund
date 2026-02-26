@@ -54,12 +54,12 @@ const ZKAMM_ABI = [
 const PHASE_ACCENTS = ['#3b82f6', '#10b981', '#f59e0b', '#059669', '#6366f1', '#0d9488'];
 
 const IMPL_PHASES = [
-  { title: 'Satellite Assessment', subtitle: 'Sentinel-2 dNBR Analysis', desc: 'High-resolution multispectral imagery mapping burn severity and baseline vegetation across the project area.', status: 'completed' as const, prediction: 'NDVI baseline established above 0.3' },
-  { title: 'Species Selection', subtitle: 'Native Biodiversity Planning', desc: 'Climate-resilient native species selected based on CO2 sequestration rates and survival modeling.', status: 'completed' as const, prediction: 'Species survival rate exceeds 75%' },
-  { title: 'Seedling Cultivation', subtitle: 'Nursery Propagation', desc: 'Controlled nursery environment for seed germination and hardening at 800-1500m elevation.', status: 'completed' as const, prediction: '1000+ seedlings pass hardening' },
-  { title: 'Field Deployment', subtitle: 'GPS-Tagged Planting', desc: 'Strategic planting across fire-damaged zones with GPS tagging and soil amendment.', status: 'active' as const, prediction: '500+ trees survive 6 months' },
-  { title: 'IoT Monitoring Grid', subtitle: 'Sensor + Drone Network', desc: 'Soil moisture sensors, weather stations, and autonomous drone corridors deployed.', status: 'active' as const, prediction: 'Sensor uptime exceeds 95%' },
-  { title: 'Carbon Verification', subtitle: 'On-Chain Certification', desc: 'tCO2/year measurements validated through Chainlink CRE and proof-of-reserve.', status: 'pending' as const, prediction: '50 tCO2/yr certified on-chain' },
+  { title: 'Satellite Assessment', subtitle: 'Sentinel-2 dNBR Analysis', desc: 'High-resolution multispectral imagery mapping burn severity and baseline vegetation across 9 ha of fire-damaged Serra da Estrela.', status: 'completed' as const, prediction: 'NDVI baseline established above 0.3' },
+  { title: 'Species Selection', subtitle: 'Native Biodiversity Planning', desc: '7 native Iberian species selected for fire resilience, CO₂ sequestration, and biodiversity — 2,550 trees across Quercus, Castanea, Betula, Pinus, Arbutus, and Prunus.', status: 'completed' as const, prediction: 'Species survival rate exceeds 75%' },
+  { title: 'Ground Clearing', subtitle: 'Phase 1 — €27,150 Budget', desc: 'Clear burned trees, woodchip biomass for soil fertility, build contour erosion barriers from salvaged trunks. Giratória + biotriturador + 4-person crew across 9 ha.', status: 'active' as const, prediction: '9 ha cleared and soil prepared' },
+  { title: 'Native Replanting', subtitle: 'Phase 2 — Sep/Oct 2026 — €17,300', desc: 'Plant 2,550 native seedlings with GPS tagging, tree guards, stakes, and soil amendment. First-year aftercare includes irrigation and replacement of failed plantings.', status: 'pending' as const, prediction: '2,550 trees planted, 90%+ survival' },
+  { title: 'CRE Monitoring', subtitle: 'Chainlink + Sentinel-2 Feed', desc: 'NDVI vegetation tracking every 6 hours via Chainlink CRE W7 data feed. Soil moisture, canopy density, and fire recovery index monitored on-chain.', status: 'pending' as const, prediction: 'NDVI recovery trend confirmed' },
+  { title: 'Carbon Verification', subtitle: 'On-Chain Certification via Portugal VCM', desc: 'tCO₂/year validated through Chainlink CRE and registered on Portugal\'s Voluntary Carbon Market (mvcarbono.pt). Projected ~52 tCO₂/yr at maturity, ~850 tCO₂ over 25 years.', status: 'pending' as const, prediction: '52 tCO₂/yr certified on-chain at maturity' },
 ];
 
 // Compact oracle badge definitions — mirrors LiveProjectCard pattern
@@ -218,14 +218,14 @@ export function ProjectDetailModal({
   const milestones: MilestoneNode[] = useMemo(() => {
     const ws = creWorkflowStatus;
     return [
-      { id: 'w8', workflow: 'W8', label: 'World ID Verification', description: 'Sybil-resistant identity proof via Worldcoin', status: 'completed' as const },
-      { id: 'w1', workflow: 'W1', label: 'Confidential Funding Vault', description: 'Privacy-preserving project funding verified', status: ws?.confidentialFunding.active ? 'completed' as const : 'pending' as const },
-      { id: 'w2', workflow: 'W2', label: 'Proof of Reserve', description: 'On-chain treasury backing verified by CRE DON', status: ws?.proofOfReserve.active ? 'completed' as const : 'pending' as const },
-      { id: 'w3', workflow: 'W3', label: 'AI Risk Analysis', description: 'Multi-model market risk assessment via AI oracle', status: ws?.aiOrchestrator.active ? 'active' as const : 'pending' as const },
-      { id: 'w7', workflow: 'W7', label: 'NDVI Satellite Monitoring', description: 'Sentinel-2 vegetation index tracking active', status: ws?.serraEstrela.active ? 'active' as const : 'pending' as const },
-      { id: 'w5', workflow: 'W5', label: 'Protocol Health Monitor', description: 'Reserve ratio + shorts utilization monitoring', status: ws?.protocolHealth.active ? 'active' as const : 'pending' as const },
-      { id: 'w6', workflow: 'W6', label: 'Compliance & KYC', description: 'Privacy-preserving compliance attestations', status: ws?.policyEngine.active ? 'completed' as const : 'pending' as const },
-      { id: 'w4', workflow: 'W4', label: 'Prediction Markets', description: 'Environmental outcome markets for community bets', status: ws?.predictionMarket.active ? 'active' as const : 'pending' as const },
+      { id: 'w8', workflow: 'W8', label: 'World ID Verification', description: 'Sybil-resistant identity proof via Worldcoin orb', status: 'completed' as const },
+      { id: 'w1', workflow: 'W1', label: 'Confidential Funding Vault', description: 'ZK-shielded funding for €44,450 project budget (Phase 1 + Phase 2)', status: ws?.confidentialFunding.active ? 'completed' as const : 'pending' as const },
+      { id: 'w2', workflow: 'W2', label: 'Proof of Reserve', description: 'On-chain treasury backing verified — funds locked for ground clearing & replanting', status: ws?.proofOfReserve.active ? 'completed' as const : 'pending' as const },
+      { id: 'w3', workflow: 'W3', label: 'AI Vegetation Analysis', description: 'Multi-model satellite analysis of burn severity & recovery across 9 ha', status: ws?.aiOrchestrator.active ? 'active' as const : 'pending' as const },
+      { id: 'w7', workflow: 'W7', label: 'Serra da Estrela Recovery Feed', description: 'dNBR + NDVI monitoring — Phase 1 clearing active, planting Sep/Oct 2026', status: ws?.serraEstrela.active ? 'active' as const : 'pending' as const },
+      { id: 'w5', workflow: 'W5', label: 'Ecosystem Health Monitor', description: 'NDVI, soil moisture, canopy density & fire recovery index tracking', status: ws?.protocolHealth.active ? 'active' as const : 'pending' as const },
+      { id: 'w6', workflow: 'W6', label: 'Compliance & KYC', description: 'EU MiCA compliance + privacy-preserving attestations', status: ws?.policyEngine.active ? 'completed' as const : 'pending' as const },
+      { id: 'w4', workflow: 'W4', label: 'Prediction Markets', description: 'Community stakes on reforestation milestones — 9 ha clearing & 2,550 tree survival', status: ws?.predictionMarket.active ? 'active' as const : 'pending' as const },
     ];
   }, [creWorkflowStatus]);
 

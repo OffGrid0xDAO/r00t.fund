@@ -613,8 +613,8 @@ export const SERRA_DA_ESTRELA_SPECIES: { name: string; count: number; co2RateKgY
 // CRE workflow milestone definitions
 export const CRE_MILESTONES = [
   { id: 'w8', workflow: 'W8', label: 'World ID Verification', description: 'Sybil-resistant identity proof via Worldcoin orb' },
-  { id: 'w1', workflow: 'W1', label: 'NDVI Satellite Monitor', description: 'Sentinel-2 vegetation index tracking via CRE DON' },
-  { id: 'w3', workflow: 'W3', label: 'Carbon Accounting', description: 'tCO₂/year estimation from biomass growth models' },
-  { id: 'w7', workflow: 'W7', label: 'Fire Recovery Index', description: 'dNBR burn severity + recovery trajectory' },
-  { id: 'w5', workflow: 'W5', label: 'Proof of Reserve', description: 'On-chain treasury verification via Chainlink PoR' },
+  { id: 'w1', workflow: 'W1', label: 'Confidential Funding Vault', description: 'ZK-shielded funding for €44,450 project budget' },
+  { id: 'w3', workflow: 'W3', label: 'AI Vegetation Analysis', description: 'Multi-model satellite analysis of burn severity & recovery' },
+  { id: 'w7', workflow: 'W7', label: 'Serra da Estrela Recovery Feed', description: 'Phase 1: 9 ha clearing (€27,150) → Phase 2: 2,550 trees Sep/Oct 2026 (€17,300)' },
+  { id: 'w5', workflow: 'W5', label: 'Ecosystem Health Monitor', description: 'NDVI, soil moisture & fire recovery index tracking' },
 ] as const;

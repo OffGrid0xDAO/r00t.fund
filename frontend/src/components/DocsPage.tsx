@@ -740,8 +740,8 @@ export function DocsPage({ onClose }: DocsPageProps) {
                     },
                     {
                       id: 'W7',
-                      title: 'Custom Data Feed',
-                      desc: 'Project-specific monitoring pipelines. Each regenerative project can define custom data sources and verification criteria relevant to their specific environmental claims.',
+                      title: 'Serra da Estrela Recovery Feed',
+                      desc: 'Fire recovery data pipeline for the 9 ha Serra da Estrela project. Phase 1 (2026 H1): clear burned trees, woodchip biomass for soil fertility, build contour barriers from salvaged trunks — €27,150 budget. Phase 2 (Sep–Oct 2026): plant 2,550 native trees. Monitors dNBR burn severity and NDVI recovery trajectory via CRE DON.',
                       icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z',
                     },
                   ].map(workflow => (
