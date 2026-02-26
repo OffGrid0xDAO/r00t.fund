@@ -117,47 +117,31 @@ const ARBITRUM_CONTRACTS = {
 // Select the right fallback based on network
 const FALLBACK = isTenderlyVNet ? TENDERLY_CONTRACTS : isSepoliaTestnet ? SEPOLIA_CONTRACTS : ARBITRUM_CONTRACTS;
 
-// Contract addresses - reads from env with network-specific fallbacks
+// Contract addresses — use hardcoded network-specific addresses directly.
+// Env var overrides removed to prevent stale/wrong addresses in CI/Vercel.
 export const CONTRACTS = {
-  // Core ZkAMM contracts (split architecture)
-  zkAMM: import.meta.env.VITE_ZKAMM_ADDRESS || FALLBACK.zkAMM,
-  zkAMMPair: import.meta.env.VITE_ZKAMM_PAIR_ADDRESS || FALLBACK.zkAMMPair,
-  zkAMMRouter: import.meta.env.VITE_ZKAMM_ROUTER_ADDRESS || FALLBACK.zkAMMRouter,
-  zkAMMAdmin: import.meta.env.VITE_ZKAMM_ADMIN_ADDRESS || FALLBACK.zkAMMAdmin,
-
-  // ROOT token ERC20
-  rootToken: import.meta.env.VITE_ROOT_TOKEN_ADDRESS || FALLBACK.rootToken,
-
-  // TokenPool for merkle tree commitments
-  tokenPool: import.meta.env.VITE_TOKEN_POOL_ADDRESS || FALLBACK.tokenPool,
-
-  // LP Pool for liquidity provider commitments
-  lpPool: import.meta.env.VITE_LP_POOL_ADDRESS || FALLBACK.lpPool,
-
-  // Nullifier Registry
-  nullifierRegistry: import.meta.env.VITE_NULLIFIER_REGISTRY_ADDRESS || FALLBACK.nullifierRegistry,
-
-  // Launchpad contracts
-  launchpad: import.meta.env.VITE_LAUNCHPAD_ADDRESS || FALLBACK.launchpad,
-  tokenFactory: import.meta.env.VITE_TOKEN_FACTORY_ADDRESS || FALLBACK.tokenFactory,
-  poolFactory: import.meta.env.VITE_POOL_FACTORY_ADDRESS || FALLBACK.poolFactory,
-  poolRouter: import.meta.env.VITE_POOL_ROUTER_ADDRESS || FALLBACK.poolRouter,
-
-  // Shorts contract for leveraged shorting
-  shortsContract: import.meta.env.VITE_SHORTS_CONTRACT_ADDRESS || FALLBACK.shortsContract,
-
-  // World ID Gatekeeper for sybil-resistant proposal creation (CRE W8)
-  worldIdGatekeeper: import.meta.env.VITE_WORLD_ID_GATEKEEPER_ADDRESS || FALLBACK.worldIdGatekeeper,
-
-  // CRE Workflow Contracts
-  serraEstrela: import.meta.env.VITE_SERRA_ESTRELA_ADDRESS || FALLBACK.serraEstrela,
-  confidentialFundingVault: import.meta.env.VITE_CONFIDENTIAL_FUNDING_VAULT_ADDRESS || FALLBACK.confidentialFundingVault,
-  regenProofOfReserve: import.meta.env.VITE_REGEN_PROOF_OF_RESERVE_ADDRESS || FALLBACK.regenProofOfReserve,
-  aiAgentOrchestrator: import.meta.env.VITE_AI_AGENT_ORCHESTRATOR_ADDRESS || FALLBACK.aiAgentOrchestrator,
-  regenPredictionMarket: import.meta.env.VITE_REGEN_PREDICTION_MARKET_ADDRESS || FALLBACK.regenPredictionMarket,
-  protocolHealthMonitor: import.meta.env.VITE_PROTOCOL_HEALTH_MONITOR_ADDRESS || FALLBACK.protocolHealthMonitor,
-  policyEngine: import.meta.env.VITE_R00T_POLICY_ENGINE_ADDRESS || FALLBACK.policyEngine,
-  compliantPrivateVault: import.meta.env.VITE_COMPLIANT_PRIVATE_VAULT_ADDRESS || FALLBACK.compliantPrivateVault,
+  zkAMM: FALLBACK.zkAMM,
+  zkAMMPair: FALLBACK.zkAMMPair,
+  zkAMMRouter: FALLBACK.zkAMMRouter,
+  zkAMMAdmin: FALLBACK.zkAMMAdmin,
+  rootToken: FALLBACK.rootToken,
+  tokenPool: FALLBACK.tokenPool,
+  lpPool: FALLBACK.lpPool,
+  nullifierRegistry: FALLBACK.nullifierRegistry,
+  launchpad: FALLBACK.launchpad,
+  tokenFactory: FALLBACK.tokenFactory,
+  poolFactory: FALLBACK.poolFactory,
+  poolRouter: FALLBACK.poolRouter,
+  shortsContract: FALLBACK.shortsContract,
+  worldIdGatekeeper: FALLBACK.worldIdGatekeeper,
+  serraEstrela: FALLBACK.serraEstrela,
+  confidentialFundingVault: FALLBACK.confidentialFundingVault,
+  regenProofOfReserve: FALLBACK.regenProofOfReserve,
+  aiAgentOrchestrator: FALLBACK.aiAgentOrchestrator,
+  regenPredictionMarket: FALLBACK.regenPredictionMarket,
+  protocolHealthMonitor: FALLBACK.protocolHealthMonitor,
+  policyEngine: FALLBACK.policyEngine,
+  compliantPrivateVault: FALLBACK.compliantPrivateVault,
 } as const;
 
 // External contract addresses (Arbitrum mainnet)
