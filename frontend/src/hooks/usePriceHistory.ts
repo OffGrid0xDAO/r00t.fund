@@ -391,76 +391,116 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
   }, [zkAMMAddress]);
 
   // Fetch trades from RPC event logs (fallback when indexer is unavailable)
+  // Uses raw fetch + eth_getLogs to avoid potential viem getLogs issues
   const fetchTradesFromRPC = useCallback(async (): Promise<Trade[]> => {
-    if (!publicClient) return [];
-    const pairAddress = CONTRACTS.zkAMMPair as `0x${string}`;
+    const rpcUrl = NETWORK.rpcUrl;
+    const pairAddress = CONTRACTS.zkAMMPair.toLowerCase();
 
     try {
-      console.log('[usePriceHistory] Fetching trades from RPC event logs...');
-      const [buyLogs, sellLogs] = await Promise.all([
-        publicClient.getLogs({
-          address: pairAddress,
-          event: {
-            type: 'event',
-            name: 'TokensPurchased',
-            inputs: [
-              { name: 'ethIn', type: 'uint256', indexed: false },
-              { name: 'tokensOut', type: 'uint256', indexed: false },
-            ],
-          },
-          fromBlock: 0n,
-          toBlock: 'latest',
+      console.log('[usePriceHistory] Fetching trades from RPC event logs via raw fetch...');
+
+      // Fetch buy and sell logs in parallel using raw eth_getLogs
+      const [buyRes, sellRes] = await Promise.all([
+        fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1, method: 'eth_getLogs',
+            params: [{ address: pairAddress, topics: [TOKEN_PURCHASED_TOPIC], fromBlock: 'earliest', toBlock: 'latest' }],
+          }),
         }),
-        publicClient.getLogs({
-          address: pairAddress,
-          event: {
-            type: 'event',
-            name: 'TokensSold',
-            inputs: [
-              { name: 'tokensIn', type: 'uint256', indexed: false },
-              { name: 'ethOut', type: 'uint256', indexed: false },
-            ],
-          },
-          fromBlock: 0n,
-          toBlock: 'latest',
+        fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 2, method: 'eth_getLogs',
+            params: [{ address: pairAddress, topics: [TOKEN_SOLD_TOPIC], fromBlock: 'earliest', toBlock: 'latest' }],
+          }),
         }),
       ]);
+
+      const buyData = await buyRes.json();
+      const sellData = await sellRes.json();
+      const buyLogs = buyData.result || [];
+      const sellLogs = sellData.result || [];
+
+      console.log(`[usePriceHistory] RPC logs: ${buyLogs.length} buys, ${sellLogs.length} sells`);
+
+      if (buyLogs.length === 0 && sellLogs.length === 0) return [];
+
+      // Collect unique block numbers for timestamp lookup
+      const allLogs = [...buyLogs, ...sellLogs];
+      const blockNumbers = [...new Set(allLogs.map((l: { blockNumber: string }) => l.blockNumber))];
+
+      // Batch fetch block timestamps
+      const blockTimestamps = new Map<string, number>();
+      await Promise.all(
+        blockNumbers.map(async (blockNum: string) => {
+          try {
+            const res = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0', id: 3, method: 'eth_getBlockByNumber',
+                params: [blockNum, false],
+              }),
+            });
+            const data = await res.json();
+            if (data.result?.timestamp) {
+              blockTimestamps.set(blockNum, parseInt(data.result.timestamp, 16) * 1000);
+            }
+          } catch {
+            // Use current time as fallback
+            blockTimestamps.set(blockNum, Date.now());
+          }
+        })
+      );
+
+      // Parse log data: each log has 2 uint256 values packed in data (64 hex chars each)
+      const parseLogAmounts = (data: string): [bigint, bigint] => {
+        const hex = data.slice(2); // remove 0x
+        const val1 = BigInt('0x' + hex.slice(0, 64));
+        const val2 = BigInt('0x' + hex.slice(64, 128));
+        return [val1, val2];
+      };
 
       const rpcTrades: Trade[] = [];
 
       for (const log of buyLogs) {
-        const ethAmt = Number(formatEther(log.args.ethIn ?? 0n));
-        const tokenAmt = Number(formatUnits(log.args.tokensOut ?? 0n, 18));
-        const block = await publicClient.getBlock({ blockNumber: log.blockNumber! });
+        const [ethInWei, tokensOutWei] = parseLogAmounts(log.data);
+        const ethAmt = Number(formatEther(ethInWei));
+        const tokenAmt = Number(formatUnits(tokensOutWei, 18));
+        const ts = blockTimestamps.get(log.blockNumber) || Date.now();
         rpcTrades.push({
           type: 'buy',
           ethAmount: ethAmt,
           tokenAmount: tokenAmt,
           price: tokenAmt > 0 ? ethAmt / tokenAmt : 0,
-          timestamp: Number(block.timestamp) * 1000,
-          txHash: log.transactionHash!,
-          blockNumber: Number(log.blockNumber),
+          timestamp: ts,
+          txHash: log.transactionHash,
+          blockNumber: parseInt(log.blockNumber, 16),
         });
       }
 
       for (const log of sellLogs) {
-        const tokenAmt = Number(formatUnits(log.args.tokensIn ?? 0n, 18));
-        const ethAmt = Number(formatEther(log.args.ethOut ?? 0n));
-        const block = await publicClient.getBlock({ blockNumber: log.blockNumber! });
+        const [tokensInWei, ethOutWei] = parseLogAmounts(log.data);
+        const tokenAmt = Number(formatUnits(tokensInWei, 18));
+        const ethAmt = Number(formatEther(ethOutWei));
+        const ts = blockTimestamps.get(log.blockNumber) || Date.now();
         rpcTrades.push({
           type: 'sell',
           ethAmount: ethAmt,
           tokenAmount: tokenAmt,
           price: tokenAmt > 0 ? ethAmt / tokenAmt : 0,
-          timestamp: Number(block.timestamp) * 1000,
-          txHash: log.transactionHash!,
-          blockNumber: Number(log.blockNumber),
+          timestamp: ts,
+          txHash: log.transactionHash,
+          blockNumber: parseInt(log.blockNumber, 16),
         });
       }
 
       // Sort by timestamp ascending
       rpcTrades.sort((a, b) => a.timestamp - b.timestamp);
-      console.log(`[usePriceHistory] Loaded ${rpcTrades.length} trades from RPC logs`);
+      console.log(`[usePriceHistory] Loaded ${rpcTrades.length} trades from RPC logs`, rpcTrades.map(t => ({ type: t.type, eth: t.ethAmount.toFixed(4), price: t.price.toFixed(8), ts: new Date(t.timestamp).toISOString() })));
 
       if (rpcTrades.length > 0) {
         setTrades(rpcTrades);
@@ -472,7 +512,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       console.warn('[usePriceHistory] RPC log fetch failed:', err);
       return [];
     }
-  }, [publicClient, zkAMMAddress]);
+  }, [zkAMMAddress]);
 
   // Fetch stats from Ponder indexer
   const fetchStatsFromIndexer = useCallback(async () => {
@@ -844,15 +884,17 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     console.log('[usePriceHistory] Manual refresh triggered - fetching new data...');
 
     // Don't clear trades[] - keep showing existing data while fetching
-    // The fetchTradesFromIndexer will replace trades with fresh data when ready
-
-    // Refetch everything from indexer (this updates state when data arrives)
-    await fetchTradesFromIndexer();
-    await fetchStatsFromIndexer();
     await fetchReserves();
 
+    if (NETWORK.indexerUrl) {
+      await fetchTradesFromIndexer();
+      await fetchStatsFromIndexer();
+    } else {
+      await fetchTradesFromRPC();
+    }
+
     console.log('[usePriceHistory] Refresh complete');
-  }, [fetchTradesFromIndexer, fetchStatsFromIndexer, fetchReserves]);
+  }, [fetchTradesFromIndexer, fetchStatsFromIndexer, fetchReserves, fetchTradesFromRPC]);
 
   return {
     priceHistory,
