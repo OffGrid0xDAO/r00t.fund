@@ -9,28 +9,19 @@
  * 2. Update the fallback addresses below
  */
 
-// Determine which network we're on
-const chainId = Number(import.meta.env.VITE_CHAIN_ID) || 73571;
-const isSepoliaTestnet = chainId === 11155111;
-const isTenderlyVNet = chainId === 73571;
+// Network: hardcoded to Tenderly VNet for now. Change when deploying to mainnet.
+const chainId = 73571;
+const isSepoliaTestnet = false;
+const isTenderlyVNet = true;
 
-// Network configuration - supports Arbitrum, Sepolia, and Tenderly VNet
 export const NETWORK = {
   chainId,
-  name: isTenderlyVNet ? 'Tenderly VNet' : isSepoliaTestnet ? 'Sepolia Testnet' : 'Arbitrum One',
-  rpcUrl: import.meta.env.VITE_RPC_URL || (isTenderlyVNet
-    ? 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1'
-    : isSepoliaTestnet
-      ? 'https://eth-sepolia.g.alchemy.com/v2/demo'
-      : 'https://arbitrum-one.publicnode.com'),
-  explorerUrl: isTenderlyVNet
-    ? (import.meta.env.VITE_TENDERLY_EXPLORER_URL || '')
-    : isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
-  explorerName: isTenderlyVNet ? 'Tenderly Explorer' : isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
-  // Ponder indexer URL for querying trades, stats, and merkle tree data
-  // Leave empty to disable indexer features (price charts, LP scanning) when Ponder is offline
-  indexerUrl: import.meta.env.VITE_INDEXER_URL || '',
-  isTestnet: isSepoliaTestnet || isTenderlyVNet,
+  name: 'Tenderly VNet',
+  rpcUrl: 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1',
+  explorerUrl: '',
+  explorerName: 'Tenderly Explorer',
+  indexerUrl: '',
+  isTestnet: true,
 } as const;
 
 // Sepolia fallback addresses (fresh deploy - 2026-02-06, configurable OI limit + liquidation fix)
@@ -198,11 +189,9 @@ export function isContractDeployed(address: string): boolean {
 }
 
 // Re-export chain for use in viem/wagmi writeContract calls
-// This avoids hardcoding arbitrum everywhere
-import { arbitrum, sepolia } from 'wagmi/chains';
 import { defineChain } from 'viem';
 
-const tenderlyVNetChain = defineChain({
+export const CHAIN = defineChain({
   id: 73571,
   name: 'Tenderly VNet',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
@@ -213,5 +202,3 @@ const tenderlyVNetChain = defineChain({
   },
   testnet: true,
 });
-
-export const CHAIN = NETWORK.chainId === 73571 ? tenderlyVNetChain : NETWORK.chainId === 11155111 ? sepolia : arbitrum;
