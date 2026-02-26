@@ -155,8 +155,9 @@ export function AnonymousSwapPanel({
     if (!publicClient || zkAMMAddress === '0x...') return;
 
     const fetchPoolState = async () => {
-      // Try Ponder GraphQL first
+      // Try Ponder GraphQL first — skip if indexer URL not configured
       try {
+        if (!NETWORK.indexerUrl) throw new Error('No indexer URL');
         const ponderRes = await fetch(`${NETWORK.indexerUrl}/graphql`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

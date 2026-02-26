@@ -506,6 +506,11 @@ export function LiquidityPanel({
 
     try {
       const indexerUrl = NETWORK.indexerUrl;
+      if (!indexerUrl) {
+        console.log('[LiquidityPanel] No indexer URL configured, skipping LP scan');
+        setIsScanning(false);
+        return;
+      }
 
       // Fetch LP commitments from Ponder with encrypted notes
       const response = await fetch(`${indexerUrl}/graphql`, {
@@ -1009,6 +1014,7 @@ export function LiquidityPanel({
       // Fetch all LP commitments from Ponder indexer
       // Try LP Pool address first, fallback to all positions if none found
       const indexerUrl = NETWORK.indexerUrl;
+      if (!indexerUrl) throw new Error('Indexer not available — LP withdrawal requires the Ponder indexer to build merkle proofs');
       const lpPoolAddressLower = CONTRACTS.lpPool.toLowerCase();
 
       let lpResponse = await fetch(`${indexerUrl}/graphql`, {
@@ -1281,6 +1287,7 @@ export function LiquidityPanel({
       // Fetch all LP commitments from Ponder indexer
       // Try without address filter first since positions might be indexed with different address
       const indexerUrl = NETWORK.indexerUrl;
+      if (!indexerUrl) throw new Error('Indexer not available — fee claims require the Ponder indexer to build merkle proofs');
 
       console.log('[LiquidityPanel] Fetching LP positions from indexer:', indexerUrl);
 
@@ -1540,32 +1547,34 @@ export function LiquidityPanel({
 
           // Find leaf index for the commitment from indexer
           const indexerUrl = NETWORK.indexerUrl;
-          const lpResponse = await fetch(`${indexerUrl}/graphql`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: `{ lpPositionss(limit: 1000, orderBy: "leafIndex") { items { commitment leafIndex } } }`
-            })
-          });
-          const lpData = await lpResponse.json();
-          const lpItems = lpData?.data?.lpPositionss?.items || [];
-          const leafIndex = lpItems.findIndex((item: any) => item.commitment === pos.commitment);
+          if (indexerUrl) {
+            const lpResponse = await fetch(`${indexerUrl}/graphql`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: `{ lpPositionss(limit: 1000, orderBy: "leafIndex") { items { commitment leafIndex } } }`
+              })
+            });
+            const lpData = await lpResponse.json();
+            const lpItems = lpData?.data?.lpPositionss?.items || [];
+            const leafIndex = lpItems.findIndex((item: any) => item.commitment === pos.commitment);
 
-          if (leafIndex !== -1) {
-            const claimNullifier = hashClaimNullifier(
-              BigInt(pos.nullifier),
-              currentEpoch,
-              leafIndex
-            );
+            if (leafIndex !== -1) {
+              const claimNullifier = hashClaimNullifier(
+                BigInt(pos.nullifier),
+                currentEpoch,
+                leafIndex
+              );
 
-            const isSpent = await publicClient.readContract({
-              address: pairAddress,
-              abi: [{ name: 'isClaimNullifierSpent', type: 'function', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'bool' }] }],
-              functionName: 'isClaimNullifierSpent',
-              args: [claimNullifier],
-            }) as boolean;
+              const isSpent = await publicClient.readContract({
+                address: pairAddress,
+                abi: [{ name: 'isClaimNullifierSpent', type: 'function', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'bool' }] }],
+                functionName: 'isClaimNullifierSpent',
+                args: [claimNullifier],
+              }) as boolean;
 
-            setHasClaimedThisEpoch(isSpent);
+              setHasClaimedThisEpoch(isSpent);
+            }
           }
         }
       } catch (err) {

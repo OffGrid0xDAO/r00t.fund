@@ -486,8 +486,9 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       if (isRateLimited) return;
 
       try {
-        // Try Ponder GraphQL first (no rate limits)
+        // Try Ponder GraphQL first (no rate limits) — skip if indexer URL not configured
         try {
+          if (!NETWORK.indexerUrl) throw new Error('No indexer URL');
           const ponderRes = await fetch(`${NETWORK.indexerUrl}/graphql`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

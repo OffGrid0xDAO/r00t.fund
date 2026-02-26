@@ -52,7 +52,7 @@ export function ProjectsPanel({
   void _hiddenPoolAddress;
   const { isConnected, address } = useAccount();
 
-  const [activeTab, setActiveTab] = useState<TabType>('live');
+  const [activeTab, setActiveTab] = useState<TabType>('proposals');
   const [voteModal, setVoteModal] = useState<{ proposalId: number; support: boolean } | null>(null);
   const [selectedProject, setSelectedProject] = useState<{
     name: string;
@@ -78,6 +78,13 @@ export function ProjectsPanel({
   } = useProposals({ launchpadAddress, commitments, fetchAllOnChainCommitments });
 
   const worldId = useWorldIdVerification({ worldIdGatekeeperAddress });
+
+  // Auto-switch to live tab when live projects are discovered
+  useEffect(() => {
+    if (liveProjects.length > 0 && activeTab === 'proposals') {
+      setActiveTab('live');
+    }
+  }, [liveProjects.length]);
 
   // CRE Workflow hooks — data feeds + protocol monitoring
   const { report, summary } = useCreDataFeeds({

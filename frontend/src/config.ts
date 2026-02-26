@@ -28,7 +28,8 @@ export const NETWORK = {
     : isSepoliaTestnet ? 'https://sepolia.etherscan.io' : 'https://arbiscan.io',
   explorerName: isTenderlyVNet ? 'Tenderly Explorer' : isSepoliaTestnet ? 'Etherscan (Sepolia)' : 'Arbiscan',
   // Ponder indexer URL for querying trades, stats, and merkle tree data
-  indexerUrl: import.meta.env.VITE_INDEXER_URL || 'https://ponder-indexer-production-50c3.up.railway.app',
+  // Leave empty to disable indexer features (price charts, LP scanning) when Ponder is offline
+  indexerUrl: import.meta.env.VITE_INDEXER_URL || '',
   isTestnet: isSepoliaTestnet || isTenderlyVNet,
 } as const;
 

@@ -82,6 +82,7 @@ const MERKLE_TREE_STATE_QUERY = `
 
 // Helper to fetch from Ponder GraphQL
 async function queryPonder<T>(query: string, variables?: Record<string, unknown>): Promise<T | null> {
+  if (!NETWORK.indexerUrl) return null;
   const url = `${NETWORK.indexerUrl}/graphql`;
   try {
     const response = await fetch(url, {

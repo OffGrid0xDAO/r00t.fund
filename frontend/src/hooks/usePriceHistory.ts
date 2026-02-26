@@ -78,6 +78,7 @@ const POOL_STATE_QUERY = `
 
 // Fetch data from Ponder GraphQL API
 async function queryIndexer<T>(query: string, variables?: Record<string, unknown>): Promise<T | null> {
+  if (!NETWORK.indexerUrl) return null;
   try {
     const response = await fetch(`${NETWORK.indexerUrl}/graphql`, {
       method: 'POST',
