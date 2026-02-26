@@ -41,9 +41,8 @@ export function useAIOrchestrator() {
         });
         setSafeToTrade(safe as boolean);
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch AI analysis:', err);
-        setError('Failed to load AI orchestrator data');
+      } catch {
+        // Contract may not have getLatestAnalysis — silently skip
       } finally {
         setIsLoading(false);
       }

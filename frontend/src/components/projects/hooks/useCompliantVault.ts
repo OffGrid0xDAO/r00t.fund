@@ -34,9 +34,8 @@ export function useCompliantVault() {
           totalRequests: Number(s[5]),
         });
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch vault stats:', err);
-        setError('Failed to load vault data');
+      } catch {
+        // Contract may not have getVaultStats — silently skip
       } finally {
         setIsLoading(false);
       }

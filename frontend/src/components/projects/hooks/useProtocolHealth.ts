@@ -44,9 +44,8 @@ export function useProtocolHealth() {
         });
         setCircuitBreakerEnabled(cbEnabled as boolean);
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch protocol health:', err);
-        setError('Failed to load protocol health data');
+      } catch {
+        // Contract may not have latestReport — silently skip
       } finally {
         setIsLoading(false);
       }

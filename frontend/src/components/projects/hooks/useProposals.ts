@@ -26,10 +26,12 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
 
   // Fetch proposals and live projects
   useEffect(() => {
+    console.log('[useProposals] Guard check:', { hasClient: !!publicClient, launchpadAddress });
     if (!publicClient || !launchpadAddress || launchpadAddress === '0x...') return;
 
     const fetchData = async () => {
       try {
+        console.log('[useProposals] Fetching from launchpad:', launchpadAddress);
         const [count, liveCount] = await Promise.all([
           publicClient.readContract({
             address: launchpadAddress as `0x${string}`,
@@ -42,6 +44,8 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
             functionName: 'getLiveProjectCount',
           }),
         ]);
+
+        console.log('[useProposals] proposalCount:', Number(count), 'liveProjectCount:', Number(liveCount));
 
         // Fetch each deployed AMM address by index
         const liveAddrs: string[] = [];
@@ -93,10 +97,11 @@ export function useProposals({ launchpadAddress, commitments, fetchAllOnChainCom
           createdAt: p.createdAt,
         }));
 
+        console.log('[useProposals] Success:', formattedProposals.length, 'proposals,', liveAddrs.length, 'live projects', liveAddrs);
         setProposals(formattedProposals);
         setLiveProjects(liveAddrs);
       } catch (err) {
-        console.error('Failed to fetch launchpad data:', err);
+        console.error('[useProposals] Failed to fetch launchpad data:', err);
       }
     };
 

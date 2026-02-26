@@ -35,9 +35,8 @@ export function useConfidentialFunding() {
         setVerifiedCount((verifiedIds as bigint[]).length);
         setTotalCredits(credits as bigint);
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch confidential funding data:', err);
-        setError('Failed to load funding vault data');
+      } catch {
+        // Contract may not have getVerifiedProposalIds — silently skip
       } finally {
         setIsLoading(false);
       }

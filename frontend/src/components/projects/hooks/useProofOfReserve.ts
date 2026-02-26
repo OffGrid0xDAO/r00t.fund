@@ -40,9 +40,8 @@ export function useProofOfReserve() {
           totalTVL: tvl as bigint,
         });
         setError(null);
-      } catch (err) {
-        console.error('Failed to fetch Proof of Reserve:', err);
-        setError('Failed to load reserve data');
+      } catch {
+        // Contract may not have getReserveHealth — silently skip
       } finally {
         setIsLoading(false);
       }
