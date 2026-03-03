@@ -42,14 +42,14 @@
 
 | Track | Our Submission |
 |-------|---------------|
-| Privacy | Confidential carbon credit verification + Chainlink ACE compliant private transfers |
-| DeFi & Tokenization | Regenerative Proof of Reserve with carbon-backed TVL |
-| CRE & AI | AI land regeneration validator using satellite imagery |
-| Prediction Markets | Environmental outcome markets with CRE-automated settlement |
-| Risk & Compliance | Real-time protocol health monitor with circuit breakers |
-| **Tenderly** | **Full protocol deployed on Tenderly Virtual TestNet — 27+ contracts, 8 CRE workflows, simulated transactions** |
-| **World (Best use of World ID with CRE)** | **CRE verifies World ID proofs off-chain via Worldcoin cloud API, enabling sybil-resistant proposal creation on any chain** |
-| **World (Best usage of CRE within a World Mini App)** | **IDKit integration for World ID verification in the r00t.fund frontend** |
+| **Privacy**  | Confidential carbon credit verification + Chainlink ACE compliant private transfers |
+| **DeFi & Tokenization**  | Regenerative Proof of Reserve with carbon-backed TVL |
+| **CRE & AI**  | AI land regeneration validator using satellite imagery |
+| **Prediction Markets**  | Environmental outcome markets with CRE-automated settlement |
+| **Risk & Compliance**  | Real-time protocol health monitor with circuit breakers |
+| **Tenderly** | Full protocol deployed on Tenderly Virtual TestNet — 27+ contracts, 8 CRE workflows, simulated transactions |
+| **World (Best use of World ID with CRE)** | CRE verifies World ID proofs off-chain via Worldcoin cloud API, enabling sybil-resistant proposal creation on any chain |
+| **World (Best usage of CRE within a World Mini App)** | IDKit integration for World ID verification in the r00t.fund frontend |
 | Top 10 | 8 integrated CRE workflows across entire protocol |
 
 ---
