@@ -598,7 +598,7 @@ export const COMPLIANT_PRIVATE_VAULT_ABI = [
 ] as const;
 
 export const WORLD_ID_APP_ID = import.meta.env.VITE_WORLD_ID_APP_ID || 'app_48f9975905cb184e98b13e654cddde87';
-export const WORLD_ID_ACTION = import.meta.env.VITE_WORLD_ID_ACTION || 'create-proposal';
+export const WORLD_ID_ACTION = import.meta.env.VITE_WORLD_ID_ACTION || 'r00tdotfund';
 
 // Default species presets for Serra da Estrela
 export const SERRA_DA_ESTRELA_SPECIES: { name: string; count: number; co2RateKgYear: number; survivalRate: number }[] = [

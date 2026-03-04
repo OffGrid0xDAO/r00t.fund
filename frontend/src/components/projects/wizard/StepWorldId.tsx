@@ -52,7 +52,7 @@ export function StepWorldId({
       const verifyPayload: VerifyCommandInput = {
         action: WORLD_ID_ACTION,
         signal: walletAddress || '',
-        verification_level: MiniKitVerificationLevel.Orb,
+        verification_level: MiniKitVerificationLevel.Device,
       };
 
       const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
@@ -225,8 +225,9 @@ export function StepWorldId({
               app_id={WORLD_ID_APP_ID as `app_${string}`}
               action={WORLD_ID_ACTION}
               signal={walletAddress || ''}
-              verification_level={VerificationLevel.Orb}
-              onSuccess={onWorldIdSuccess}
+              verification_level={VerificationLevel.Device}
+              handleVerify={onWorldIdSuccess}
+              onSuccess={() => {}}
             >
               {({ open }: { open: () => void }) => (
                 <GlowButton onClick={open} variant="primary" size="lg" className="w-full">

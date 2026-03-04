@@ -105,7 +105,7 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
-      className="mb-16 md:mb-20"
+      className="mb-10 md:mb-12"
     >
       <div className="flex items-center gap-4 mb-6">
         <div className="w-8 h-px bg-[var(--accent)]" />
@@ -414,7 +414,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           THE LIFECYCLE — 5 steps
           ═══════════════════════════════════════════════════════════════════ */}
-      <section id="lifecycle" className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16">
+      <section id="lifecycle" className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="The Lifecycle"
@@ -459,7 +459,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           THE PROBLEM
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="The Problem"
@@ -495,317 +495,32 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          SERRA DA ESTRELA — The real project
-          ═══════════════════════════════════════════════════════════════════ */}
+      {/* Serra da Estrela section — commented out for hackathon demo video
       <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="Real Project"
-            title={<>Serra da Estrela<br className="hidden md:block" /><span className="text-[var(--accent)]">This is not hypothetical</span></>}
-          />
-
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* Left — Location & Details */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <div
-                className="p-6 md:p-8 rounded-xl border border-[var(--border)] h-full"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                {/* Coordinates */}
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--accent)]/30 text-[var(--accent)]">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                    </svg>
-                  </span>
-                  <div>
-                    <p className="text-xs font-mono text-[var(--text-muted)]">Serra da Estrela Natural Park</p>
-                    <p className="text-sm text-[var(--text-primary)] font-medium">Seia, Portugal</p>
-                  </div>
-                </div>
-
-                {/* Species table */}
-                <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase mb-3 font-mono">Native Iberian Species</h4>
-                <div className="space-y-2 mb-6">
-                  {[
-                    { species: 'Quercus pyrenaica', common: 'Pyrenean Oak', count: 450 },
-                    { species: 'Quercus robur', common: 'English Oak', count: 400 },
-                    { species: 'Castanea sativa', common: 'Sweet Chestnut', count: 350 },
-                    { species: 'Betula celtiberica', common: 'Iberian Birch', count: 300 },
-                    { species: 'Pinus sylvestris', common: 'Scots Pine', count: 400 },
-                    { species: 'Arbutus unedo', common: 'Strawberry Tree', count: 350 },
-                    { species: 'Prunus lusitanica', common: 'Portugal Laurel', count: 300 },
-                  ].map((s) => (
-                    <div key={s.species} className="flex items-center justify-between text-sm">
-                      <span className="text-[var(--text-secondary)]">
-                        <span className="italic">{s.species}</span>
-                        <span className="text-[var(--text-muted)] ml-2 text-xs">({s.common})</span>
-                      </span>
-                      <span className="font-mono text-[var(--text-primary)] text-xs">{s.count}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Total</span>
-                  <span className="font-mono text-lg text-[var(--accent)] font-medium">2,550 trees</span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Right — Fire Recovery Index & monitoring */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="space-y-6"
-            >
-              {/* Fire Recovery Index */}
-              <div
-                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase mb-4 font-mono">Fire Recovery Index</h4>
-                <div className="flex items-end gap-4 mb-4">
-                  <span className="text-4xl font-display text-[var(--text-primary)] tracking-tight">247</span>
-                  <span className="text-sm text-[var(--text-muted)] mb-1">/ 1000</span>
-                </div>
-                {/* Progress bar */}
-                <div className="w-full h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    whileInView={{ width: '24.7%' }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
-                    className="h-full rounded-full"
-                    style={{
-                      background: 'linear-gradient(90deg, var(--accent), rgba(93, 168, 112, 0.8))',
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-[var(--text-muted)] mt-3">
-                  Recovery progressing — early-stage canopy formation detected
-                </p>
-              </div>
-
-              {/* Phase 1 Budget — Clearing */}
-              <div
-                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Phase 1 — Ground Clearing</h4>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[9px] font-mono text-[var(--accent)] uppercase tracking-wider">
-                    Funding needed
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
-                  Clear 9 ha of burned forest, woodchip biomass to build soil fertility, salvage trunks for contour erosion barriers. Preparing ground for native tree planting in Sep–Oct 2026.
-                </p>
-                <div className="space-y-2 mb-4">
-                  {[
-                    { op: 'Tree cutting + contour barriers', detail: '9 ha × €1,500/ha', cost: '13,500' },
-                    { op: 'Equipa (4 workers × 15 days)', detail: '€125/day/person', cost: '7,500' },
-                    { op: 'Biotriturador (woodchipper)', detail: '60 h × €65/h', cost: '3,900' },
-                    { op: 'Giratória (excavator)', detail: '45 h × €50/h', cost: '2,250' },
-                  ].map((item) => (
-                    <div key={item.op} className="flex items-center justify-between text-sm">
-                      <div>
-                        <span className="text-[var(--text-secondary)]">{item.op}</span>
-                        <span className="text-[var(--text-muted)] ml-2 text-[10px] font-mono">{item.detail}</span>
-                      </div>
-                      <span className="font-mono text-[var(--text-primary)] text-xs">€{item.cost}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Total Phase 1</span>
-                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€27,150</span>
-                </div>
-              </div>
-
-              {/* Phase 2 Budget — Replanting */}
-              <div
-                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Phase 2 — Native Replanting</h4>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
-                    Sep–Oct 2026
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
-                  Plant 2,550 native Iberian trees across 9 ha — 7 species selected for fire resilience, biodiversity, and carbon sequestration. Includes tree guards and first-year irrigation aftercare.
-                </p>
-                <div className="space-y-2 mb-4">
-                  {[
-                    { op: 'Native seedlings (2,550 trees)', detail: '7 species, avg €1.60/tree', cost: '4,100' },
-                    { op: 'Planting team (4 workers × 10 days)', detail: '€125/day/person', cost: '5,000' },
-                    { op: 'Tree guards + stakes', detail: '2,550 units × €2.00', cost: '5,100' },
-                    { op: 'Transport & logistics', detail: 'nursery → site', cost: '600' },
-                    { op: 'Year 1 aftercare', detail: 'irrigation + replacements', cost: '2,500' },
-                  ].map((item) => (
-                    <div key={item.op} className="flex items-center justify-between text-sm">
-                      <div>
-                        <span className="text-[var(--text-secondary)]">{item.op}</span>
-                        <span className="text-[var(--text-muted)] ml-2 text-[10px] font-mono">{item.detail}</span>
-                      </div>
-                      <span className="font-mono text-[var(--text-primary)] text-xs">€{item.cost}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Total Phase 2</span>
-                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€17,300</span>
-                </div>
-              </div>
-
-              {/* Combined Total */}
-              <div
-                className="p-4 rounded-xl border border-[var(--accent)]/30"
-                style={{ background: 'rgba(93, 168, 112, 0.05)' }}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium text-[var(--text-primary)]">Total Project Budget</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-mono ml-2">Phase 1 + Phase 2</span>
-                  </div>
-                  <span className="font-mono text-xl text-[var(--accent)] font-semibold">€44,450</span>
-                </div>
-              </div>
-
-              {/* Carbon Economics / Investor Returns */}
-              <div
-                className="p-6 md:p-8 rounded-xl border border-[var(--border)]"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                <h4 className="text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase mb-4 font-mono">Carbon Economics — 25-Year Projection</h4>
-                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
-                  2,550 native trees across 9 ha sequestering ~52 tCO₂/yr at maturity. Credits verified on-chain via Chainlink CRE and registered on Portugal's Voluntary Carbon Market.
-                </p>
-
-                {/* CO2 growth curve */}
-                <div className="grid grid-cols-4 gap-2 mb-4">
-                  {[
-                    { yr: 'Yr 3', co2: '8', pct: '15' },
-                    { yr: 'Yr 5', co2: '18', pct: '35' },
-                    { yr: 'Yr 10', co2: '32', pct: '62' },
-                    { yr: 'Yr 20+', co2: '52', pct: '100' },
-                  ].map((p) => (
-                    <div key={p.yr} className="text-center">
-                      <div className="text-[10px] text-[var(--text-muted)] font-mono mb-1">{p.yr}</div>
-                      <div className="w-full bg-[var(--bg-secondary)] rounded-full h-16 relative overflow-hidden flex items-end">
-                        <motion.div
-                          initial={{ height: 0 }}
-                          whileInView={{ height: `${p.pct}%` }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 1, delay: 0.2 }}
-                          className="w-full rounded-full"
-                          style={{ background: 'linear-gradient(180deg, var(--accent), rgba(93, 168, 112, 0.4))' }}
-                        />
-                      </div>
-                      <div className="text-xs font-mono text-[var(--text-primary)] mt-1">{p.co2}</div>
-                      <div className="text-[9px] text-[var(--text-muted)]">tCO₂/yr</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Revenue streams */}
-                <h5 className="text-[9px] tracking-[0.15em] text-[var(--text-muted)] uppercase mb-2 font-mono">Revenue Stacking (25-year)</h5>
-                <div className="space-y-1.5 mb-4">
-                  {[
-                    { stream: 'Carbon credits', detail: '~850 tCO₂ × €25/t', value: '21,250' },
-                    { stream: 'PT forestry payments', detail: '9 ha × €150/ha/yr', value: '33,750' },
-                    { stream: 'Chestnut harvest', detail: '350 Castanea sativa, from yr 7', value: '9,500' },
-                    { stream: 'Firewood offset', detail: 'Phase 1 salvaged timber', value: '-3,000' },
-                  ].map((s) => (
-                    <div key={s.stream} className="flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[var(--text-secondary)]">{s.stream}</span>
-                        <span className="text-[var(--text-muted)] ml-1.5 text-[9px] font-mono">{s.detail}</span>
-                      </div>
-                      <span className="font-mono text-[var(--text-primary)]">€{s.value}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)] mb-3">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Projected 25yr revenue</span>
-                  <span className="font-mono text-lg text-[var(--accent)] font-medium">€61,500</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--text-muted)]">Investment: €44,450 → Net return</span>
-                  <span className="font-mono text-[var(--accent)]">~38% (+€17,050)</span>
-                </div>
-                <p className="text-[10px] text-[var(--text-muted)] mt-3 leading-relaxed italic">
-                  Conservative estimate at €25/tCO₂. If carbon prices reach projected €40–50/tCO₂ by 2030, 25yr return rises to ~74%. Does not include biodiversity credits, ecotourism, or $SERRA token appreciation.
-                </p>
-              </div>
-
-              {/* Monitoring status */}
-              <div
-                className="p-6 rounded-xl border border-[var(--border)]"
-                style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--success)]" />
-                  </span>
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Live Monitoring</span>
-                </div>
-                <p className="text-sm text-[var(--text-secondary)] mb-4">
-                  Monitored every 6 hours by Chainlink CRE Custom Data Feed
-                </p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {['Sentinel-2 NDVI', 'SoilGrids', 'AI Analysis'].map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-3 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[10px] font-mono text-[var(--text-muted)]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* ICNF Reference */}
-              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] font-mono">
-                <span className="w-3 h-px bg-[var(--accent)] opacity-50" />
-                ICNF Reference: PRRF-SE-2025-0042
-              </div>
-            </motion.div>
-          </div>
-        </div>
+        ... Serra da Estrela Real Project content ...
       </section>
+      */}
 
       {/* ═══════════════════════════════════════════════════════════════════
           CRE WORKFLOWS — 7 workflows
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="CRE Workflows"
-            title={<>7 Chainlink CRE Workflows<br className="hidden md:block" /><span className="text-[var(--accent)]">Independent verification</span></>}
+            title={<>8 Chainlink CRE Workflows<br className="hidden md:block" /><span className="text-[var(--accent)]">Independent verification</span></>}
           />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { num: 'W1', name: 'Confidential Funding', desc: 'ZK-shielded capital allocation with milestone-based releases', track: 'Privacy' },
-              { num: 'W2', name: 'Proof of Reserve', desc: 'Chainlink PoR verifies locked assets backing project tokens', track: 'DeFi' },
-              { num: 'W3', name: 'AI Validator', desc: 'Multi-model AI consensus analyzes satellite imagery for vegetation change', track: 'AI' },
-              { num: 'W4', name: 'Prediction Markets', desc: 'Community stakes on project outcomes — aligned incentives for verification', track: 'DeFi' },
-              { num: 'W5', name: 'Health Monitor', desc: 'Real-time NDVI, soil moisture, and canopy density tracking via CRE', track: 'Data' },
-              { num: 'W6', name: 'ACE Compliance', desc: 'Automated EU MiCA compliance without sacrificing transaction privacy', track: 'Privacy' },
-              { num: 'W7', name: 'Serra da Estrela Feed', desc: 'Fire recovery pipeline — Phase 1: clear 9 ha of burned forest, woodchip biomass for soil fertility, contour barriers from salvaged trunks. Planting Sep/Oct 2026.', track: 'Data' },
+              { num: 'W2', name: 'Proof of Reserve', desc: 'On-chain reserves + carbon credit pricing as composite backing ratio', track: 'DeFi' },
+              { num: 'W3', name: 'AI Validator', desc: 'Llama 3.3 70B analyzes satellite imagery for regeneration verification', track: 'AI' },
+              { num: 'W4', name: 'Prediction Markets', desc: 'Environmental outcome markets settled by real satellite data', track: 'Markets' },
+              { num: 'W5', name: 'Health Monitor', desc: 'Real-time protocol risk scoring with automatic circuit breakers', track: 'Risk' },
+              { num: 'W6', name: 'ACE Compliance', desc: 'Anonymous sanctions screening — EU MiCA without sacrificing privacy', track: 'Privacy' },
+              { num: 'W7', name: 'Serra Estrela Feed', desc: 'Custom Chainlink data feed publishing weekly satellite NDVI recovery', track: 'Data' },
+              { num: 'W8', name: 'World ID Bridge', desc: 'Sybil-resistant governance — World ID verification on any EVM chain', track: 'Identity' },
             ].map((w, i) => (
               <motion.div
                 key={w.num}
@@ -836,7 +551,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           VERIFICATION PIPELINE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="Verification"
@@ -916,7 +631,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           SDK — OpenClaw Agent Setup
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
@@ -1067,7 +782,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           MANIFESTO — Why this exists
           ═══════════════════════════════════════════════════════════════════ */}
-      <section id="manifesto" className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16">
+      <section id="manifesto" className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16">
         <div className="max-w-6xl mx-auto">
           {/* Large logo watermark behind the quote */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -1164,7 +879,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             Built with
           </p>
           <div className="flex justify-center items-center gap-3 flex-wrap">
-            {['Chainlink CRE', 'Solidity', 'ZK-SNARKs', 'Copernicus Sentinel-2', 'Circom', 'React', 'TypeScript', 'Foundry'].map((tech, i) => (
+            {['Chainlink CRE', 'Solidity', 'ZK-SNARKs', 'Groth16', 'Circom', 'Copernicus Sentinel-2', 'World ID', 'Tenderly', 'Foundry', 'React', 'TypeScript', 'Ponder'].map((tech, i) => (
               <motion.span
                 key={tech}
                 initial={{ opacity: 0, y: 8 }}
@@ -1183,7 +898,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           FINAL CTA
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-28 md:py-36 px-6 md:px-12 lg:px-16">
+      <section className="relative py-16 md:py-24 px-6 md:px-12 lg:px-16">
         <div className="max-w-2xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1193,10 +908,10 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           >
             <RootLogo size={56} className="text-[var(--accent)] mx-auto mb-8 opacity-40" />
             <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] mb-4 leading-[1.1]">
-              Ready to <span className="text-[var(--accent)]">fund what regenerates</span>?
+              Fund what heals.<br /><span className="text-[var(--accent)]">Verify on-chain.</span>
             </h2>
-            <p className="text-[var(--text-secondary)] mb-10 max-w-sm mx-auto">
-              Direct funding. Satellite verification. Privacy preserved.
+            <p className="text-[var(--text-secondary)] mb-8 max-w-md mx-auto">
+              27 contracts. 8 CRE workflows. 12 ZK circuits. One protocol connecting capital to land.
             </p>
             <button
               onClick={onEnterApp}
