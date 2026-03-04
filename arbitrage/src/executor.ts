@@ -405,20 +405,6 @@ export class ArbitrageExecutor {
   }
 
   /**
-   * Generate nullifier hash using Poseidon (matches ZK circuits)
-   */
-  private generateNullifierHash(nullifier: bigint, leafIndex: number): bigint {
-    return poseidonHashNullifier(nullifier, leafIndex);
-  }
-
-  /**
-   * Generate random field element
-   */
-  private _randomFieldElement(): bigint {
-    return randomFieldElement();
-  }
-
-  /**
    * Encrypt note for recipient
    */
   private encryptNote(nullifier: bigint, secret: bigint, amount: bigint): string {

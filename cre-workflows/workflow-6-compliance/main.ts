@@ -83,7 +83,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
@@ -207,8 +207,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
       policyAllowed = Boolean(complianceDecoded)
       policyReason = policyAllowed ? '' : 'ACE PolicyEngine denied transfer'
-    } catch {
-      // PolicyEngine call failed -- deny transfer for safety
+    } catch (err) {
+      // PolicyEngine call failed -- deny transfer for safety (err: ${err instanceof Error ? err.message : 'unknown'})
       policyAllowed = false
       policyReason = 'ACE PolicyEngine unavailable'
     }

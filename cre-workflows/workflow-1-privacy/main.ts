@@ -143,7 +143,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
 
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
@@ -252,8 +252,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
         verraMethodology = verraProject.methodology ?? verraProject.methodologyName ?? 'VCS'
       }
     }
-  } catch {
-    // Fallback: use heuristic data
+  } catch (err) {
+    // Fallback: use heuristic data (err: ${err instanceof Error ? err.message : 'unknown'})
     verraCredits = 5000
     verraMethodology = 'VM0007'
     verraProjectId = 'VCS-HEURISTIC-001'
@@ -276,7 +276,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
         gsSdgScore = gsProject.sdg_impact_score ?? gsProject.sdgScore ?? 0
       }
     }
-  } catch {
+  } catch (err) {
+    // Fallback: use heuristic data (err: ${err instanceof Error ? err.message : 'unknown'})
     gsCredits = 3000
     gsSdgScore = 72
     gsProjectId = 'GS-HEURISTIC-001'
@@ -289,7 +290,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       const euaData = JSON.parse(euaResponse.body) as CarbonPriceResponse
       euaPrice = euaData.price ?? 65
     }
-  } catch {
+  } catch (err) {
+    // Fallback: use default price (err: ${err instanceof Error ? err.message : 'unknown'})
     euaPrice = 65
   }
 
@@ -300,7 +302,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       const sendeco2Data = JSON.parse(sendeco2Response.body) as CarbonPriceResponse
       voluntaryPrice = sendeco2Data.price ?? 15
     }
-  } catch {
+  } catch (err) {
+    // Fallback: use default price (err: ${err instanceof Error ? err.message : 'unknown'})
     voluntaryPrice = 15
   }
 

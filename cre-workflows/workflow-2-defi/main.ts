@@ -101,7 +101,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
 
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
@@ -337,8 +337,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
         const price = data.price_per_tonne_usd ?? data.price ?? 0
         if (price > 0) carbonPrices.push(price)
       }
-    } catch {
-      // Source unavailable, skip
+    } catch (err) {
+      // Source unavailable, skip (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 
@@ -372,10 +372,11 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     }) as [bigint, string, bigint, boolean]
 
     if (verified) {
-      verifiedCarbonCredits = Math.max(1, Number(impactScore) / 100)
+      verifiedCarbonCredits = Math.min(10000, Math.max(1, Number(impactScore) / 100))
     }
-  } catch {
+  } catch (err) {
     // Attestation not available — fall back to 1 credit
+    // Error: ${err instanceof Error ? err.message : 'unknown'}
   }
 
   // ---- Step 6: Compute aggregate metrics ----

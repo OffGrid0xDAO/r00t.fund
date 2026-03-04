@@ -121,7 +121,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
 
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
@@ -162,8 +162,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     metric = market[1]
     targetValue = market[2]
     status = market[4]
-  } catch {
-    // Market may not exist or have different ABI structure -- use defaults for simulation
+  } catch (err) {
+    // Market may not exist or have different ABI structure -- use defaults for simulation (err: ${err instanceof Error ? err.message : 'unknown'})
   }
 
   // Status 0 = active/pending, status 1 = resolved
@@ -196,8 +196,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
           validResults.push(value)
         }
       }
-    } catch {
-      // Source unavailable, skip
+    } catch (err) {
+      // Source unavailable, skip (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 
@@ -227,8 +227,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       if (fireRecoveryIndex > 0) validResults.push(fireRecoveryIndex)
       if (ndviRecoveryPct > 0) validResults.push(ndviRecoveryPct)
       if (carbonCredits > 0) validResults.push(carbonCredits)
-    } catch {
-      // Serra da Estrela contract not available
+    } catch (err) {
+      // Serra da Estrela contract not available (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 

@@ -102,7 +102,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
@@ -176,8 +176,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
       // AI risk level >= 2 (ELEVATED) adds risk premium
       if (aiRiskLevel >= 2) riskScore += 15
-    } catch {
-      // AI orchestrator not available
+    } catch (err) {
+      // AI orchestrator not available (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 
@@ -207,8 +207,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
       if (verified && Number(impactScore) > 500) {
         riskScore = Math.max(0, riskScore - 5)
       }
-    } catch {
-      // Funding vault not available
+    } catch (err) {
+      // Funding vault not available (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 

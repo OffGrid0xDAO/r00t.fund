@@ -69,7 +69,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
   const httpClient = new cre.capabilities.HTTPClient()
@@ -199,11 +199,10 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
         isValid = false
         reason = responseData.detail || responseData.code || 'Worldcoin API rejected proof'
       }
-    } catch {
-      // In simulation/testing: approve verification to demonstrate the flow
-      // In production: this would be a genuine API call failure
-      isValid = true
-      reason = 'World ID verified (CRE simulation mode)'
+    } catch (err) {
+      // API call failure — reject verification for safety
+      isValid = false
+      reason = `World ID verification failed: ${err instanceof Error ? err.message : 'Worldcoin API unreachable'}`
     }
 
     processedCount++

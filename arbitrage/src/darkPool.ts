@@ -1,4 +1,8 @@
-import { createPublicClient, http, type PublicClient, parseAbi, keccak256, encodeAbiParameters } from 'viem';
+import { createPublicClient, http, type PublicClient, parseAbi } from 'viem';
+import {
+  hashCommitment as poseidonHashCommitment,
+  hashNullifier as poseidonHashNullifier,
+} from '@r00t-fund/sdk';
 import { base } from 'viem/chains';
 import { DARK_POOL_CONSTANTS, PRICE_CONSTANTS } from './config';
 import type { PriceQuote, Commitment, Position } from './types';
@@ -207,29 +211,17 @@ export class DarkPoolOracle {
   }
 
   /**
-   * Generate commitment from secret data
+   * Generate commitment from secret data using Poseidon (matches ZK circuits)
    */
   generateCommitment(nullifier: bigint, secret: bigint, amount: bigint): bigint {
-    // Hash(nullifier, secret, amount) - simplified using keccak256
-    // In production, use Poseidon hash
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, secret, amount]
-    );
-    const hash = keccak256(encoded);
-    return BigInt(hash) % DARK_POOL_CONSTANTS.FIELD_PRIME;
+    return poseidonHashCommitment(nullifier, secret, amount);
   }
 
   /**
-   * Generate nullifier hash
+   * Generate nullifier hash using Poseidon (matches ZK circuits)
    */
   generateNullifierHash(nullifier: bigint, leafIndex: number): bigint {
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, BigInt(leafIndex)]
-    );
-    const hash = keccak256(encoded);
-    return BigInt(hash) % DARK_POOL_CONSTANTS.FIELD_PRIME;
+    return poseidonHashNullifier(nullifier, leafIndex);
   }
 
   /**

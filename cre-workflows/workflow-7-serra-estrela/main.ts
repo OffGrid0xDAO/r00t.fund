@@ -337,7 +337,8 @@ function fetchCopernicusToken(
 
     const parsed = JSON.parse(tokenResult.body ?? '{}')
     return parsed.access_token ?? null
-  } catch {
+  } catch (err) {
+    // Token fetch failed (err: ${err instanceof Error ? err.message : 'unknown'})
     return null
   }
 }
@@ -619,7 +620,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
@@ -678,7 +679,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
       ndviCurrent = modeled.current
       dnbrCurrent = getModeledDnbr(monthsSinceFire, phase)
     }
-  } catch {
+  } catch (err) {
+    // Satellite data fetch failed (err: ${err instanceof Error ? err.message : 'unknown'})
     const modeled = getModeledNdvi(monthsSinceFire, phase)
     ndviCurrent = modeled.current
     dnbrCurrent = getModeledDnbr(monthsSinceFire, phase)
@@ -712,7 +714,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     } else {
       soilOrganicCarbon = getModeledSoilCarbon(monthsSinceFire)
     }
-  } catch {
+  } catch (err) {
+    // Soil data fetch failed (err: ${err instanceof Error ? err.message : 'unknown'})
     soilOrganicCarbon = getModeledSoilCarbon(monthsSinceFire)
   }
 
@@ -749,7 +752,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
       avgTemperature = fallback.temperature
       recentRainfall = fallback.rainfall
     }
-  } catch {
+  } catch (err) {
+    // Weather data fetch failed (err: ${err instanceof Error ? err.message : 'unknown'})
     const fallback = getModeledWeather()
     avgTemperature = fallback.temperature
     recentRainfall = fallback.rainfall
@@ -780,8 +784,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
         sarVvDb = vvStats.mean
       }
     }
-  } catch {
-    // SAR data optional — continue without it
+  } catch (err) {
+    // SAR data optional — continue without it (err: ${err instanceof Error ? err.message : 'unknown'})
   }
 
   // ---- Step 4c: NASA FIRMS fire verification (optional) ----
@@ -804,8 +808,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
       firmsActiveFires = Math.max(0, lines.length - 1) // Subtract header
       firmsVerified = true
     }
-  } catch {
-    // FIRMS is optional — continue without it
+  } catch (err) {
+    // FIRMS is optional — continue without it (err: ${err instanceof Error ? err.message : 'unknown'})
   }
 
   // ---- Step 5: Estimate tree survival and carbon sequestration ----

@@ -165,7 +165,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   const network = getNetwork({
     chainFamily: 'evm',
     chainSelectorName: config.chainName,
-    isTestnet: true,
+    isTestnet: !config.chainName.includes('mainnet'),
   })
 
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
@@ -257,8 +257,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       const ndviData = JSON.parse(ndviResponse.body)
       ndviCurrent = ndviData.averageNdvi ?? ndviData.ndvi ?? 0.52
     }
-  } catch {
-    // Use simulated fallback
+  } catch (err) {
+    // Use simulated fallback (err: ${err instanceof Error ? err.message : 'unknown'})
     ndviCurrent = 0.52
   }
 
@@ -278,7 +278,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       const socRaw = soilData.properties?.layers?.[0]?.depths?.[0]?.values?.mean ?? 0
       if (socRaw > 0) soilOrganicCarbon = socRaw / 10
     }
-  } catch {
+  } catch (err) {
+    // Fallback: use Mediterranean region average (err: ${err instanceof Error ? err.message : 'unknown'})
     soilOrganicCarbon = 45
   }
 
@@ -296,7 +297,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       treeCanopyCover = gfwData.data?.attributes?.treecover ?? 28
       treeCoverChange = gfwData.data?.attributes?.treecoverChange ?? 5
     }
-  } catch {
+  } catch (err) {
+    // Fallback: use default tree cover data (err: ${err instanceof Error ? err.message : 'unknown'})
     treeCanopyCover = 28
     treeCoverChange = 5
   }
@@ -399,8 +401,8 @@ Respond ONLY with a valid JSON object (no markdown, no explanation outside JSON)
     } else {
       throw new Error('Empty LLM response')
     }
-  } catch {
-    // Heuristic fallback if LLM is unavailable
+  } catch (err) {
+    // Heuristic fallback if LLM is unavailable (err: ${err instanceof Error ? err.message : 'unknown'})
     llmUsed = false
     if (evidence.ndviChange > 0.1 && evidence.treeCoverChange > 2) {
       verificationStatus = VerificationStatus.REGENERATING
