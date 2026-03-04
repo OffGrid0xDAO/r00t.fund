@@ -22,8 +22,19 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
+import {
+  Prover,
+  loadCircuitArtifacts,
+  MerkleTree,
+  hashCommitment,
+  hashNullifier,
+  randomFieldElement,
+} from '@r00t-fund/sdk';
 import { PRICE_CONSTANTS } from './config';
 import type { BotConfig, Commitment, ArbitrageOpportunity } from './types';
+
+// Path to compiled circuit artifacts
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || '../../circuits/build';
 
 interface Inventory {
   // Public side (Uniswap ready)
@@ -67,6 +78,9 @@ export class InstantArbitrageBot {
     merkleRoot: bigint;
     commitment: Commitment;
   }> = new Map();
+
+  // ZK prover instance (loaded lazily)
+  private prover: Prover | null = null;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -251,10 +265,10 @@ export class InstantArbitrageBot {
   ): Promise<{ success: boolean; ethSpent: bigint; txHash?: string }> {
     try {
       // Generate new commitment for the tokens we're buying
-      const nullifier = this.randomFieldElement();
-      const secret = this.randomFieldElement();
+      const nullifier = this._randomFieldElement();
+      const secret = this._randomFieldElement();
       const expectedTokens = (ethAmount * expectedPrice) / PRICE_CONSTANTS.PRECISION;
-      const commitment = this.hashCommitment(nullifier, secret, expectedTokens);
+      const commitment = this._hashCommitment(nullifier, secret, expectedTokens);
 
       const minTokensOut = (expectedTokens * 99n) / 100n;
 
@@ -389,35 +403,99 @@ export class InstantArbitrageBot {
   }
 
   /**
+   * Ensure the ZK prover is loaded (lazy initialization)
+   */
+  private async ensureProver(): Promise<Prover> {
+    if (this.prover) return this.prover;
+    console.log('Loading ZK circuit artifacts...');
+    const artifacts = await loadCircuitArtifacts(CIRCUITS_PATH);
+    this.prover = new Prover(artifacts);
+    console.log('✅ ZK prover ready');
+    return this.prover;
+  }
+
+  /**
+   * Fetch all on-chain commitments for Merkle tree construction
+   */
+  private async fetchOnChainCommitments(): Promise<{ commitment: bigint; leafIndex: number }[]> {
+    const logs = await this.publicClient.getLogs({
+      address: this.config.darkPoolAddress as `0x${string}`,
+      event: {
+        type: 'event',
+        name: 'NewCommitment',
+        inputs: [
+          { type: 'uint256', name: 'commitment', indexed: false },
+          { type: 'uint256', name: 'leafIndex', indexed: false },
+          { type: 'bytes', name: 'encryptedNote', indexed: false },
+        ],
+      },
+      fromBlock: 0n,
+      toBlock: 'latest',
+    });
+
+    return logs.map(log => ({
+      commitment: (log.args as any).commitment as bigint,
+      leafIndex: Number((log.args as any).leafIndex),
+    }));
+  }
+
+  /**
    * PRE-COMPUTE proofs in background for instant use later
    * This is the key optimization - we generate proofs BEFORE we need them
    */
   private async precomputeProof(commitment: Commitment): Promise<void> {
-    console.log('🔄 Pre-computing proof for commitment...');
+    console.log('🔄 Pre-computing sell proof for commitment...');
 
-    // In production, this would call the actual ZK prover
-    // The proof generation happens in background, not blocking trades
-
+    // Generate proofs in background, not blocking trades
     setTimeout(async () => {
       try {
-        // Fetch current merkle root
-        const merkleRoot = 1n; // Would fetch actual root
+        const prover = await this.ensureProver();
 
-        // Generate nullifier hash
-        const nullifierHash = this.hashNullifier(commitment.nullifier, commitment.leafIndex);
+        // Fetch all on-chain commitments to build Merkle tree
+        const allCommitments = await this.fetchOnChainCommitments();
 
-        // Generate ZK proof (this is the slow part - but it's async!)
-        const proof = await this.generateProof(commitment, merkleRoot);
+        // Build Merkle tree
+        const tree = new MerkleTree(24);
+        for (const c of allCommitments) {
+          tree.insertAt(c.leafIndex, c.commitment);
+        }
+
+        // Get merkle proof for this commitment
+        const merkleProof = tree.getProof(commitment.leafIndex);
+
+        // Compute nullifier hash using Poseidon (matches the circuit)
+        const nullifierHashValue = hashNullifier(commitment.nullifier, commitment.leafIndex);
+
+        // Generate real Groth16 sell proof
+        const proofResult = await prover.proveSell({
+          merkleRoot: merkleProof.root,
+          nullifierHash: nullifierHashValue,
+          tokenAmount: commitment.amount,
+          minEthOut: 0n,
+          recipient: this.account.address,
+          relayer: '0x0000000000000000000000000000000000000000',
+          fee: 0n,
+          changeCommitment: 0n,
+          nullifier: commitment.nullifier,
+          secret: commitment.secret,
+          amount: commitment.amount,
+          pathElements: merkleProof.pathElements,
+          pathIndices: merkleProof.pathIndices,
+          changeNullifier: 0n,
+          changeSecret: 0n,
+        });
+
+        const proof = Prover.formatProofForSolidity(proofResult.proof);
 
         // Store for instant use
         this.precomputedProofs.set(commitment.commitment, {
           proof,
-          nullifierHash,
-          merkleRoot,
+          nullifierHash: nullifierHashValue,
+          merkleRoot: merkleProof.root,
           commitment,
         });
 
-        console.log('✅ Proof pre-computed and ready');
+        console.log('✅ Real Groth16 proof pre-computed and ready');
       } catch (error) {
         console.error('Proof pre-computation failed:', error);
       }
@@ -443,11 +521,39 @@ export class InstantArbitrageBot {
   }
 
   /**
-   * Generate ZK proof (would call actual prover)
+   * Generate a real Groth16 sell proof for a commitment
    */
-  private async generateProof(commitment: Commitment, merkleRoot: bigint): Promise<bigint[]> {
-    // Mock proof - in production use snarkjs or similar
-    return [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n];
+  private async generateProof(commitment: Commitment): Promise<bigint[]> {
+    const prover = await this.ensureProver();
+    const allCommitments = await this.fetchOnChainCommitments();
+
+    const tree = new MerkleTree(24);
+    for (const c of allCommitments) {
+      tree.insertAt(c.leafIndex, c.commitment);
+    }
+
+    const merkleProof = tree.getProof(commitment.leafIndex);
+    const nullifierHashValue = hashNullifier(commitment.nullifier, commitment.leafIndex);
+
+    const proofResult = await prover.proveSell({
+      merkleRoot: merkleProof.root,
+      nullifierHash: nullifierHashValue,
+      tokenAmount: commitment.amount,
+      minEthOut: 0n,
+      recipient: this.account.address,
+      relayer: '0x0000000000000000000000000000000000000000',
+      fee: 0n,
+      changeCommitment: 0n,
+      nullifier: commitment.nullifier,
+      secret: commitment.secret,
+      amount: commitment.amount,
+      pathElements: merkleProof.pathElements,
+      pathIndices: merkleProof.pathIndices,
+      changeNullifier: 0n,
+      changeSecret: 0n,
+    });
+
+    return Prover.formatProofForSolidity(proofResult.proof);
   }
 
   /**
@@ -526,36 +632,17 @@ export class InstantArbitrageBot {
     console.log(`  Private Balance: ${Number(this.inventory.privateTotalBalance) / 1e18}`);
   }
 
-  // Helper functions
-  private randomFieldElement(): bigint {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    let value = 0n;
-    for (let i = 0; i < 32; i++) {
-      value = (value << 8n) + BigInt(bytes[i]);
-    }
-    const FIELD_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
-    return value % FIELD_PRIME;
+  // Helper functions — use SDK's Poseidon hashing (matches ZK circuits)
+  private _randomFieldElement(): bigint {
+    return randomFieldElement();
   }
 
-  private hashCommitment(nullifier: bigint, secret: bigint, amount: bigint): bigint {
-    const { keccak256, encodeAbiParameters } = require('viem');
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, secret, amount]
-    );
-    const FIELD_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
-    return BigInt(keccak256(encoded)) % FIELD_PRIME;
+  private _hashCommitment(nullifier: bigint, secret: bigint, amount: bigint): bigint {
+    return hashCommitment(nullifier, secret, amount);
   }
 
-  private hashNullifier(nullifier: bigint, leafIndex: number): bigint {
-    const { keccak256, encodeAbiParameters } = require('viem');
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, BigInt(leafIndex)]
-    );
-    const FIELD_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
-    return BigInt(keccak256(encoded)) % FIELD_PRIME;
+  private _hashNullifier(nullifier: bigint, leafIndex: number): bigint {
+    return hashNullifier(nullifier, leafIndex);
   }
 }
 

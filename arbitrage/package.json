@@ -24,6 +24,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@r00t-fund/sdk": "workspace:*",
     "viem": "^2.21.0",
     "uuid": "^9.0.0"
   },

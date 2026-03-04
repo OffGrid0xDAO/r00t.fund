@@ -6,14 +6,22 @@ import {
   type PublicClient,
   type WalletClient,
   type Account,
-  keccak256,
-  encodeAbiParameters,
-  toBytes,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
+import {
+  Prover,
+  loadCircuitArtifacts,
+  MerkleTree,
+  hashCommitment as poseidonHashCommitment,
+  hashNullifier as poseidonHashNullifier,
+  randomFieldElement,
+} from '@r00t-fund/sdk';
 import { DARK_POOL_CONSTANTS, PRICE_CONSTANTS } from './config';
 import type { ArbitrageOpportunity, ExecutionResult, Commitment, BotConfig } from './types';
+
+// Path to compiled circuit artifacts
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || '../../circuits/build';
 
 // ABIs
 const ZKAMM_ABI = parseAbi([
@@ -51,6 +59,9 @@ export class ArbitrageExecutor {
 
   // Commitment tracking for private balances
   private commitments: Map<string, Commitment[]> = new Map();
+
+  // ZK prover instance (loaded lazily)
+  private prover: Prover | null = null;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -274,30 +285,86 @@ export class ArbitrageExecutor {
   }
 
   /**
-   * Withdraw tokens from dark pool to public address
+   * Ensure the ZK prover is loaded (lazy initialization)
+   */
+  private async ensureProver(): Promise<Prover> {
+    if (this.prover) return this.prover;
+    console.log('Loading ZK circuit artifacts...');
+    const artifacts = await loadCircuitArtifacts(CIRCUITS_PATH);
+    this.prover = new Prover(artifacts);
+    console.log('✅ ZK prover ready');
+    return this.prover;
+  }
+
+  /**
+   * Fetch all on-chain commitments for Merkle tree construction
+   */
+  private async fetchOnChainCommitments(): Promise<{ commitment: bigint; leafIndex: number }[]> {
+    const logs = await this.publicClient.getLogs({
+      address: this.config.darkPoolAddress as `0x${string}`,
+      event: {
+        type: 'event',
+        name: 'NewCommitment',
+        inputs: [
+          { type: 'uint256', name: 'commitment', indexed: false },
+          { type: 'uint256', name: 'leafIndex', indexed: false },
+          { type: 'bytes', name: 'encryptedNote', indexed: false },
+        ],
+      },
+      fromBlock: 0n,
+      toBlock: 'latest',
+    });
+
+    return logs.map(log => ({
+      commitment: (log.args as any).commitment as bigint,
+      leafIndex: Number((log.args as any).leafIndex),
+    }));
+  }
+
+  /**
+   * Withdraw tokens from dark pool to public address using real ZK proof
    */
   private async withdrawFromDarkPool(
     amount: bigint,
     nullifier: bigint,
-    secret: bigint
+    secret: bigint,
+    leafIndex: number = 0
   ): Promise<ExecutionResult> {
-    // Generate ZK proof for withdrawal
-    // In production, this would call the actual ZK prover
-    const mockProof: [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] = [
-      1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n,
-    ];
-
-    const merkleRoot = 1n; // Would fetch actual root
-    const nullifierHash = this.generateNullifierHash(nullifier, 0);
-
     try {
+      const prover = await this.ensureProver();
+
+      // Fetch all on-chain commitments and build Merkle tree
+      const allCommitments = await this.fetchOnChainCommitments();
+      const tree = new MerkleTree(24);
+      for (const c of allCommitments) {
+        tree.insertAt(c.leafIndex, c.commitment);
+      }
+
+      // Get merkle proof for this commitment
+      const merkleProof = tree.getProof(leafIndex);
+      const nullifierHashValue = poseidonHashNullifier(nullifier, leafIndex);
+
+      // Generate real Groth16 withdraw proof
+      const proofResult = await prover.proveWithdraw({
+        merkleRoot: merkleProof.root,
+        nullifierHash: nullifierHashValue,
+        amount,
+        recipient: this.account.address,
+        nullifier,
+        secret,
+        pathElements: merkleProof.pathElements,
+        pathIndices: merkleProof.pathIndices,
+      });
+
+      const proof = Prover.formatProofForSolidity(proofResult.proof) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+
       const hash = await this.walletClient.writeContract({
         address: this.config.darkPoolAddress as `0x${string}`,
         abi: parseAbi([
           'function withdrawPublic(uint256[8] proof, uint256 merkleRoot, uint256 nullifierHash, uint256 amount, address recipient) external',
         ]),
         functionName: 'withdrawPublic',
-        args: [mockProof, merkleRoot, nullifierHash, amount, this.account.address],
+        args: [proof, merkleProof.root, nullifierHashValue, amount, this.account.address],
       });
 
       const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
@@ -323,55 +390,40 @@ export class ArbitrageExecutor {
     nullifier: bigint;
     secret: bigint;
   } {
-    const nullifier = this.randomFieldElement();
-    const secret = this.randomFieldElement();
+    const nullifier = randomFieldElement();
+    const secret = randomFieldElement();
     const commitment = this.hashCommitment(nullifier, secret, amount);
 
     return { commitment, nullifier, secret };
   }
 
   /**
-   * Hash commitment
+   * Hash commitment using Poseidon (matches ZK circuits)
    */
   private hashCommitment(nullifier: bigint, secret: bigint, amount: bigint): bigint {
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, secret, amount]
-    );
-    const hash = keccak256(encoded);
-    return BigInt(hash) % DARK_POOL_CONSTANTS.FIELD_PRIME;
+    return poseidonHashCommitment(nullifier, secret, amount);
   }
 
   /**
-   * Generate nullifier hash
+   * Generate nullifier hash using Poseidon (matches ZK circuits)
    */
   private generateNullifierHash(nullifier: bigint, leafIndex: number): bigint {
-    const encoded = encodeAbiParameters(
-      [{ type: 'uint256' }, { type: 'uint256' }],
-      [nullifier, BigInt(leafIndex)]
-    );
-    const hash = keccak256(encoded);
-    return BigInt(hash) % DARK_POOL_CONSTANTS.FIELD_PRIME;
+    return poseidonHashNullifier(nullifier, leafIndex);
   }
 
   /**
    * Generate random field element
    */
-  private randomFieldElement(): bigint {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    let value = 0n;
-    for (let i = 0; i < 32; i++) {
-      value = (value << 8n) + BigInt(bytes[i]);
-    }
-    return value % DARK_POOL_CONSTANTS.FIELD_PRIME;
+  private _randomFieldElement(): bigint {
+    return randomFieldElement();
   }
 
   /**
    * Encrypt note for recipient
    */
   private encryptNote(nullifier: bigint, secret: bigint, amount: bigint): string {
-    // Simplified - in production use proper encryption
+    // Note encryption uses keccak256 for the encrypted blob (not for circuit hashing)
+    const { keccak256, encodeAbiParameters } = require('viem');
     const noteData = encodeAbiParameters(
       [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
       [nullifier, secret, amount]
