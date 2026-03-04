@@ -599,6 +599,74 @@ Sybil-resistant identity verification for proposal creation. The World ID Router
 
 ---
 
+### Cross-Workflow Orchestration
+
+The 8 CRE workflows are not isolated — they form an interconnected verification network where each workflow consumes data produced by others. This is what makes R00t.fund a unified protocol rather than 8 independent demos.
+
+<p align="center">
+  <img src="cre-workflows/diagrams/orchestration-overview.svg" alt="Cross-Workflow Orchestration Overview" width="100%"/>
+</p>
+
+#### Data Flow Map
+
+| Source | Destination | Data | Purpose |
+|--------|-------------|------|---------|
+| **W1** Carbon Credit | **W2** Proof of Reserve | `getProjectAttestation()` — verified carbon credits + impact score | PoR includes carbon credit value in TVL calculation, making reserves backed by verified environmental impact |
+| **W3** AI Validator | **W5** Health Monitor | `getLatestAnalysis()` — AI risk level (0-4) | If AI detects ecological degradation (risk >= ELEVATED), protocol health score increases by +15 points |
+| **W3** AI Validator | **W1** Carbon Credit | AI verification verdict | AI-powered MRV feeds into carbon credit attribution — projects must pass AI validation before credits are issued |
+| **W1** Carbon Credit | **W5** Health Monitor | `getProjectAttestation()` — verified regen status | Verified high-impact regeneration projects reduce protocol risk score by -5 (positive ecosystem signal) |
+| **W7** Serra da Estrela | **W4** Prediction Markets | `getLatestReport()` — NDVI recovery, fire recovery index, carbon credits | Environmental outcome markets settle using real satellite data from the Serra da Estrela data feed |
+| **W7** Serra da Estrela | **W3** AI Validator | Satellite NDVI, burn severity, soil data | AI validator uses W7's environmental data as ground truth for regeneration assessment |
+| **W8** World ID | **Governance** | `isVerified(address)` — sybil resistance | Only World ID-verified humans can create governance proposals, preventing Sybil attacks on the launchpad |
+
+#### How It Works
+
+The cross-workflow data flows happen through **shared on-chain state** — each workflow writes its results to a contract, and other workflows read from those same contracts via `EVMClient.callContract`. There is no direct workflow-to-workflow communication. CRE's deterministic execution model ensures every workflow reads consistent, finalized state from the chain.
+
+```
+W7 (Serra da Estrela)                    W3 (AI Validator)
+  │ publishes satellite data                │ reads W7 data + runs LLM
+  │ to SerraEstrelaNativeForest             │ writes verdict to
+  │                                         │ AIAgentOrchestrator
+  ▼                                         ▼
+W4 (Prediction Markets)              W1 (Carbon Credit)          W5 (Health Monitor)
+  reads W7 data to settle               reads AI verdict            reads W3 risk level
+  environmental outcome markets         for credit attribution       reads W1 attestation
+                                        │                           computes composite risk
+                                        ▼
+                                   W2 (Proof of Reserve)
+                                     reads W1 attestation
+                                     includes carbon credits in TVL
+```
+
+**External data sources** feed into this network from outside the chain:
+
+| Source | Workflows | Data |
+|--------|:---------:|------|
+| Copernicus Sentinel-2 | W7, W3 | NDVI vegetation index, dNBR burn severity |
+| ISRIC SoilGrids | W7, W3 | Soil organic carbon (tC/ha) |
+| Global Forest Watch | W3 | Tree canopy cover and change detection |
+| Open-Meteo | W7 | Temperature, precipitation, fire weather index |
+| Groq (Llama 3.3 70B) | W3 | LLM-powered ecological assessment |
+| Worldcoin Cloud API | W8 | World ID proof verification |
+| Verra / Gold Standard | W1, W4 | Carbon credit registry verification |
+| EU ETS / SENDECO2 | W1, W2 | Carbon credit pricing |
+
+#### Contract Address Sharing
+
+The cross-workflow integration is configured through shared contract addresses in each workflow's config:
+
+| Contract | Deployed On | Read By |
+|----------|-------------|---------|
+| `ConfidentialFundingVault` (`0x6840...`) | W1 writes attestations | W2 reads carbon credits, W5 reads regen status |
+| `AIAgentOrchestrator` (`0xE9D7...`) | W3 writes AI verdicts | W5 reads AI risk level |
+| `SerraEstrelaNativeForest` (`0xc7bC...`) | W7 writes satellite data | W4 reads for market settlement |
+| `WorldIDGatekeeper` (`0x512d...`) | W8 writes verification results | `LaunchpadGovernance` checks before proposal creation |
+
+All cross-workflow reads use `EVMClient.callContract` with `LAST_FINALIZED_BLOCK_NUMBER` to ensure data consistency across the network. Workflows that fail to read cross-workflow data (contract unavailable, no data yet) gracefully fall back to independent operation — the system degrades without breaking.
+
+---
+
 ## Privacy Infrastructure
 
 R00t.fund's privacy layer is built on ZK-SNARK proofs with a UTXO commitment model:
