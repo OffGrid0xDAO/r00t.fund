@@ -13,23 +13,26 @@ interface WizardStepperProps {
   currentStep: WizardStep;
   onStepClick: (step: WizardStep) => void;
   completedSteps: Set<number>;
+  lockedBefore?: number;
 }
 
-export function WizardStepper({ currentStep, onStepClick, completedSteps }: WizardStepperProps) {
+export function WizardStepper({ currentStep, onStepClick, completedSteps, lockedBefore }: WizardStepperProps) {
   return (
     <div className="flex items-center justify-between mb-8 px-2">
       {STEPS.map((step, idx) => {
         const stepIndex = idx as WizardStep;
         const isActive = currentStep === stepIndex;
         const isCompleted = completedSteps.has(stepIndex);
+        const isLocked = lockedBefore !== undefined && idx >= lockedBefore && !isCompleted;
         const isFuture = !isActive && !isCompleted;
 
         return (
           <div key={step.num} className="flex items-center flex-1 last:flex-none">
             {/* Step circle */}
             <button
-              onClick={() => onStepClick(stepIndex)}
-              className="relative flex flex-col items-center gap-1.5 group"
+              onClick={() => !isLocked && onStepClick(stepIndex)}
+              className={`relative flex flex-col items-center gap-1.5 group ${isLocked ? 'cursor-not-allowed opacity-40' : ''}`}
+              disabled={isLocked}
             >
               <motion.div
                 animate={{

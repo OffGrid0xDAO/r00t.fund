@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, keccak256, toBytes } from 'viem';
@@ -57,6 +57,14 @@ export function CreateProposalWizard({
 
   const wizard = useWizardState();
   const [direction, setDirection] = useState(0); // -1 = back, 1 = forward
+
+  // Auto-advance from World ID step after successful verification
+  useEffect(() => {
+    if (worldIdVerified && wizard.currentStep === 0) {
+      setDirection(1);
+      wizard.nextStep();
+    }
+  }, [worldIdVerified]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const completedSteps = useMemo(() => {
     const set = new Set<number>();
@@ -202,10 +210,13 @@ export function CreateProposalWizard({
       <WizardStepper
         currentStep={wizard.currentStep}
         onStepClick={(step) => {
+          // Block navigation to later steps if World ID not yet verified
+          if (worldIdEnabled && !worldIdVerified && step > 0) return;
           setDirection(step > wizard.currentStep ? 1 : -1);
           wizard.goToStep(step);
         }}
         completedSteps={completedSteps}
+        lockedBefore={worldIdEnabled && !worldIdVerified ? 1 : undefined}
       />
 
       <AnimatePresence mode="wait" custom={direction}>
