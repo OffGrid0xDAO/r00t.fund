@@ -265,6 +265,7 @@ contract ZkAMMRouter is ReentrancyGuard {
 
         emit SoldToRailgun(nullifierHash, tokenAmount, ethAfterFees, railgunNpk);
 
+        uint256 routerBalanceBefore = address(this).balance;
         pair.sendETH(address(this), ethAfterFees);
 
         IRailgunProxy.ShieldRequest[] memory shieldRequests = new IRailgunProxy.ShieldRequest[](1);
@@ -274,6 +275,11 @@ contract ZkAMMRouter is ReentrancyGuard {
         // User should use sellPrivate() instead if Railgun is unavailable.
         // Sending to msg.sender (relayer) would misdirect funds.
         IRailgunProxy(railgunProxyAddr).shield{value: ethAfterFees}(shieldRequests);
+
+        // SECURITY FIX (Vuln 10): Verify Railgun consumed the ETH.
+        // If shield() returns success without consuming msg.value, ETH would be stuck
+        // in the Router with no way for the user to recover it.
+        if (address(this).balance > routerBalanceBefore) revert TransferFailed();
     }
 
     // ============ Transfer Functions ============
@@ -482,11 +488,13 @@ contract ZkAMMRouter is ReentrancyGuard {
 
         if (calculatedLpShares == 0) revert InvalidLPShares();
 
-        // SECURITY: Only enforce upper bound - user cannot claim MORE than calculated (prevents inflation)
-        // No minimum tolerance needed: if user commits to fewer shares due to race condition between
-        // proof generation and tx execution, they only hurt themselves (get less withdrawal + fewer fees)
-        // This eliminates the race condition issue without any tolerance requirement
+        // SECURITY FIX (Vuln 4): Enforce both upper AND lower bounds on LP shares.
+        // Upper bound: user cannot claim MORE than calculated (prevents direct inflation).
+        // Lower bound (95%): prevents LP share donation attack where attacker deposits large
+        // ETH+tokens claiming minimal shares, inflating value of existing LP positions,
+        // then extracts amplified value from their other LP commitments.
         if (userLpShares > calculatedLpShares) revert InvalidLPShares();
+        if (userLpShares < (calculatedLpShares * 95) / 100) revert InvalidLPShares();
 
         (, , , bool isWithdrawn, ) = pair.getLPCommitmentInfo(lpCommitment);
 

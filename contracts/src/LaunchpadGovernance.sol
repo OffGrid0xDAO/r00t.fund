@@ -356,6 +356,10 @@ contract LaunchpadGovernance {
 
         // SECURITY FIX (Vuln 16): Use deterministic voteBinding without block.number
         // block.number is unpredictable at proof generation time, causing valid votes to fail
+        // TODO (Vuln 9): Include nullifierHash in binding to prevent proof transfer / vote buying.
+        //   Change to: keccak256(abi.encodePacked(nullifierHash, msg.sender, proposalId))
+        //   This requires updating the vote circuit to match the new binding computation.
+        //   Without this, a user can generate a proof and hand it to a vote-buying market contract.
         uint256 voteBinding = uint256(keccak256(abi.encodePacked(msg.sender, proposalId))) % SNARK_SCALAR_FIELD;
         uint256[6] memory pubSignals = [
             proposalId, merkleRoot, nullifierHash, voteWeight, support ? uint256(1) : uint256(0), voteBinding

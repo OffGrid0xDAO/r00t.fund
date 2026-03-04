@@ -60,6 +60,14 @@ contract RegenPredictionMarket is R00tCREReceiver {
     /// @notice Platform treasury for fees
     address public treasury;
 
+    /// @notice SECURITY FIX (Vuln 6): Dispute period before payouts are claimable (TESTNET: 5 minutes)
+    /// @dev Prevents single DON forwarder from settling markets with fabricated outcomes.
+    ///      Owner can dispute within this window to override resolution.
+    uint256 public constant DISPUTE_PERIOD = 5 minutes; // TESTNET: Changed from 24 hours for testing
+
+    /// @notice Timestamp when each market was resolved
+    mapping(uint256 => uint256) public marketResolvedAt;
+
     // ============ Events ============
 
     event MarketCreated(
@@ -109,6 +117,9 @@ contract RegenPredictionMarket is R00tCREReceiver {
     error MarketNotResolved();
     error NoPayout();
     error InvalidMarket();
+    error DisputePeriodActive();
+    error DisputeWindowClosed();
+    error MarketNotDisputable();
 
     // ============ Constructor ============
 
@@ -251,7 +262,25 @@ contract RegenPredictionMarket is R00tCREReceiver {
         market.actualValue = actualValue;
         market.proofHash = proofHash;
 
+        // SECURITY FIX (Vuln 6): Record resolution timestamp for dispute period
+        marketResolvedAt[marketId] = block.timestamp;
+
         emit MarketResolved(marketId, Outcome(outcome), actualValue, proofHash);
+    }
+
+    /// @notice SECURITY FIX (Vuln 6): Owner can dispute a resolution within the dispute period
+    /// @dev Reverts market to RESOLUTION_REQUESTED so CRE DON can re-resolve with correct data
+    /// @param marketId Market to dispute
+    function disputeResolution(uint256 marketId) external onlyOwner {
+        Market storage market = markets[marketId];
+        if (market.status != MarketStatus.RESOLVED) revert MarketNotDisputable();
+        if (block.timestamp >= marketResolvedAt[marketId] + DISPUTE_PERIOD) revert DisputeWindowClosed();
+
+        market.status = MarketStatus.RESOLUTION_REQUESTED;
+        market.outcome = Outcome.UNRESOLVED;
+        market.actualValue = 0;
+        market.proofHash = bytes32(0);
+        marketResolvedAt[marketId] = 0;
     }
 
     /// @notice Claim payout from a resolved market
@@ -260,6 +289,8 @@ contract RegenPredictionMarket is R00tCREReceiver {
     function claimPayout(uint256 marketId) external returns (uint256 payout) {
         Market storage market = markets[marketId];
         if (market.status != MarketStatus.RESOLVED) revert MarketNotResolved();
+        // SECURITY FIX (Vuln 6): Enforce dispute period before payouts
+        if (block.timestamp < marketResolvedAt[marketId] + DISPUTE_PERIOD) revert DisputePeriodActive();
         if (hasClaimed[marketId][msg.sender]) revert AlreadyClaimed();
 
         bool isPositiveOutcome = market.outcome == Outcome.POSITIVE;

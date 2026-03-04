@@ -105,6 +105,11 @@ contract WorldIDGatekeeper is R00tCREReceiver {
     /// @param proof World ID ZK proof (8 uint256s)
     /// @param verificationLevel "orb" or "device"
     /// @return requestId The ID of the verification request
+    /// @dev PRIVACY NOTE (Vuln 5): Proof data (nullifierHash, merkleRoot, proof[8]) is stored
+    ///      on-chain BEFORE CRE verification. The nullifierHash is derived from the user's World ID
+    ///      identity — storing it permanently associates msg.sender with a World ID, even for rejected
+    ///      requests. For production, consider a commit-reveal scheme where proof data is only
+    ///      submitted to CRE DON off-chain.
     function requestVerification(
         bytes32 nullifierHash,
         bytes32 merkleRoot,

@@ -156,7 +156,21 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         uint256 maxOI = (tokenReserve * maxOpenInterestBps) / FEE_DENOMINATOR;
         if (totalOpenInterest + tokensToShort > maxOI) revert OpenInterestLimitExceeded();
 
-        // ============ INTERACTIONS (before state changes for reentrancy safety) ============
+        // ============ EFFECTS (before interactions - checks-effects-interactions pattern) ============
+        // SECURITY FIX (Vuln 7): Move state updates before external call to prevent
+        // stale reads of totalOpenInterest/openPositionCount during sellTokensForShorts()
+
+        // Create position (ethFromSale updated after interaction)
+        positionId = nextPositionId++;
+        positionOwner[positionId] = msg.sender;
+        _userPositions[msg.sender].push(positionId);
+
+        // Update global state that's known pre-interaction
+        totalOpenInterest += tokensToShort;
+        accumulatedFees += fee;
+        openPositionCount++;
+
+        // ============ INTERACTIONS ============
 
         // Execute REAL sell: ROOT tokens → Pool → ETH
         // SECURITY FIX (M-9): Approve only needed amount per operation instead of max
@@ -168,11 +182,9 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         uint256 actualReceived = address(this).balance - balanceBefore;
         if (actualReceived < ethFromSale) revert InsufficientReserves();
 
-        // ============ EFFECTS ============
+        // ============ POST-INTERACTION STATE UPDATES ============
 
-        // Create position
-        positionId = nextPositionId++;
-
+        // Now that we know ethFromSale, finalize the position and collateral tracking
         _positions[positionId] = ShortPosition({
             ethCollateral: collateral,
             ethFromSale: ethFromSale,         // Actual ETH received from selling tokens
@@ -182,14 +194,7 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
             isOpen: true
         });
 
-        positionOwner[positionId] = msg.sender;
-        _userPositions[msg.sender].push(positionId);
-
-        // Update global state
-        totalOpenInterest += tokensToShort;
         totalCollateralLocked += collateral + ethFromSale; // Holds REAL 2x ETH
-        accumulatedFees += fee;
-        openPositionCount++;
 
         emit ShortOpened(
             positionId,
@@ -278,6 +283,10 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     /// @notice Liquidate an underwater position with REAL token buyback
     /// @param positionId The position to liquidate
     /// @param maxRepurchaseCost Maximum ETH to spend buying back tokens (slippage protection)
+    /// @dev SECURITY NOTE (Vuln 1): Liquidation bonus is calculated using repurchaseCost from pre-swap
+    ///      reserves. The actual swap may have different price impact, but since maxRepurchaseCost
+    ///      provides slippage protection and actualRepurchaseCost is capped at totalHeld, the
+    ///      liquidator bonus may be slightly inaccurate but funds are not at risk.
     function liquidate(uint256 positionId, uint256 maxRepurchaseCost) external nonReentrant {
         ShortPosition storage position = _positions[positionId];
 

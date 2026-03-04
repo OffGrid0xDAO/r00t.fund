@@ -349,7 +349,10 @@ contract CompliantPrivateVault is R00tCREReceiver {
         }
 
         _recordReport();
-        req.status = RequestStatus.AUTHORIZED;
+        // SECURITY FIX (Vuln 3): Don't set AUTHORIZED before external call.
+        // If buyPrivate() reverts, the entire tx reverts anyway (no stale status).
+        // If buyPrivate() succeeds, we go straight to EXECUTED below.
+        // This eliminates the window where status=AUTHORIZED but buy hasn't completed.
 
         // Forward escrowed ETH to ZkAMMRouter.buyPrivate()
         (bool success, bytes memory result) = zkAMMRouter.call{value: req.amount}(

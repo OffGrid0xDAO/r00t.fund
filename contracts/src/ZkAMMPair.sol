@@ -296,6 +296,10 @@ contract ZkAMMPair is ReentrancyGuard {
     /// @param ethDelta ETH amount to add (positive) or remove (negative via separate param)
     /// @param tokenDelta Token amount change
     /// @param isEthIn True if ETH is being added, false if removed
+    /// @dev DESIGN NOTE (Vuln 8): isEthIn acts as a direction flag — when true: ethReserve += ethDelta
+    ///      AND tokenReserve -= tokenDelta. When false: ethReserve -= ethDelta AND tokenReserve += tokenDelta.
+    ///      This bidirectional behavior has caused previous bugs (see removeLiquidity BUGFIX).
+    ///      Consider refactoring into explicit addETH/removeETH/addTokens/removeTokens in production.
     function updateReserves(
         uint256 ethDelta,
         uint256 tokenDelta,
@@ -531,7 +535,11 @@ contract ZkAMMPair is ReentrancyGuard {
 
     /// @notice Send ETH to recipient (for LP withdrawal, sell, etc.)
     /// SECURITY FIX (Vuln 10): Added balance validation as defense-in-depth
-    function sendETH(address recipient, uint256 amount) external onlyRouter {
+    /// @dev SECURITY FIX (Vuln 2): Added nonReentrant to prevent CRE callback reentrancy.
+    ///      Without this, a malicious recipient's receive() could call insertCommitmentFromCRE()
+    ///      (which uses the Pair's reentrancy lock) during ETH transfer, allowing commitment
+    ///      insertion in an inconsistent state.
+    function sendETH(address recipient, uint256 amount) external onlyRouter nonReentrant {
         if (amount > address(this).balance) revert InsufficientETH();
         (bool success, ) = payable(recipient).call{value: amount}("");
         if (!success) revert TransferFailed();
@@ -585,7 +593,8 @@ contract ZkAMMPair is ReentrancyGuard {
     /// @notice Send ETH to shorts contract (for opening shorts)
     /// @param recipient Address to receive ETH (shorts contract)
     /// @param amount Amount of ETH to send
-    function sendETHForShorts(address recipient, uint256 amount) external onlyShorts {
+    /// @dev SECURITY FIX (Vuln 2): Added nonReentrant for defense-in-depth on ETH transfers.
+    function sendETHForShorts(address recipient, uint256 amount) external onlyShorts nonReentrant {
         if (amount > ethReserve - MIN_LIQUIDITY) revert InsufficientLiquidity();
         ethReserve -= amount;
 
