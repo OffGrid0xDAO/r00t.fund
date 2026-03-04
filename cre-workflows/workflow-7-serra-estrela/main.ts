@@ -905,6 +905,20 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const goalsMetCount = goalResults.filter(g => g.status === 'met').length
   const goalsAtRisk = goalResults.filter(g => g.status === 'at_risk')
 
+  // Build structured goal progress report for downstream consumers (W4, frontend)
+  const goalProgressJSON = JSON.stringify({
+    phase,
+    monthsSinceFire: Math.round(monthsSinceFire * 10) / 10,
+    goalsTotal: PROJECT_GOALS.length,
+    goalsMet: goalsMetCount,
+    goalsAtRisk: goalsAtRisk.length,
+    goals: goalResults.map(g => ({
+      id: g.id, title: g.title,
+      progress: Math.round(g.progress),
+      status: g.status,
+    })),
+  })
+
   // ---- Step 8: Encode and push data feed on-chain ----
   const ndviCurrentScaled = BigInt(Math.floor(ndviCurrent * 10000))
   const ndviPreFireScaled = BigInt(Math.floor(ndviPreFire * 10000))
@@ -973,7 +987,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     `${soilMoisture !== null ? `/soil=${soilMoisture.toFixed(3)}` : ''}, ` +
     `goals=${goalsMetCount}/${PROJECT_GOALS.length}met [${goalSummary}]${riskWarning}, ` +
     `sources=[${sources}], ` +
-    `months_since_fire=${monthsSinceFire.toFixed(1)}`
+    `months_since_fire=${monthsSinceFire.toFixed(1)}` +
+    ` goalProgressJSON=${goalProgressJSON}`
 }
 
 // ============ Entry Point ============

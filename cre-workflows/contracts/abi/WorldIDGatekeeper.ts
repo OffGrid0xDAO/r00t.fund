@@ -94,6 +94,18 @@ export const WorldIDGatekeeperABI = [
     stateMutability: "view",
   },
   {
+    type: "function",
+    name: "getVerificationData",
+    inputs: [{ name: "requestId", type: "uint256" }],
+    outputs: [
+      { name: "nullifierHash", type: "bytes32" },
+      { name: "merkleRoot", type: "bytes32" },
+      { name: "proof", type: "uint256[8]" },
+      { name: "verificationLevel", type: "string" },
+    ],
+    stateMutability: "view",
+  },
+  {
     type: "event",
     name: "VerificationRequested",
     inputs: [

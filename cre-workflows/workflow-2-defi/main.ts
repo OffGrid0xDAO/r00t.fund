@@ -44,6 +44,7 @@ import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 import { R00TShortsABI } from '../contracts/abi/R00TShorts'
 import { RegenProofOfReserveABI } from '../contracts/abi/RegenProofOfReserve'
 import { LiquidationExecutorABI } from '../contracts/abi/LiquidationExecutor'
+import { ConfidentialFundingVaultABI } from '../contracts/abi/ConfidentialFundingVault'
 
 // ============ Config Schema ============
 
@@ -348,12 +349,40 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     medianCarbonPrice = carbonPrices[Math.floor(carbonPrices.length / 2)]
   }
 
-  // ---- Step 5: Compute aggregate metrics ----
+  // ---- Step 5: Read verified carbon credits from W1's ConfidentialFundingVault ----
+  let verifiedCarbonCredits = 1
+  try {
+    const attestationCallData = encodeFunctionData({
+      abi: ConfidentialFundingVaultABI,
+      functionName: 'getProjectAttestation',
+      args: [0n],
+    })
+    const attestationResult = evmClient.callContract(runtime, {
+      call: encodeCallMsg({
+        from: zeroAddress,
+        to: config.fundingVaultAddress as Address,
+        data: attestationCallData,
+      }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    }).result()
+    const [impactScore, , , verified] = decodeFunctionResult({
+      abi: ConfidentialFundingVaultABI,
+      functionName: 'getProjectAttestation',
+      data: bytesToHex(attestationResult.data),
+    }) as [bigint, string, bigint, boolean]
+
+    if (verified) {
+      verifiedCarbonCredits = Math.max(1, Number(impactScore) / 100)
+    }
+  } catch {
+    // Attestation not available — fall back to 1 credit
+  }
+
+  // ---- Step 6: Compute aggregate metrics ----
   const ethReserveNum = Number(ethReserve)
   const shortsCollateralNum = Number(shortsCollateral)
 
-  // Carbon credit value in wei (heuristic: 1 verified credit exists at median price)
-  const verifiedCarbonCredits = 1
+  // Carbon credit value in wei (verified credits from W1 at median price)
   const carbonCreditValueWei = BigInt(
     Math.floor(verifiedCarbonCredits * medianCarbonPrice * 1e14)
   )
@@ -372,7 +401,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   // Impact score: 500 default (moderate environmental impact)
   const impactScore = Math.min(1000, Math.max(0, 500))
 
-  // ---- Step 6: Encode and push PoR report ----
+  // ---- Step 7: Encode and push PoR report ----
   const reportPayload = encodeAbiParameters(
     parseAbiParameters('uint256, uint256, uint256, uint256, uint256'),
     [ethReserve, tokenReserve, totalTVL, BigInt(backingRatio), BigInt(impactScore)]
@@ -392,7 +421,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     gasConfig: { gasLimit: config.gasLimit },
   }).result()
 
-  // ---- Step 7: Execute liquidations (conditional) ----
+  // ---- Step 8: Execute liquidations (conditional) ----
   let liqResult = 'no liquidatable positions'
 
   if (liquidatableIds.length > 0 && config.liquidationExecutorAddress) {

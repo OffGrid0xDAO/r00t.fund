@@ -49,6 +49,13 @@ export const AIAgentOrchestratorABI = [
     stateMutability: "view",
   },
   {
+    type: "function",
+    name: "isSafeToTrade",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
     type: "event",
     name: "AIStrategyUpdate",
     inputs: [

@@ -131,31 +131,33 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     // Status 1 = PENDING — only process pending requests
     if (status !== 1) continue
 
-    // ---- Step 2: Read full request details ----
-    const requestCallData = encodeFunctionData({
+    // ---- Step 2: Read full verification data (proof + request details) ----
+    const requestId = BigInt(i)
+
+    const verifyDataCallData = encodeFunctionData({
       abi: WorldIDGatekeeperABI,
-      functionName: 'getRequest',
-      args: [BigInt(i)],
+      functionName: 'getVerificationData',
+      args: [requestId],
     })
-    const requestResult = evmClient.callContract(runtime, {
+    const verifyDataResult = evmClient.callContract(runtime, {
       call: encodeCallMsg({
         from: zeroAddress,
         to: config.worldIdGatekeeperAddress as Address,
-        data: requestCallData,
+        data: verifyDataCallData,
       }),
       blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
     }).result()
 
-    const requestDecoded = decodeFunctionResult({
+    const verifyData = decodeFunctionResult({
       abi: WorldIDGatekeeperABI,
-      functionName: 'getRequest',
-      data: bytesToHex(requestResult.data),
-    }) as any
+      functionName: 'getVerificationData',
+      data: bytesToHex(verifyDataResult.data),
+    }) as [string, string, readonly bigint[], string]
 
-    const nullifierHash = String(requestDecoded[1] ?? requestDecoded.nullifierHash ?? '0x')
-    const verificationLevel = String(requestDecoded[3] ?? requestDecoded.verificationLevel ?? 'orb')
-
-    const requestId = BigInt(i)
+    const nullifierHash = String(verifyData[0])
+    const merkleRoot = String(verifyData[1])
+    const proof = verifyData[2] // uint256[8] from contract
+    const verificationLevel = String(verifyData[3] || 'orb')
 
     // ---- Step 3: Call Worldcoin Cloud Verification API ----
     let isValid = false
@@ -166,8 +168,8 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
       const verifyBody = JSON.stringify({
         nullifier_hash: nullifierHash,
-        merkle_root: String(requestDecoded[1] ?? '0x'),
-        proof: 'placeholder_proof', // CRE reads the on-chain proof data
+        merkle_root: merkleRoot,
+        proof: Array.from(proof).map(p => String(p)),
         verification_level: verificationLevel,
         action: config.worldcoinActionId,
       })

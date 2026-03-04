@@ -31,6 +31,8 @@ import { z } from 'zod'
 import { ZkAMMPairABI } from '../contracts/abi/ZkAMMPair'
 import { R00TShortsABI } from '../contracts/abi/R00TShorts'
 import { ProtocolHealthMonitorABI } from '../contracts/abi/ProtocolHealthMonitor'
+import { AIAgentOrchestratorABI } from '../contracts/abi/AIAgentOrchestrator'
+import { ConfidentialFundingVaultABI } from '../contracts/abi/ConfidentialFundingVault'
 
 // ============ Config Schema ============
 
@@ -40,6 +42,8 @@ const configSchema = z.object({
   zkammPairAddress: z.string(),
   r00tShortsAddress: z.string(),
   healthMonitorAddress: z.string(),
+  aiOrchestratorAddress: z.string().default(""),
+  fundingVaultAddress: z.string().default(""),
   gasLimit: z.string(),
 })
 
@@ -146,6 +150,67 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   // LP health scoring
   const totalLPNum = Number(totalLPShares)
   if (totalLPNum === 0 && ethReserveNum > 0) riskScore += 20
+
+  // ---- Step 4b: Cross-workflow risk signals from W3 (AI) and W1 (Regen) ----
+
+  // Read AI analysis from W3's AIAgentOrchestrator
+  if (config.aiOrchestratorAddress) {
+    try {
+      const aiCallData = encodeFunctionData({
+        abi: AIAgentOrchestratorABI,
+        functionName: 'getLatestAnalysis',
+      })
+      const aiResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.aiOrchestratorAddress as Address,
+          data: aiCallData,
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+      const [, aiRiskLevel] = decodeFunctionResult({
+        abi: AIAgentOrchestratorABI,
+        functionName: 'getLatestAnalysis',
+        data: bytesToHex(aiResult.data),
+      }) as [bigint, number, number, string]
+
+      // AI risk level >= 2 (ELEVATED) adds risk premium
+      if (aiRiskLevel >= 2) riskScore += 15
+    } catch {
+      // AI orchestrator not available
+    }
+  }
+
+  // Read regen attestation from W1's ConfidentialFundingVault
+  if (config.fundingVaultAddress) {
+    try {
+      const regenCallData = encodeFunctionData({
+        abi: ConfidentialFundingVaultABI,
+        functionName: 'getProjectAttestation',
+        args: [0n],
+      })
+      const regenResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.fundingVaultAddress as Address,
+          data: regenCallData,
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+      const [impactScore, , , verified] = decodeFunctionResult({
+        abi: ConfidentialFundingVaultABI,
+        functionName: 'getProjectAttestation',
+        data: bytesToHex(regenResult.data),
+      }) as [bigint, string, bigint, boolean]
+
+      // Verified high-impact regen project reduces protocol risk
+      if (verified && Number(impactScore) > 500) {
+        riskScore = Math.max(0, riskScore - 5)
+      }
+    } catch {
+      // Funding vault not available
+    }
+  }
 
   // Map score to risk level and recommended action
   let overallRiskLevel: number

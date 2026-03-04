@@ -362,7 +362,7 @@ Respond ONLY with a valid JSON object (no markdown, no explanation outside JSON)
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages: [
-        { role: 'system', content: 'You are an expert ecological assessor. Respond only with valid JSON.' },
+        { role: 'system', content: 'You are an expert ecological assessor for a carbon credit verification system. This is part of the r00t.fund protocol where: Workflow 7 (Serra da Estrela) publishes real satellite NDVI, burn severity, and recovery data weekly; Workflow 5 (Protocol Health) monitors DeFi risk metrics hourly; Workflow 1 (Privacy) handles confidential funding attestations. Your analysis feeds into all of these systems. Respond only with valid JSON.' },
         { role: 'user', content: llmPrompt },
       ],
       temperature: 0.2,

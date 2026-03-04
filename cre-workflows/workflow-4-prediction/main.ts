@@ -41,6 +41,7 @@ import {
 } from 'viem'
 import { z } from 'zod'
 import { RegenPredictionMarketABI } from '../contracts/abi/RegenPredictionMarket'
+import { SerraEstrelaNativeForestABI } from '../contracts/abi/SerraEstrelaNativeForest'
 
 // ============ Config Schema ============
 
@@ -48,6 +49,7 @@ const configSchema = z.object({
   schedule: z.string(),
   chainName: z.string(),
   predictionMarketAddress: z.string(),
+  serraEstrelaAddress: z.string().default(""),
   gasLimit: z.string(),
 })
 
@@ -199,10 +201,35 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
     }
   }
 
-  // If no valid data from APIs, use heuristic fallback values
-  if (validResults.length === 0) {
-    // Simulated environmental data for demo
-    validResults.push(150, 175, 160) // Simulated carbon credit values
+  // If no valid data from APIs, read from W7's on-chain environmental data feed
+  if (validResults.length === 0 && config.serraEstrelaAddress) {
+    try {
+      const reportCallData = encodeFunctionData({
+        abi: SerraEstrelaNativeForestABI,
+        functionName: 'getLatestReport',
+      })
+      const reportResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.serraEstrelaAddress as Address,
+          data: reportCallData,
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+      const report = decodeFunctionResult({
+        abi: SerraEstrelaNativeForestABI,
+        functionName: 'getLatestReport',
+        data: bytesToHex(reportResult.data),
+      }) as any
+      const fireRecoveryIndex = Number(report.fireRecoveryIndex ?? report[8] ?? 0)
+      const ndviRecoveryPct = Number(report.ndviRecoveryPct ?? report[2] ?? 0)
+      const carbonCredits = Number(report.carbonCredits ?? report[7] ?? 0)
+      if (fireRecoveryIndex > 0) validResults.push(fireRecoveryIndex)
+      if (ndviRecoveryPct > 0) validResults.push(ndviRecoveryPct)
+      if (carbonCredits > 0) validResults.push(carbonCredits)
+    } catch {
+      // Serra da Estrela contract not available
+    }
   }
 
   // ---- Step 3: Compute median value across sources ----

@@ -25,6 +25,20 @@ export const ConfidentialFundingVaultABI = [
     stateMutability: "view",
   },
   {
+    type: "function",
+    name: "getTotalVerifiedCredits",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getTotalCreditValueEur",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
     type: "event",
     name: "ConfidentialFundingDistributed",
     inputs: [
