@@ -6,7 +6,7 @@
 
 **Regenerating land. Verifying impact. Preserving privacy.**
 
-*A zero-knowledge DeFi protocol where communities fund regeneration projects through private governance,*
+*A zero-knowledge ReFi protocol where communities fund regeneration projects through private governance,*
 *and Chainlink CRE proves whether those projects actually delivered — from satellite imagery to carbon credits.*
 
 <br/>
