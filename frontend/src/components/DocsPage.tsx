@@ -961,7 +961,7 @@ export function DocsPage({ onClose }: DocsPageProps) {
                   className="flex flex-col sm:flex-row gap-4 pt-4"
                 >
                   <GlowButton
-                    onClick={() => window.open('https://github.com/r00tfund', '_blank')}
+                    onClick={() => window.open('https://github.com/offGrid0xDAO/r00t.fund/', '_blank')}
                     variant="primary"
                     size="lg"
                   >

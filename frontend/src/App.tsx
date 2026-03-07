@@ -787,7 +787,7 @@ function App() {
 
           <div className="flex items-center gap-6 text-xs text-[var(--text-muted)]">
             <a
-              href="https://github.com/r00tfund"
+              href="https://github.com/offGrid0xDAO/r00t.fund/"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5"

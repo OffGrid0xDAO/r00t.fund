@@ -203,7 +203,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               </button>
             )}
             <a
-              href="https://github.com/r00tfund"
+              href="https://github.com/offGrid0xDAO/r00t.fund/"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:block text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-medium"
@@ -764,7 +764,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               {/* SDK fallback link */}
               <div className="mt-4 flex items-center justify-between">
                 <a
-                  href="https://github.com/r00tfund"
+                  href="https://github.com/offGrid0xDAO/r00t.fund/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
@@ -980,7 +980,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                         Docs
                       </a>
                     )}
-                    <a href="https://github.com/r00tfund" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                    <a href="https://github.com/offGrid0xDAO/r00t.fund/" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <span className="w-0 group-hover:w-2 h-px bg-[var(--accent)] transition-all duration-200" />
                       GitHub
                     </a>

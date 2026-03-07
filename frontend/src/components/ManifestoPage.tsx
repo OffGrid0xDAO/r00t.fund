@@ -436,7 +436,7 @@ export function ManifestoPage({ onClose }: ManifestoPageProps) {
                   deploy_capital()
                 </GlowButton>
                 <GlowButton
-                  onClick={() => window.open('https://github.com/r00tfund', '_blank')}
+                  onClick={() => window.open('https://github.com/offGrid0xDAO/r00t.fund/', '_blank')}
                   variant="secondary"
                   size="lg"
                 >
