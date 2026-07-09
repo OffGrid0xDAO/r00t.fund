@@ -83,9 +83,9 @@ function AnimatedLogo({ onClick }: { onClick: () => void }) {
       whileTap={{ scale: 0.98 }}
     >
       <div className="relative flex items-center gap-2.5">
-        <RootLogo size={30} className="text-[var(--accent)]" />
+        <RootLogo size={30} className="text-[var(--accent-on-bg)]" />
         <div className="flex items-baseline">
-          <span className="text-3xl tracking-tight text-[var(--accent)] font-display">
+          <span className="text-3xl tracking-tight text-[var(--accent-on-bg)] font-display">
             r<BrandedZeros />t
           </span>
           <span className="text-3xl text-[var(--text-primary)] font-display">
@@ -430,7 +430,7 @@ function App() {
               onClick={() => setShowDocs(true)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
+              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent-on-bg)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
               style={{ background: 'var(--bg-elevated)' }}
             >
               docs
@@ -441,7 +441,7 @@ function App() {
               onClick={() => setShowManifesto(true)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
+              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent-on-bg)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
               style={{ background: 'var(--bg-elevated)' }}
             >
               manifesto
@@ -521,7 +521,7 @@ function App() {
                   >
                     Fund what heals.
                     <br />
-                    <span className="text-[var(--accent)]">Leave no trace.</span>
+                    <span className="text-[var(--accent-on-bg)]">Leave no trace.</span>
                   </motion.h1>
 
                   <motion.p
@@ -546,7 +546,7 @@ function App() {
                   className="text-xs font-mono text-[var(--text-muted)] mb-4 hover-glitch cursor-default"
                   onClick={() => setHeroCollapsed(false)}
                 >
-                  <span className="text-[var(--accent)] opacity-60">// </span>
+                  <span className="text-[var(--accent-on-bg)] opacity-60">// </span>
                   private launchpad for regenerative projects
                 </motion.p>
               )}
@@ -744,7 +744,7 @@ function App() {
                     {activeTab === '_land' && (
                       <div className="space-y-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Project 001 · Land Map</span>
+                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · Land Map</span>
                           <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
                         </div>
                         <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
@@ -772,7 +772,7 @@ function App() {
                 >
                   <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
                   <span className="font-mono text-xs">
-                    <span className="text-[var(--accent)]">ACTIVE</span>
+                    <span className="text-[var(--accent-on-bg)]">ACTIVE</span>
                     <span className="opacity-40 mx-2">·</span>
                     <span>ZK proofs + Chainlink CRE</span>
                   </span>
@@ -793,10 +793,10 @@ function App() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <span
-              className="flex items-center gap-2 text-lg text-[var(--accent)] cursor-pointer hover:opacity-70 transition-opacity font-display"
+              className="flex items-center gap-2 text-lg text-[var(--accent-on-bg)] cursor-pointer hover:opacity-70 transition-opacity font-display"
               onClick={() => setShowLanding(true)}
             >
-              <RootLogo size={22} className="text-[var(--accent)]" />
+              <RootLogo size={22} className="text-[var(--accent-on-bg)]" />
               r<BrandedZeros />t<span className="text-[var(--text-primary)]">.fund</span>
             </span>
             <span className="text-[var(--border)] opacity-50">|</span>
