@@ -60,12 +60,12 @@ function FlowStep({ num, title, desc, delay }: { num: string; title: string; des
         }}
       >
         {/* Large watermark number */}
-        <span className="absolute -top-4 -right-2 text-[5rem] font-display font-bold text-[var(--accent)] opacity-[0.04] leading-none select-none pointer-events-none">
+        <span className="absolute -top-4 -right-2 text-[5rem] font-display font-bold text-[var(--accent-on-bg)] opacity-[0.04] leading-none select-none pointer-events-none">
           {num}
         </span>
 
         <div className="relative z-10">
-          <span className="inline-block text-[10px] font-mono tracking-[0.3em] text-[var(--accent)] uppercase mb-3">
+          <span className="inline-block text-[10px] font-mono tracking-[0.3em] text-[var(--accent-on-bg)] uppercase mb-3">
             Step {num}
           </span>
           <h3 className="font-display text-xl text-[var(--text-primary)] mb-2 tracking-tight">{title}</h3>
@@ -92,7 +92,7 @@ function InfoCard({ num, title, desc, delay }: { num: string; title: string; des
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <span className="text-[10px] tracking-[0.2em] text-[var(--accent)] font-mono">{num}</span>
+        <span className="text-[10px] tracking-[0.2em] text-[var(--accent-on-bg)] font-mono">{num}</span>
         <h3 className="font-display text-lg text-[var(--text-primary)] mt-2 mb-2 tracking-tight">{title}</h3>
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{desc}</p>
       </div>
@@ -111,7 +111,7 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
     >
       <div className="flex items-center gap-4 mb-6">
         <div className="w-8 h-px bg-[var(--accent)]" />
-        <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">{label}</span>
+        <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">{label}</span>
       </div>
       <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] max-w-xl">
         {title}
@@ -172,9 +172,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             transition={{ duration: 0.5 }}
             className="flex items-center gap-3"
           >
-            <RootLogo size={34} className="text-[var(--accent)]" />
+            <RootLogo size={34} className="text-[var(--accent-on-bg)]" />
             <span className="font-display text-2xl tracking-tight">
-              <span className="text-[var(--accent)]">r<BrandedZeros />t</span>
+              <span className="text-[var(--accent-on-bg)]">r<BrandedZeros />t</span>
               <span className="text-[var(--text-primary)]">.fund</span>
             </span>
           </motion.div>
@@ -218,7 +218,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             </button>
             <button
               onClick={onEnterApp}
-              className="px-5 py-2.5 bg-[var(--accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
+              className="px-5 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
             >
               Launch App
             </button>
@@ -251,7 +251,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <span className="text-[var(--text-primary)]">Fund a plot.</span>
               <br />
-              <span className="text-[var(--accent)] text-glow">Grow it back.</span>
+              <span className="text-[var(--accent-on-bg)] text-glow">Grow it back.</span>
             </motion.h1>
 
             {/* Sub-headline */}
@@ -273,7 +273,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <button
                 onClick={onEnterApp}
-                className="group relative w-full sm:w-auto px-8 py-4 bg-[var(--accent)] text-white font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(45,90,61,0.35)] dark:hover:shadow-[0_0_40px_rgba(93,168,112,0.35)] transition-all duration-300 overflow-hidden"
+                className="group relative w-full sm:w-auto px-8 py-4 bg-[var(--accent)] text-[var(--accent-ink)] font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] dark:hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <span className="relative z-10 flex items-center justify-center gap-2">
@@ -299,24 +299,24 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             <motion.div
               animate={{
                 boxShadow: [
-                  '0 0 60px 20px rgba(45, 90, 61, 0.08)',
-                  '0 0 80px 30px rgba(45, 90, 61, 0.15)',
-                  '0 0 60px 20px rgba(45, 90, 61, 0.08)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
+                  '0 0 80px 30px rgba(214, 254, 81, 0.15)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
                 ],
               }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute inset-0 rounded-full dark:shadow-none"
               style={{
-                background: 'radial-gradient(circle, rgba(45, 90, 61, 0.06) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(214, 254, 81, 0.06) 0%, transparent 70%)',
               }}
             />
             <motion.div
               className="dark:block hidden absolute inset-0 rounded-full"
               animate={{
                 boxShadow: [
-                  '0 0 60px 20px rgba(93, 168, 112, 0.06)',
-                  '0 0 80px 30px rgba(93, 168, 112, 0.12)',
-                  '0 0 60px 20px rgba(93, 168, 112, 0.06)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
+                  '0 0 80px 30px rgba(214, 254, 81, 0.12)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
                 ],
               }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -329,7 +329,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <RootLogo
                 size="clamp(260px, 36vw, 480px)"
-                className="text-[var(--accent)] relative z-10"
+                className="text-[var(--accent-on-bg)] relative z-10"
                 animated
                 textured
                 glowColor="var(--accent-glow)"
@@ -359,7 +359,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="The Lifecycle"
-            title={<>From launch <br className="hidden md:block" /><span className="text-[var(--accent)]">to verified impact</span></>}
+            title={<>From launch <br className="hidden md:block" /><span className="text-[var(--accent-on-bg)]">to verified impact</span></>}
           />
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -404,7 +404,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="Verification"
-            title={<>How verification <br className="hidden md:block" /><span className="text-[var(--accent)]">actually works</span></>}
+            title={<>How verification <br className="hidden md:block" /><span className="text-[var(--accent-on-bg)]">actually works</span></>}
           />
 
           {/* Pipeline steps */}
@@ -428,7 +428,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                   className="p-4 rounded-xl border border-[var(--border)] text-center h-full"
                   style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
                 >
-                  <span className="text-[10px] font-mono text-[var(--accent)] block mb-1">{p.icon}</span>
+                  <span className="text-[10px] font-mono text-[var(--accent-on-bg)] block mb-1">{p.icon}</span>
                   <span className="text-sm font-medium text-[var(--text-primary)]">{p.step}</span>
                 </div>
                 {/* Arrow connector */}
@@ -467,7 +467,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.4 + i * 0.06, duration: 0.4 }}
-                  className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200"
+                  className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
                 >
                   {source}
                 </motion.span>
@@ -493,11 +493,11 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-8 h-px bg-[var(--accent)]" />
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">OpenClaw</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">OpenClaw</span>
                 </div>
                 <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] mb-5">
                   Give your agent <br className="hidden md:block" />
-                  <span className="text-[var(--accent)]">a dark pool.</span>
+                  <span className="text-[var(--accent-on-bg)]">a dark pool.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-8">
                   One command. Your OpenClaw agent reads the skill file, installs the SDK, and starts trading with full ZK privacy. Access Chainlink CRE verification data directly. Works with Claude, GPT, DeepSeek, Ollama — any model.
@@ -524,7 +524,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                     transition={{ delay: 0.2 + i * 0.08 }}
                     className="flex items-center gap-4"
                   >
-                    <span className="flex items-center justify-center w-7 h-7 rounded-full border border-[var(--accent)]/30 text-[var(--accent)] text-xs font-mono shrink-0">
+                    <span className="flex items-center justify-center w-7 h-7 rounded-full border border-[var(--accent)]/30 text-[var(--accent-on-bg)] text-xs font-mono shrink-0">
                       {step.num}
                     </span>
                     <span className="text-sm text-[var(--text-primary)]">{step.text}</span>
@@ -637,7 +637,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
             <RootLogo
               size="clamp(300px, 50vw, 600px)"
-              className="text-[var(--accent)] opacity-[0.03]"
+              className="text-[var(--accent-on-bg)] opacity-[0.03]"
             />
           </div>
 
@@ -649,7 +649,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               className="flex items-center gap-4 mb-12"
             >
               <div className="w-8 h-px bg-[var(--accent)]" />
-              <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Manifesto</span>
+              <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Manifesto</span>
             </motion.div>
 
             <motion.blockquote
@@ -661,7 +661,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <p className="font-display text-[clamp(1.5rem,4vw,3.5rem)] leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
                 The money should reach the ground.{' '}
-                <span className="text-[var(--accent)]">The data should prove it did.</span>
+                <span className="text-[var(--accent-on-bg)]">The data should prove it did.</span>
               </p>
             </motion.blockquote>
 
@@ -702,7 +702,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <button
                   onClick={onOpenManifesto}
-                  className="group inline-flex items-center gap-2 px-6 py-3 border border-[var(--accent)]/40 text-[var(--accent)] font-medium text-sm rounded-xl hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 px-6 py-3 border border-[var(--accent)]/40 text-[var(--accent-on-bg)] font-medium text-sm rounded-xl hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] hover:border-[var(--accent)] transition-all duration-300"
                 >
                   Read Full Manifesto
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -735,7 +735,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.06, duration: 0.4 }}
-                className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200"
+                className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
               >
                 {tech}
               </motion.span>
@@ -755,16 +755,16 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <RootLogo size={56} className="text-[var(--accent)] mx-auto mb-8 opacity-40" />
+            <RootLogo size={56} className="text-[var(--accent-on-bg)] mx-auto mb-8 opacity-40" />
             <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] mb-4 leading-[1.1]">
-              Fund what heals.<br /><span className="text-[var(--accent)]">Watch it grow back.</span>
+              Fund what heals.<br /><span className="text-[var(--accent-on-bg)]">Watch it grow back.</span>
             </h2>
             <p className="text-[var(--text-secondary)] mb-8 max-w-md mx-auto">
               Real land. Real trees. Every contribution traceable to the soil it heals — and independently verified as it regenerates.
             </p>
             <button
               onClick={onEnterApp}
-              className="group relative px-10 py-4 bg-[var(--accent)] text-white font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(45,90,61,0.35)] dark:hover:shadow-[0_0_40px_rgba(93,168,112,0.35)] transition-all duration-300 overflow-hidden"
+              className="group relative px-10 py-4 bg-[var(--accent)] text-[var(--accent-ink)] font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] dark:hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] transition-all duration-300 overflow-hidden"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <span className="relative z-10 flex items-center gap-2">
@@ -790,9 +790,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 viewport={{ once: true }}
                 className="flex items-center gap-3 mb-5"
               >
-                <RootLogo size={24} className="text-[var(--accent)]" />
+                <RootLogo size={24} className="text-[var(--accent-on-bg)]" />
                 <span className="font-display text-2xl tracking-tight">
-                  <span className="text-[var(--accent)]">r<BrandedZeros />t</span>
+                  <span className="text-[var(--accent-on-bg)]">r<BrandedZeros />t</span>
                   <span className="text-[var(--text-primary)]">.fund</span>
                 </span>
               </motion.div>

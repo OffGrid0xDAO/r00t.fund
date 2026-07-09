@@ -133,7 +133,7 @@ function NavPill({
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={`relative px-5 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 flex items-center gap-2 ${activeTab === tab.id
-            ? 'text-white'
+            ? 'text-[var(--accent-ink)]'
             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           whileTap={{ scale: 0.97 }}
@@ -632,7 +632,7 @@ function App() {
                             <motion.button
                               onClick={() => setSwapMode('trade')}
                               className={`relative px-5 py-2 rounded-md text-sm font-medium transition-colors ${
-                                swapMode === 'trade' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                swapMode === 'trade' ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                               }`}
                               whileTap={{ scale: 0.97 }}
                             >

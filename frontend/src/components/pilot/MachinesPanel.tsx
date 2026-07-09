@@ -61,7 +61,7 @@ export function MachinesPanel({
                       {done ? (
                         <span className="text-[var(--success)]">fully funded ✓</span>
                       ) : (
-                        <button onClick={() => onFund(m.id, 100)} disabled={!!pending[m.id]} className="px-3 py-1 rounded-md text-white bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 transition-opacity">
+                        <button onClick={() => onFund(m.id, 100)} disabled={!!pending[m.id]} className="px-3 py-1 rounded-md text-[var(--accent-ink)] bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 transition-opacity">
                           {pending[m.id] ? '…' : 'Chip in €100'}
                         </button>
                       )}

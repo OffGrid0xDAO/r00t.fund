@@ -18,7 +18,7 @@ interface GlowButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: `
-    bg-[var(--accent)] text-white
+    bg-[var(--accent)] text-[var(--accent-ink)]
     hover:opacity-90
     hover:shadow-[0_0_24px_rgba(45,90,61,0.35)]
     dark:hover:shadow-[0_0_24px_rgba(93,168,112,0.35)]

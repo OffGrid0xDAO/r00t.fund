@@ -46,10 +46,10 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
               <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }}>
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-8 h-px bg-[var(--accent)]" />
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Project 001 · The Pilot Site</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · The Pilot Site</span>
                 </div>
                 <h2 className="font-display text-3xl md:text-4xl lg:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.05] mb-4">
-                  9 hectares of burned hillside, <span className="text-[var(--accent)]">mapped plot by plot.</span>
+                  9 hectares of burned hillside, <span className="text-[var(--accent-on-bg)]">mapped plot by plot.</span>
                 </h2>
                 <p className="text-sm md:text-base text-[var(--text-secondary)] leading-relaxed max-w-md mb-6">
                   The real terrain — every contour, swale and watercourse. Back a zone, choose what grows,
@@ -80,12 +80,12 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
                 </div>
 
                 <div className="pointer-events-auto flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <button onClick={() => setShowMap(true)} className="group inline-flex items-center gap-2 px-6 py-3 bg-[var(--accent)] text-white font-medium text-sm rounded-xl hover:opacity-90 transition-opacity">
+                  <button onClick={() => setShowMap(true)} className="group inline-flex items-center gap-2 px-6 py-3 bg-[var(--accent)] text-[var(--accent-ink)] font-medium text-sm rounded-xl hover:opacity-90 transition-opacity">
                     Open the land map
                     <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                   </button>
                   {onEnterApp && (
-                    <button onClick={onEnterApp} className="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors font-medium">
+                    <button onClick={onEnterApp} className="text-sm text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors font-medium">
                       Open in app →
                     </button>
                   )}
@@ -104,7 +104,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
                   style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)', boxShadow: 'var(--shadow-lg)' }}
                 >
                   <p className="font-display text-sm text-[var(--text-primary)] flex items-center gap-2">🌱 Project 001 — the pilot site</p>
-                  <p className="text-[11px] font-mono text-[var(--accent)] mt-0.5">click to open the plot map →</p>
+                  <p className="text-[11px] font-mono text-[var(--accent-on-bg)] mt-0.5">click to open the plot map →</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -134,7 +134,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Project 001 · Land Map</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · Land Map</span>
                   <span className="text-[10px] font-mono text-[var(--text-muted)] hidden sm:inline">top-down · fund a plot or infrastructure</span>
                 </div>
                 <button onClick={() => setShowMap(false)} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]" aria-label="Close">
