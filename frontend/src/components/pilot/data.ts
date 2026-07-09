@@ -1,8 +1,9 @@
 /**
  * Seed data for the Project 001 pilot map.
  *
- * Plot x/y/r are SCREEN-RELATIVE (stage fractions in [0,1]) and deliberately
- * hand-placed — they are indicative zones, not a survey. No real geometry here.
+ * Plot x/y are TERRAIN-NORMALIZED coordinates ([0,1] over the fuzzed heightmap)
+ * placed inside the de-georeferenced land border; r is a normalized radius.
+ * These are indicative zones, not a survey — no real geometry.
  */
 import type { Crop, Plot, Machine } from './types';
 
@@ -18,7 +19,7 @@ export const CROPS: Crop[] = [
 export const SEED_PLOTS: Plot[] = [
   {
     id: 'p1', name: 'Upper Oak Terrace', type: 'syntropic',
-    x: 0.30, y: 0.34, r: 0.075, targetEur: 4200, fundedEur: 3990, status: 'greening',
+    x: 0.302, y: 0.574, r: 0.017, targetEur: 4200, fundedEur: 3990, status: 'greening',
     rewards: ['produce', 'choose-crop', 'naming', 'certificate'],
     cropOptions: ['oak', 'chestnut', 'fig'], chosenCropId: 'oak',
     blurb: 'Contour rows of native oak on the upper burned terrace — the anchor canopy for the whole slope.',
@@ -31,7 +32,7 @@ export const SEED_PLOTS: Plot[] = [
   },
   {
     id: 'p2', name: 'Spring Swale', type: 'water',
-    x: 0.50, y: 0.52, r: 0.07, targetEur: 2600, fundedEur: 2600, status: 'funded',
+    x: 0.352, y: 0.596, r: 0.015, targetEur: 2600, fundedEur: 2600, status: 'funded',
     rewards: ['naming', 'certificate'],
     blurb: 'Keyline swale that slows and sinks winter rain across the mid-slope, rehydrating the whole hillside.',
     contributions: [
@@ -42,7 +43,7 @@ export const SEED_PLOTS: Plot[] = [
   },
   {
     id: 'p3', name: 'Chestnut Grove', type: 'syntropic',
-    x: 0.66, y: 0.36, r: 0.08, targetEur: 5200, fundedEur: 1850, status: 'seeking',
+    x: 0.402, y: 0.579, r: 0.018, targetEur: 5200, fundedEur: 1850, status: 'seeking',
     rewards: ['produce', 'choose-crop', 'stay', 'certificate'],
     cropOptions: ['chestnut', 'oak', 'vine'],
     blurb: 'A food forest of sweet chestnut and understory fruit — first harvest reward for backers within 3 seasons.',
@@ -54,7 +55,7 @@ export const SEED_PLOTS: Plot[] = [
   },
   {
     id: 'p4', name: 'Lower Herb Bank', type: 'syntropic',
-    x: 0.40, y: 0.66, r: 0.06, targetEur: 1800, fundedEur: 640, status: 'seeking',
+    x: 0.334, y: 0.617, r: 0.013, targetEur: 1800, fundedEur: 640, status: 'seeking',
     rewards: ['produce', 'choose-crop', 'certificate'],
     cropOptions: ['herb', 'vine', 'fig'],
     blurb: 'Aromatic, fire-wise ground cover along the lower path — pollinators and quick green.',
@@ -65,7 +66,7 @@ export const SEED_PLOTS: Plot[] = [
   },
   {
     id: 'p5', name: 'Catchment Pond', type: 'water',
-    x: 0.24, y: 0.56, r: 0.055, targetEur: 3400, fundedEur: 3400, status: 'planted',
+    x: 0.286, y: 0.606, r: 0.012, targetEur: 3400, fundedEur: 3400, status: 'planted',
     rewards: ['naming', 'stay', 'certificate'],
     blurb: 'Lined catchment at the base of the swale line — stores gravity-fed irrigation through the dry summer.',
     contributions: [
@@ -76,7 +77,7 @@ export const SEED_PLOTS: Plot[] = [
   },
   {
     id: 'p6', name: 'Access Track & Barn', type: 'structure',
-    x: 0.74, y: 0.60, r: 0.065, targetEur: 6800, fundedEur: 2400, status: 'seeking',
+    x: 0.424, y: 0.611, r: 0.014, targetEur: 6800, fundedEur: 2400, status: 'seeking',
     rewards: ['naming', 'stay', 'certificate'],
     blurb: 'Repair the fire-road switchback and a tool barn so every other plot can be worked and watered.',
     contributions: [
@@ -88,9 +89,10 @@ export const SEED_PLOTS: Plot[] = [
 ];
 
 // Communal capex — funded together, separate from the plant-a-plot flow.
+// Those with x/y (terrain-normalized) also appear as pins on the plan map.
 export const SEED_MACHINES: Machine[] = [
-  { id: 'm1', name: 'Tractor', emoji: '🚜', kind: 'machine', targetEur: 9500, fundedEur: 6100, blurb: 'Shared compact tractor — swale digging, mulch hauling, no diesel middlemen.' },
-  { id: 'm2', name: 'Wood chipper', emoji: '🪵', kind: 'machine', targetEur: 3200, fundedEur: 2950, blurb: 'Turns salvaged burned trunks into biomass mulch for soil fertility.' },
-  { id: 'm3', name: 'Water pump', emoji: '💧', kind: 'machine', targetEur: 1400, fundedEur: 900, blurb: 'Solar pump lifts catchment water to the upper terraces.' },
-  { id: 'm4', name: 'Communal kitchen', emoji: '🍲', kind: 'infrastructure', targetEur: 5400, fundedEur: 1200, blurb: 'Where the crews and backers-in-residence cook and gather.' },
+  { id: 'm1', name: 'Tractor', emoji: '🚜', kind: 'machine', targetEur: 9500, fundedEur: 6100, blurb: 'Shared compact tractor — swale digging, mulch hauling, no diesel middlemen.', x: 0.44, y: 0.588 },
+  { id: 'm2', name: 'Wood chipper', emoji: '🪵', kind: 'machine', targetEur: 3200, fundedEur: 2950, blurb: 'Turns salvaged burned trunks into biomass mulch for soil fertility.', x: 0.432, y: 0.596 },
+  { id: 'm3', name: 'Water pump', emoji: '💧', kind: 'machine', targetEur: 1400, fundedEur: 900, blurb: 'Solar pump lifts catchment water to the upper terraces.', x: 0.30, y: 0.6 },
+  { id: 'm4', name: 'Communal kitchen', emoji: '🍲', kind: 'infrastructure', targetEur: 5400, fundedEur: 1200, blurb: 'Where the crews and backers-in-residence cook and gather.', x: 0.415, y: 0.601 },
 ];

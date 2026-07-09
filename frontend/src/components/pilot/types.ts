@@ -42,10 +42,10 @@ export interface Plot {
   id: string;
   name: string;
   type: InterventionType;
-  // screen-relative placement over the terrain stage, both in [0,1]
+  // terrain-normalized placement ([0,1] over the fuzzed heightmap), inside the border
   x: number;
   y: number;
-  r: number;         // indicative radius (stage-relative)
+  r: number;         // indicative radius (terrain-normalized)
   targetEur: number;
   fundedEur: number;
   status: PlotStatus;
@@ -73,6 +73,9 @@ export interface Machine {
   targetEur: number;
   fundedEur: number;
   blurb: string;
+  // optional terrain-normalized position — shows the item as a pin on the plan map
+  x?: number;
+  y?: number;
 }
 
 export const STATUS_ORDER: PlotStatus[] = ['seeking', 'greening', 'funded', 'planted', 'verified'];

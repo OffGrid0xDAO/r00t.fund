@@ -20,6 +20,7 @@ const PriceChart = lazy(() => import('./components/PriceChart').then(m => ({ def
 const ManifestoPage = lazy(() => import('./components/ManifestoPage').then(m => ({ default: m.ManifestoPage })));
 const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default: m.DocsPage })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
+const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
 import { ChartModal } from './components/ChartModal';
 
 // Loading fallback — content-aware skeleton with shimmer sweep
@@ -66,7 +67,7 @@ function PanelSkeleton({ variant = 'default' }: { variant?: 'swap' | 'chart' | '
   );
 }
 
-type Tab = '_swap' | '_portfolio' | '_projects';
+type Tab = '_swap' | '_portfolio' | '_projects' | '_land';
 
 const DEMO_TOKENS: TokenOption[] = [
   { address: CONTRACTS.zkAMM, name: TOKEN.name, symbol: TOKEN.symbol, isRoot: true },
@@ -376,6 +377,11 @@ function App() {
       id: '_projects',
       label: '_projects',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+    },
+    {
+      id: '_land',
+      label: '_land',
+      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
     },
   ];
 
@@ -734,6 +740,20 @@ function App() {
                           worldIdGatekeeperAddress={CONTRACTS.worldIdGatekeeper}
                         />
                       </Suspense>
+                    )}
+                    {activeTab === '_land' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Project 001 · Land Map</span>
+                          <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
+                        </div>
+                        <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <PlotMapTopo />
+                          </Suspense>
+                        </div>
+                        <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">Fuzzed, non-cadastral geometry — indicative zones, not a legal subdivision. Patronage only — no revenue share.</p>
+                      </div>
                     )}
                   </motion.div>
                 </AnimatePresence>

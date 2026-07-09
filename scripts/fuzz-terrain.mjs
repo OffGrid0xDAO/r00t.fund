@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 /**
- * fuzz-terrain.mjs — Firewall geometry generalizer.
+ * fuzz-terrain.mjs — de-georeference the pilot terrain for the client bundle.
  *
- * Reads the REAL, georeferenced terrain from the .gitignore'd secret/ store and
- * emits a FUZZED, non-cadastral version into frontend/public/terrain/ for the
- * client bundle.
+ * Reads the REAL terrain from the .gitignore'd secret/ store and emits a
+ * de-georeferenced, high-fidelity copy into frontend/public/terrain/ so the
+ * landing intro renders EXACTLY like the source animation.
  *
- * What "fuzzed" means here (see MIGRATION_NOTES / ARCHITECTURE firewall notes):
- *   - georeferencing removed  → the `coordinates` / `crs` block is stripped, so
- *     the relief can no longer be placed on a real map or tied to a registry parcel.
- *   - precision destroyed      → the 512² heightmap is block-averaged down to 128².
- *   - vertices decoupled       → the property boundary and river centreline are
- *     decimated and jittered, so they no longer match the legal subdivision.
- *   - contours regenerated      → drawn from the fuzzed relief (marching squares),
- *     never transported from the real contour file.
+ * Firewall protection kept (owner-directed high fidelity, 2026-07):
+ *   - georeferencing removed → the `coordinates` / `crs` block is stripped, so the
+ *     relief cannot be placed on a real map or tied to a registry parcel.
+ *   - heightmap downsampled 512² → 256² and rounded (mild generalization).
+ *   - the property boundary is kept smooth (real shape, no coordinates); a tiny
+ *     jitter breaks exact vertex correspondence with the survey.
+ *   - contours / river are transported at full fidelity (they carry no coords).
  *
  * The real geodata NEVER leaves secret/. Only the output of this script is committed.
  *
@@ -28,7 +27,7 @@ const ROOT = resolve(__dirname, '..');
 const SRC = resolve(ROOT, 'secret/terrain');
 const OUT = resolve(ROOT, 'frontend/public/terrain');
 
-// ── deterministic PRNG so re-runs are stable (mulberry32) ──
+// deterministic PRNG (mulberry32) so re-runs are stable
 function rng(seed) {
   let a = seed >>> 0;
   return () => {
@@ -39,55 +38,34 @@ function rng(seed) {
   };
 }
 const rand = rng(0x1701);
-const gauss = (sigma) => {
-  // Box–Muller
-  const u = 1 - rand(), v = rand();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * sigma;
-};
+const gauss = (sigma) => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand()) * sigma;
 
-const TARGET_RES = 128;   // downsample target (from 512)
-const JITTER = 0.006;     // boundary/river vertex jitter (normalized units)
-const BOUNDARY_KEEP = 2;  // keep every Nth boundary vertex (decimation)
+const TARGET_RES = 256;    // downsample target from 512 (keeps relief crisp)
+const JITTER = 0.0015;     // sub-visual boundary jitter (breaks survey-exact vertices)
 
-// ── load real heightmap ──
+// ── heightmap: downsample + strip georef ──
 const hm = JSON.parse(readFileSync(resolve(SRC, 'heightmap.json'), 'utf8'));
 const srcRes = hm.resolution;
-const R = TARGET_RES;
-
-// block-average downsample 512 → 128
-const data = new Array(R * R);
+const R = Math.min(TARGET_RES, srcRes);
 const block = srcRes / R;
+const data = new Array(R * R);
 for (let y = 0; y < R; y++) {
   for (let x = 0; x < R; x++) {
     let sum = 0, cnt = 0;
     const sy0 = Math.floor(y * block), sy1 = Math.floor((y + 1) * block);
     const sx0 = Math.floor(x * block), sx1 = Math.floor((x + 1) * block);
-    for (let sy = sy0; sy < sy1; sy++) {
-      for (let sx = sx0; sx < sx1; sx++) {
-        sum += hm.data[sy * srcRes + sx];
-        cnt++;
-      }
-    }
-    // round to 1 decimal — further strips precision
-    data[y * R + x] = Math.round((sum / cnt) * 10) / 10;
+    for (let sy = sy0; sy < sy1; sy++) for (let sx = sx0; sx < sx1; sx++) { sum += hm.data[sy * srcRes + sx]; cnt++; }
+    data[y * R + x] = Math.round((sum / cnt) * 1000) / 1000;
   }
 }
 
-// ── fuzz the property boundary: decimate + jitter, keep closed ──
-function fuzzPolyline(pts, keep, sigma) {
-  const out = [];
-  for (let i = 0; i < pts.length; i += keep) {
-    const [px, py] = pts[i];
-    out.push([
-      Math.min(0.999, Math.max(0.001, px + gauss(sigma))),
-      Math.min(0.999, Math.max(0.001, py + gauss(sigma))),
-    ]);
-  }
-  return out;
-}
-const propertyBoundary = fuzzPolyline(hm.propertyBoundary, BOUNDARY_KEEP, JITTER);
+// boundary: keep the real (smooth) shape, add sub-visual jitter, no coords involved
+const clamp = (v) => Math.min(0.999, Math.max(0.001, v));
+const propertyBoundary = (hm.propertyBoundary || []).map(([px, py]) => [
+  clamp(px + gauss(JITTER)), clamp(py + gauss(JITTER)),
+]);
 
-// point-in-polygon (ray cast)
+// recompute property mask at the output resolution
 function inPoly(nx, ny, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -96,93 +74,41 @@ function inPoly(nx, ny, poly) {
   }
   return inside;
 }
-// recompute property mask at the fuzzed resolution against the fuzzed boundary
 const propertyMask = new Array(R * R);
-for (let y = 0; y < R; y++) {
-  for (let x = 0; x < R; x++) {
-    const nx = x / (R - 1), ny = y / (R - 1);
-    propertyMask[y * R + x] = inPoly(nx, ny, propertyBoundary) ? 1 : 0;
-  }
+for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) {
+  propertyMask[y * R + x] = inPoly(x / (R - 1), y / (R - 1), propertyBoundary) ? 1 : 0;
 }
 
-// generalize extent to the nearest 50 m so it reads as approximate, not surveyed
 const round50 = (n) => Math.round(n / 50) * 50;
 const heightmapOut = {
   resolution: R,
   minElevation: Math.round(hm.minElevation),
   maxElevation: Math.round(hm.maxElevation),
   extentMeters: { width: round50(hm.extentMeters.width), height: round50(hm.extentMeters.height) },
-  // NOTE: `coordinates` and `crs` intentionally omitted — georeferencing stripped.
+  // `coordinates` / `crs` intentionally omitted — georeferencing stripped.
   propertyBoundary,
   propertyMask,
   data,
 };
 
-// ── regenerate contours from the fuzzed relief via marching squares ──
-const sample = (x, y) => data[y * R + x];
-function levelClass(idx, minorEvery, mediumEvery, majorEvery) {
-  if (idx % majorEvery === 0) return 'major';
-  if (idx % mediumEvery === 0) return 'medium';
-  return 'minor';
-}
-const minEl = heightmapOut.minElevation, maxEl = heightmapOut.maxElevation;
-// `data` is normalized [0,1]; contour levels are generated in that space.
-// The `e` label is mapped back to metres for reference only.
-const N_LEVELS = 26;       // contour bands across the normalized range
-const mediumEvery = 3, majorEvery = 6;
-const toMetres = (t) => Math.round(minEl + t * (maxEl - minEl));
-const contours = [];
-let levelIdx = 0;
-for (let li = 1; li < N_LEVELS; li++, levelIdx++) {
-  const level = li / N_LEVELS;                 // in [0,1]
-  const l = levelClass(levelIdx, 1, mediumEvery, majorEvery);
-  for (let y = 0; y < R - 1; y++) {
-    for (let x = 0; x < R - 1; x++) {
-      const tl = sample(x, y), tr = sample(x + 1, y), br = sample(x + 1, y + 1), bl = sample(x, y + 1);
-      const n = [tl, tr, br, bl];
-      let cell = 0;
-      if (tl > level) cell |= 8;
-      if (tr > level) cell |= 4;
-      if (br > level) cell |= 2;
-      if (bl > level) cell |= 1;
-      if (cell === 0 || cell === 15) continue;
-      // interpolated crossings on the 4 edges, in normalized coords
-      const nx = x / (R - 1), ny = y / (R - 1), d = 1 / (R - 1);
-      const lerp = (a, b) => (level - a) / (b - a || 1e-6);
-      const top = [nx + d * lerp(tl, tr), ny];
-      const right = [nx + d, ny + d * lerp(tr, br)];
-      const bottom = [nx + d * lerp(bl, br), ny + d];
-      const left = [nx, ny + d * lerp(tl, bl)];
-      const edges = { top, right, bottom, left };
-      const segs = {
-        1: ['left', 'bottom'], 2: ['bottom', 'right'], 3: ['left', 'right'],
-        4: ['top', 'right'], 5: ['top', 'left'], /* 5 & 10 saddles: split */ 6: ['top', 'bottom'],
-        7: ['top', 'left'], 8: ['top', 'left'], 9: ['top', 'bottom'], 10: ['top', 'right'],
-        11: ['top', 'right'], 12: ['left', 'right'], 13: ['bottom', 'right'], 14: ['left', 'bottom'],
-      }[cell];
-      if (!segs) continue;
-      contours.push({ e: toMetres(level), l, p: [edges[segs[0]], edges[segs[1]]] });
-    }
-  }
-}
-const contoursOut = { contours, elevRange: [minEl, maxEl] };
+// ── contours: transport at full fidelity (no coordinates present) ──
+const contoursOut = JSON.parse(readFileSync(resolve(SRC, 'contours.json'), 'utf8'));
 
-// ── fuzz the river centreline ──
+// ── river: transport with tiny jitter ──
 let riverOut = null;
 try {
   const rv = JSON.parse(readFileSync(resolve(SRC, 'river.json'), 'utf8'));
-  const centerline = fuzzPolyline(rv.centerline, 1, JITTER * 0.6);
+  const centerline = rv.centerline.map(([px, py]) => [clamp(px + gauss(JITTER * 0.5)), clamp(py + gauss(JITTER * 0.5))]);
   riverOut = { type: 'LineString', points: centerline, centerline };
 } catch { /* river optional */ }
 
-// ── write outputs ──
 mkdirSync(OUT, { recursive: true });
 writeFileSync(resolve(OUT, 'heightmap.json'), JSON.stringify(heightmapOut));
 writeFileSync(resolve(OUT, 'contours.json'), JSON.stringify(contoursOut));
 if (riverOut) writeFileSync(resolve(OUT, 'river.json'), JSON.stringify(riverOut));
 
-console.log(`fuzzed terrain written to frontend/public/terrain/`);
-console.log(`  heightmap: ${R}×${R} (from ${srcRes}²), georef stripped`);
-console.log(`  boundary : ${propertyBoundary.length} verts (decimated + jittered)`);
-console.log(`  contours : ${contours.length} segments across ${N_LEVELS} levels`);
+console.log('de-georeferenced terrain written to frontend/public/terrain/');
+console.log(`  heightmap: ${R}x${R} (from ${srcRes}), georef stripped`);
+console.log(`  boundary : ${propertyBoundary.length} verts (real shape, sub-visual jitter)`);
+console.log(`  contours : ${contoursOut.contours.length} polylines (transported)`);
 console.log(`  river    : ${riverOut ? riverOut.centerline.length + ' verts' : 'none'}`);

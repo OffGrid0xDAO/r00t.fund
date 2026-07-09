@@ -504,7 +504,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           geometry only — no real coordinates in the client bundle.
           ═══════════════════════════════════════════════════════════════════ */}
       <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
-        <PilotTerrainSection />
+        <PilotTerrainSection onEnterApp={onEnterApp} />
       </Suspense>
 
       {/* ═══════════════════════════════════════════════════════════════════
