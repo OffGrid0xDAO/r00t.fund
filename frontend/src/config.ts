@@ -116,6 +116,8 @@ export const CONTRACTS = {
   zkAMMRouter: FALLBACK.zkAMMRouter,
   zkAMMAdmin: FALLBACK.zkAMMAdmin,
   rootToken: FALLBACK.rootToken,
+  // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
+  parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
   lpPool: FALLBACK.lpPool,
   nullifierRegistry: FALLBACK.nullifierRegistry,
