@@ -54,7 +54,7 @@ const ZKAMM_ABI = [
 const PHASE_ACCENTS = ['#3b82f6', '#10b981', '#f59e0b', '#059669', '#6366f1', '#0d9488'];
 
 const IMPL_PHASES = [
-  { title: 'Satellite Assessment', subtitle: 'Sentinel-2 dNBR Analysis', desc: 'High-resolution multispectral imagery mapping burn severity and baseline vegetation across 9 ha of fire-damaged Serra da Estrela.', status: 'completed' as const, prediction: 'NDVI baseline established above 0.3' },
+  { title: 'Satellite Assessment', subtitle: 'Sentinel-2 dNBR Analysis', desc: 'High-resolution multispectral imagery mapping burn severity and baseline vegetation across 9 ha of the fire-damaged pilot site.', status: 'completed' as const, prediction: 'NDVI baseline established above 0.3' },
   { title: 'Species Selection', subtitle: 'Native Biodiversity Planning', desc: '7 native Iberian species selected for fire resilience, CO₂ sequestration, and biodiversity — 2,550 trees across Quercus, Castanea, Betula, Pinus, Arbutus, and Prunus.', status: 'completed' as const, prediction: 'Species survival rate exceeds 75%' },
   { title: 'Ground Clearing', subtitle: 'Phase 1 — €27,150 Budget', desc: 'Clear burned trees, woodchip biomass for soil fertility, build contour erosion barriers from salvaged trunks. Giratória + biotriturador + 4-person crew across 9 ha.', status: 'active' as const, prediction: '9 ha cleared and soil prepared' },
   { title: 'Native Replanting', subtitle: 'Phase 2 — Sep/Oct 2026 — €17,300', desc: 'Plant 2,550 native seedlings with GPS tagging, tree guards, stakes, and soil amendment. First-year aftercare includes irrigation and replacement of failed plantings.', status: 'pending' as const, prediction: '2,550 trees planted, 90%+ survival' },
@@ -64,7 +64,7 @@ const IMPL_PHASES = [
 
 // Compact oracle badge definitions — mirrors LiveProjectCard pattern
 const ORACLE_BADGES: { key: keyof CreWorkflowStatus; label: string; metricFn: (s: CreWorkflowStatus, r?: CreDataFeedReport | null) => string | null }[] = [
-  { key: 'serraEstrela', label: 'W7:NDVI', metricFn: (_s, r) => r ? r.ndviCurrent.toFixed(1) : null },
+  { key: 'pilotSite', label: 'W7:NDVI', metricFn: (_s, r) => r ? r.ndviCurrent.toFixed(1) : null },
   { key: 'proofOfReserve', label: 'W2:PoR', metricFn: (s) => s.proofOfReserve.active ? `${(s.proofOfReserve.backingRatio / 100).toFixed(0)}%` : null },
   { key: 'aiOrchestrator', label: 'W3:AI', metricFn: (s) => s.aiOrchestrator.active ? (RISK_LABELS[s.aiOrchestrator.riskLevel] || '?') : null },
   { key: 'protocolHealth', label: 'W5:HEALTH', metricFn: (s) => s.protocolHealth.active ? (RISK_LABELS[s.protocolHealth.riskLevel] || '?') : null },
@@ -222,7 +222,7 @@ export function ProjectDetailModal({
       { id: 'w1', workflow: 'W1', label: 'Confidential Funding Vault', description: 'ZK-shielded funding for €44,450 project budget (Phase 1 + Phase 2)', status: ws?.confidentialFunding.active ? 'completed' as const : 'pending' as const },
       { id: 'w2', workflow: 'W2', label: 'Proof of Reserve', description: 'On-chain treasury backing verified — funds locked for ground clearing & replanting', status: ws?.proofOfReserve.active ? 'completed' as const : 'pending' as const },
       { id: 'w3', workflow: 'W3', label: 'AI Vegetation Analysis', description: 'Multi-model satellite analysis of burn severity & recovery across 9 ha', status: ws?.aiOrchestrator.active ? 'active' as const : 'pending' as const },
-      { id: 'w7', workflow: 'W7', label: 'Serra da Estrela Recovery Feed', description: 'dNBR + NDVI monitoring — Phase 1 clearing active, planting Sep/Oct 2026', status: ws?.serraEstrela.active ? 'active' as const : 'pending' as const },
+      { id: 'w7', workflow: 'W7', label: 'Pilot Site Recovery Feed', description: 'dNBR + NDVI monitoring — Phase 1 clearing active, planting Sep/Oct 2026', status: ws?.pilotSite.active ? 'active' as const : 'pending' as const },
       { id: 'w5', workflow: 'W5', label: 'Ecosystem Health Monitor', description: 'NDVI, soil moisture, canopy density & fire recovery index tracking', status: ws?.protocolHealth.active ? 'active' as const : 'pending' as const },
       { id: 'w6', workflow: 'W6', label: 'Compliance & KYC', description: 'EU MiCA compliance + privacy-preserving attestations', status: ws?.policyEngine.active ? 'completed' as const : 'pending' as const },
       { id: 'w4', workflow: 'W4', label: 'Prediction Markets', description: 'Community stakes on reforestation milestones — 9 ha clearing & 2,550 tree survival', status: ws?.predictionMarket.active ? 'active' as const : 'pending' as const },

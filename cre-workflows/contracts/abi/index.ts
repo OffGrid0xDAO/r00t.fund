@@ -17,8 +17,8 @@ export { ACEPolicyEngineABI } from "./ACEPolicyEngine"
 export { R00tPolicyEngineABI } from "./R00tPolicyEngine"
 export { CompliantPrivateVaultABI } from "./CompliantPrivateVault"
 
-// Serra da Estrela Native Forest Restoration Data Feed
-export { SerraEstrelaNativeForestABI } from "./SerraEstrelaNativeForest"
+// Pilot Site Native Forest Restoration Data Feed
+export { PilotSiteForestABI } from "./PilotSiteForest"
 
 // World ID Verification (CRE-powered)
 export { WorldIDGatekeeperABI } from "./WorldIDGatekeeper"

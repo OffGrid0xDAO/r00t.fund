@@ -41,7 +41,7 @@ import {
 } from 'viem'
 import { z } from 'zod'
 import { RegenPredictionMarketABI } from '../contracts/abi/RegenPredictionMarket'
-import { SerraEstrelaNativeForestABI } from '../contracts/abi/SerraEstrelaNativeForest'
+import { PilotSiteForestABI } from '../contracts/abi/PilotSiteForest'
 
 // ============ Config Schema ============
 
@@ -49,7 +49,7 @@ const configSchema = z.object({
   schedule: z.string(),
   chainName: z.string(),
   predictionMarketAddress: z.string(),
-  serraEstrelaAddress: z.string().default(""),
+  pilotSiteAddress: z.string().default(""),
   gasLimit: z.string(),
 })
 
@@ -202,22 +202,22 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
   }
 
   // If no valid data from APIs, read from W7's on-chain environmental data feed
-  if (validResults.length === 0 && config.serraEstrelaAddress) {
+  if (validResults.length === 0 && config.pilotSiteAddress) {
     try {
       const reportCallData = encodeFunctionData({
-        abi: SerraEstrelaNativeForestABI,
+        abi: PilotSiteForestABI,
         functionName: 'getLatestReport',
       })
       const reportResult = evmClient.callContract(runtime, {
         call: encodeCallMsg({
           from: zeroAddress,
-          to: config.serraEstrelaAddress as Address,
+          to: config.pilotSiteAddress as Address,
           data: reportCallData,
         }),
         blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
       }).result()
       const report = decodeFunctionResult({
-        abi: SerraEstrelaNativeForestABI,
+        abi: PilotSiteForestABI,
         functionName: 'getLatestReport',
         data: bytesToHex(reportResult.data),
       }) as any
@@ -228,7 +228,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
       if (ndviRecoveryPct > 0) validResults.push(ndviRecoveryPct)
       if (carbonCredits > 0) validResults.push(carbonCredits)
     } catch (err) {
-      // Serra da Estrela contract not available (err: ${err instanceof Error ? err.message : 'unknown'})
+      // Project 001 pilot site contract not available (err: ${err instanceof Error ? err.message : 'unknown'})
     }
   }
 

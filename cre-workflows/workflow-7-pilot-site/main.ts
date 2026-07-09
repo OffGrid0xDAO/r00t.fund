@@ -1,7 +1,7 @@
 /**
- * Workflow 7: Serra da Estrela Native Forest Restoration -- Custom Data Feed
+ * Workflow 7: Pilot Site Native Forest Restoration -- Custom Data Feed
  *
- * REAL PROJECT: After the September 2025 fires devastated Serra da Estrela Natural Park,
+ * REAL PROJECT: After the September 2025 fires devastated the pilot site,
  * we are reforesting 9 hectares with native Iberian species in two phases:
  *
  * PHASE 1 (2026 H1) — Ground Clearing — €27,150 budget
@@ -18,7 +18,7 @@
  *   Prunus lusitanica (Azereiro)                -- 300 trees
  *                                       Total: 2,550 native trees
  *
- * Location: Serra da Estrela Natural Park, Seia, Portugal (exact coords in private config)
+ * Location: Project 001 pilot site (coordinates in private config) (exact coords in private config)
  * Area: 9 hectares (90,000 m2)
  * Fire date: September 2025 | Clearing: 2026 H1 | Planting target: Sep-Oct 2026
  * ICNF Project: PRRF-SE-2025-0042
@@ -54,14 +54,14 @@ import {
   zeroAddress,
 } from 'viem'
 import { z } from 'zod'
-import { SerraEstrelaNativeForestABI } from '../contracts/abi/SerraEstrelaNativeForest'
+import { PilotSiteForestABI } from '../contracts/abi/PilotSiteForest'
 
 // ============ Config Schema ============
 
 const configSchema = z.object({
   schedule: z.string(),
   chainName: z.string(),
-  serraEstrelaAddress: z.string(),
+  pilotSiteAddress: z.string(),
   gasLimit: z.string(),
   projectLat: z.number(),
   projectLon: z.number(),
@@ -547,7 +547,7 @@ function firmsFetcher(config: Config): { url: string; method: string; headers: R
 // ============ Modeled Fallback Functions ============
 
 function getModeledNdvi(monthsSinceFire: number, phase: ProjectPhase): { current: number; preFire: number; postFire: number } {
-  // Modeled NDVI recovery for Serra da Estrela based on REAL satellite data:
+  // Modeled NDVI recovery for Project 001 pilot site based on REAL satellite data:
   // Pre-fire: 0.82 (measured Aug 26, 2025 — healthy mixed forest)
   // Immediate post-fire: ~0.36 (measured Oct 15, 2025 — 5 weeks after Sep 7 fire)
   // During clearing: NDVI may dip further as burned material is removed
@@ -588,14 +588,14 @@ function getModeledDnbr(monthsSinceFire: number, phase: ProjectPhase): number {
 }
 
 function getModeledSoilCarbon(monthsSinceFire: number): number {
-  // Serra da Estrela reference: granitic soils, moderate SOC
+  // Project 001 pilot site reference: granitic soils, moderate SOC
   // Post-fire SOC is initially higher (charcoal), then decreases, then slowly recovers
   // Woodchipping adds organic matter, boosting SOC during clearing phase
   return 35 + 5 * Math.min(1, monthsSinceFire / 24)
 }
 
 function getModeledWeather(): { temperature: number; rainfall: number } {
-  // Serra da Estrela climate: Continental-Mediterranean, 1000-1400mm annual rainfall
+  // Project 001 pilot site climate: Continental-Mediterranean, 1000-1400mm annual rainfall
   const month = new Date().getMonth()
   const monthlyTemp = [4, 5, 8, 10, 13, 17, 20, 20, 17, 12, 7, 5]
   const monthlyRain = [120, 110, 80, 90, 80, 30, 10, 10, 40, 100, 120, 130]
@@ -935,7 +935,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const recoveryIndex = BigInt(fireRecoveryIndex)
 
   const reportData = encodeFunctionData({
-    abi: SerraEstrelaNativeForestABI,
+    abi: PilotSiteForestABI,
     functionName: 'receiveReport',
     args: [
       ndviCurrentScaled,
@@ -958,7 +958,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   }).result()
 
   const resp = evmClient.writeReport(runtime, {
-    receiver: config.serraEstrelaAddress as Address,
+    receiver: config.pilotSiteAddress as Address,
     report: reportResponse,
     gasConfig: { gasLimit: config.gasLimit },
   }).result()
@@ -979,7 +979,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     ? ` AT_RISK=[${goalsAtRisk.map(g => `${g.id}:${g.title}`).join(',')}]`
     : ''
 
-  return `Serra da Estrela W7 [phase=${phase}]: ` +
+  return `Project 001 pilot site W7 [phase=${phase}]: ` +
     `NDVI=${ndviCurrent.toFixed(4)} (recovery=${ndviRecoveryPct.toFixed(1)}%), ` +
     `dNBR=${dnbrCurrent.toFixed(4)} (${burnSeverity}), ` +
     `SAR=${sarCrossRatio !== null ? `VH/VV=${sarCrossRatio.toFixed(3)}` : 'N/A'}, ` +

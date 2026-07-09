@@ -1,6 +1,6 @@
 staging-settings:
   user-workflow:
-    workflow-name: "serra-estrela-native-forest-staging"
+    workflow-name: "pilot-site-native-forest-staging"
   workflow-artifacts:
     workflow-path: "./main.ts"
     config-path: "./config.staging.json"
@@ -8,7 +8,7 @@ staging-settings:
 
 tenderly-settings:
   user-workflow:
-    workflow-name: "serra-estrela-native-forest-tenderly"
+    workflow-name: "pilot-site-native-forest-tenderly"
   workflow-artifacts:
     workflow-path: "./main.ts"
     config-path: "./config.tenderly.json"

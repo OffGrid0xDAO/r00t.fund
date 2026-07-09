@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePublicClient } from 'wagmi';
-import { SERRA_ESTRELA_ABI } from '../constants';
+import { PILOT_SITE_ABI } from '../constants';
 import type { CreDataFeedReport, ProjectSummary } from '../types';
 
 interface UseCreDataFeedsParams {
@@ -24,12 +24,12 @@ export function useCreDataFeeds({ contractAddress, enabled = true }: UseCreDataF
         const [reportResult, summaryResult] = await Promise.all([
           publicClient.readContract({
             address: contractAddress as `0x${string}`,
-            abi: SERRA_ESTRELA_ABI,
+            abi: PILOT_SITE_ABI,
             functionName: 'getLatestReport',
           }),
           publicClient.readContract({
             address: contractAddress as `0x${string}`,
-            abi: SERRA_ESTRELA_ABI,
+            abi: PILOT_SITE_ABI,
             functionName: 'getProjectSummary',
           }),
         ]);

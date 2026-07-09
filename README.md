@@ -104,7 +104,7 @@ Verified projects generate carbon credit attestations that feed into the Portugu
 
 ### The money never reaches the ground
 
-Every year, billions of euros flow into carbon credit markets and reforestation programmes. The vast majority never reaches the people actually planting trees, restoring soil, or managing watersheds. It gets absorbed by intermediaries — brokers, certifiers, consultants, fund administrators, NGO overhead layers — each taking a cut before anything touches the earth. A landowner in Serra da Estrela who plants 2,550 native oaks on burned hillside sees a fraction of what a carbon credit buyer paid. Sometimes nothing at all.
+Every year, billions of euros flow into carbon credit markets and reforestation programmes. The vast majority never reaches the people actually planting trees, restoring soil, or managing watersheds. It gets absorbed by intermediaries — brokers, certifiers, consultants, fund administrators, NGO overhead layers — each taking a cut before anything touches the earth. A landowner in Project 001 pilot site who plants 2,550 native oaks on burned hillside sees a fraction of what a carbon credit buyer paid. Sometimes nothing at all.
 
 This is not an edge case. Studies consistently show that **60–80% of climate finance is consumed by intermediary costs** before reaching implementation. In the voluntary carbon market, a credit sold for €25 might deliver €3–5 to the person who actually restored the land. The rest disappears into verification fees, brokerage commissions, registry costs, consultancy reports, and administrative overhead across a chain of middlemen who never touched soil.
 
@@ -128,7 +128,7 @@ Traditional launchpads and crowdfunding platforms have no mechanism to verify wh
 
 **R00t.fund solves all four problems:**
 
-1. **Direct funding** — Smart contracts send funds directly to project implementers. No brokers, no intermediaries, no administrative overhead. The person planting trees on burned hillside in Serra da Estrela receives the funds, not a chain of middlemen. Governance is community-driven and privacy-preserving — the people closest to the land decide where capital goes.
+1. **Direct funding** — Smart contracts send funds directly to project implementers. No brokers, no intermediaries, no administrative overhead. The person planting trees on burned hillside in Project 001 pilot site receives the funds, not a chain of middlemen. Governance is community-driven and privacy-preserving — the people closest to the land decide where capital goes.
 
 2. **Independent verification** — Chainlink CRE queries Copernicus Sentinel-2 satellite imagery, ISRIC SoilGrids, Global Forest Watch, and AI analysis to independently confirm whether land is actually regenerating. No self-reporting. No trust assumptions. The DON checks the satellite feed and publishes the result on-chain for anyone to read.
 
@@ -138,9 +138,9 @@ Traditional launchpads and crowdfunding platforms have no mechanism to verify wh
 
 ---
 
-## Real Project: Serra da Estrela Native Forest Restoration
+## Real Project: Pilot Site Native Forest Restoration
 
-This is not a hypothetical. After the **September 2025 fires** devastated Serra da Estrela Natural Park in Portugal, our land was destroyed. We've started small — **25+ kg of ground cover seed** to begin regenerating the soil, and a few trees planted by hand — but nothing that compares to what's possible with proper funding.
+This is not a hypothetical. After the **September 2025 fires** devastated the pilot site in Portugal, our land was destroyed. We've started small — **25+ kg of ground cover seed** to begin regenerating the soil, and a few trees planted by hand — but nothing that compares to what's possible with proper funding.
 
 **The honest situation:** Portugal's bureaucracy is a nightmare. We haven't received any of the promised government funds to help with fire damage on our land, nor the agriculture support to restore productivity of our farm. ICNF processes move at glacial speed. The burned land needs thousands of trees, not the handful we can afford out of pocket.
 
@@ -159,11 +159,11 @@ This is not a hypothetical. After the **September 2025 fires** devastated Serra 
 | *Fraxinus angustifolia* | Freixo | 100 | 15 kg |
 | | **Total** | **2,550** | |
 
-**Location:** 40.3228°N, 7.6114°W — Seia, Serra da Estrela Natural Park, Portugal
+**Location:** Withheld — Project 001 pilot site (coordinates in private config)
 **Fire date:** September 2025 | **Planting target:** Spring 2026 (pending funding)
 **ICNF Reference:** PRRF-SE-2025-0042
 
-A dedicated Chainlink CRE Custom Data Feed ([Workflow 7](#workflow-7-serra-da-estrela-data-feed)) is designed to publish the restoration's NDVI recovery, fire scar healing, tree survival estimates, and carbon sequestration on-chain weekly as an AggregatorV3Interface-compatible feed. Right now the workflow runs with simulated baseline data from the burned land — once planting begins, it tracks real progress with full transparency. No middlemen, no bureaucratic delays, just on-chain proof that trees are going in the ground.
+A dedicated Chainlink CRE Custom Data Feed ([Workflow 7](#workflow-7-pilot-site-data-feed)) is designed to publish the restoration's NDVI recovery, fire scar healing, tree survival estimates, and carbon sequestration on-chain weekly as an AggregatorV3Interface-compatible feed. Right now the workflow runs with simulated baseline data from the burned land — once planting begins, it tracks real progress with full transparency. No middlemen, no bureaucratic delays, just on-chain proof that trees are going in the ground.
 
 ---
 
@@ -233,7 +233,7 @@ The same verification pipeline works for any type of regenerative project:
                                     │  W4: Prediction Market Settlement       │
                                     │  W5: Protocol Health Monitor            │
                                     │  W6: Compliant Private Transfers (ACE)  │
-                                    │  W7: Serra da Estrela Data Feed         │
+                                    │  W7: Project 001 pilot site Data Feed         │
                                     │  W8: World ID Verification (Worldcoin)  │
                                     │                                         │
                                     └──────────┬──────────────────────────────┘
@@ -257,7 +257,7 @@ The same verification pipeline works for any type of regenerative project:
     │ APA / CELE      │          │  Market (W4)          │        │ ACE PolicyEngine   │
     │ Fundo Ambiental │          │ ProtocolHealth        │        │                    │
     │ IPMA Weather    │          │  Monitor (W5)         │        │ ZK Circuits:       │
-    │ OFAC / EU       │          │ SerraEstrela          │        │  sell, transfer,   │
+    │ OFAC / EU       │          │ PilotSite          │        │  sell, transfer,   │
     │  Sanctions      │          │  NativeForest (W7)    │        │  merge, withdraw,  │
     │ Chainalysis     │          │                       │        │  addLiquidity, ... │
     └─────────────────┘          └───────────────────────┘        └────────────────────┘
@@ -300,7 +300,7 @@ R00t.fund is designed from the ground up for interoperability with the **Mercado
 ### How Carbon Credits Flow
 
 ```
-  Reforestation Project (Serra da Estrela)
+  Reforestation Project (Project 001 pilot site)
            │
            ▼
   CRE W7: Satellite monitoring (NDVI, dNBR, SOC)
@@ -524,14 +524,14 @@ CRE W6 (cron every 6h):
 
 ---
 
-### Workflow 7: Serra da Estrela Data Feed
+### Workflow 7: Pilot Site Data Feed
 
 **Prize Track:** Custom Data Feed (DeFi track)
-**File:** [`cre-workflows/workflow-7-serra-estrela/main.ts`](cre-workflows/workflow-7-serra-estrela/main.ts)
-**Contract:** [`contracts/src/cre/SerraEstrelaNativeForest.sol`](contracts/src/cre/SerraEstrelaNativeForest.sol)
+**File:** [`cre-workflows/workflow-7-pilot-site/main.ts`](cre-workflows/workflow-7-pilot-site/main.ts)
+**Contract:** [`contracts/src/cre/PilotSiteForest.sol`](contracts/src/cre/PilotSiteForest.sol)
 
 <p align="center">
-  <img src="cre-workflows/diagrams/workflow-7-serra-estrela.svg" alt="Workflow 7 — Serra da Estrela Data Feed" width="100%"/>
+  <img src="cre-workflows/diagrams/workflow-7-pilot-site.svg" alt="Workflow 7 — Project 001 pilot site Data Feed" width="100%"/>
 </p>
 
 A dedicated `AggregatorV3Interface`-compatible data feed for our real reforestation project. Published weekly.
@@ -615,8 +615,8 @@ The 8 CRE workflows are not isolated — they form an interconnected verificatio
 | **W3** AI Validator | **W5** Health Monitor | `getLatestAnalysis()` — AI risk level (0-4) | If AI detects ecological degradation (risk >= ELEVATED), protocol health score increases by +15 points |
 | **W3** AI Validator | **W1** Carbon Credit | AI verification verdict | AI-powered MRV feeds into carbon credit attribution — projects must pass AI validation before credits are issued |
 | **W1** Carbon Credit | **W5** Health Monitor | `getProjectAttestation()` — verified regen status | Verified high-impact regeneration projects reduce protocol risk score by -5 (positive ecosystem signal) |
-| **W7** Serra da Estrela | **W4** Prediction Markets | `getLatestReport()` — NDVI recovery, fire recovery index, carbon credits | Environmental outcome markets settle using real satellite data from the Serra da Estrela data feed |
-| **W7** Serra da Estrela | **W3** AI Validator | Satellite NDVI, burn severity, soil data | AI validator uses W7's environmental data as ground truth for regeneration assessment |
+| **W7** Project 001 pilot site | **W4** Prediction Markets | `getLatestReport()` — NDVI recovery, fire recovery index, carbon credits | Environmental outcome markets settle using real satellite data from the Project 001 pilot site data feed |
+| **W7** Project 001 pilot site | **W3** AI Validator | Satellite NDVI, burn severity, soil data | AI validator uses W7's environmental data as ground truth for regeneration assessment |
 | **W8** World ID | **Governance** | `isVerified(address)` — sybil resistance | Only World ID-verified humans can create governance proposals, preventing Sybil attacks on the launchpad |
 
 #### How It Works
@@ -624,9 +624,9 @@ The 8 CRE workflows are not isolated — they form an interconnected verificatio
 The cross-workflow data flows happen through **shared on-chain state** — each workflow writes its results to a contract, and other workflows read from those same contracts via `EVMClient.callContract`. There is no direct workflow-to-workflow communication. CRE's deterministic execution model ensures every workflow reads consistent, finalized state from the chain.
 
 ```
-W7 (Serra da Estrela)                    W3 (AI Validator)
+W7 (Project 001 pilot site)                    W3 (AI Validator)
   │ publishes satellite data                │ reads W7 data + runs LLM
-  │ to SerraEstrelaNativeForest             │ writes verdict to
+  │ to PilotSiteForest             │ writes verdict to
   │                                         │ AIAgentOrchestrator
   ▼                                         ▼
 W4 (Prediction Markets)              W1 (Carbon Credit)          W5 (Health Monitor)
@@ -660,7 +660,7 @@ The cross-workflow integration is configured through shared contract addresses i
 |----------|-------------|---------|
 | `ConfidentialFundingVault` (`0x6840...`) | W1 writes attestations | W2 reads carbon credits, W5 reads regen status |
 | `AIAgentOrchestrator` (`0xE9D7...`) | W3 writes AI verdicts | W5 reads AI risk level |
-| `SerraEstrelaNativeForest` (`0xc7bC...`) | W7 writes satellite data | W4 reads for market settlement |
+| `PilotSiteForest` (`0xc7bC...`) | W7 writes satellite data | W4 reads for market settlement |
 | `WorldIDGatekeeper` (`0x512d...`) | W8 writes verification results | `LaunchpadGovernance` checks before proposal creation |
 
 All cross-workflow reads use `EVMClient.callContract` with `LAST_FINALIZED_BLOCK_NUMBER` to ensure data consistency across the network. Workflows that fail to read cross-workflow data (contract unavailable, no data yet) gracefully fall back to independent operation — the system degrades without breaking.
@@ -746,7 +746,7 @@ Authorization flows through `ZkAMMAdmin.authorizedCRECallback` with a timelock.
 | `ProtocolHealthMonitor` | W5 | Health reports + auto circuit breaker |
 | `CompliantPrivateVault` | W6 | ACE PolicyEngine compliance + `authorizeAndBuy()` → `buyPrivate()` |
 | `IACEPolicyEngine` | W6 | Official Chainlink `@chainlink/policy-management` interface |
-| `SerraEstrelaNativeForest` | W7 | `AggregatorV3Interface` — Fire Recovery Index feed |
+| `PilotSiteForest` | W7 | `AggregatorV3Interface` — Fire Recovery Index feed |
 | `WorldIDGatekeeper` | W8 | Sybil-resistant World ID verification bridge |
 
 ---
@@ -794,7 +794,7 @@ R00t.fund/
 │   ├── workflow-4-prediction/         # Outcome markets
 │   ├── workflow-5-risk/               # Health monitor
 │   ├── workflow-6-compliance/         # ACE compliant transfers
-│   ├── workflow-7-serra-estrela/      # Native forest data feed
+│   ├── workflow-7-pilot-site/      # Native forest data feed
 │   ├── workflow-8-worldid/            # World ID verification (Worldcoin)
 │   ├── diagrams/                      # SVG workflow architecture diagrams
 │   └── contracts/abi/                 # TypeScript ABI exports
@@ -871,7 +871,7 @@ All 8 workflows pass `cre workflow simulate` against the Tenderly Virtual TestNe
 | W4: Prediction | PASS | `Market 0 resolved: NEGATIVE, actual=160 vs target=700, sources=3` |
 | W5: Risk Monitor | PASS | `reserveRatio=821974, shortsUtil=18388, risk=ELEVATED, action=REDUCE_EXPOSURE` |
 | W6: Compliance | PASS | `Scanned 5 requests, processed=0, authorized=0, denied=0` (ACE PolicyEngine + buyPrivate) |
-| W7: Serra da Estrela | PASS | `NDVI=0.3163, recovery=50.3%, FRI=577/1000, trees=2201/2550, CO2=1.06 tCO2e/yr` |
+| W7: Project 001 pilot site | PASS | `NDVI=0.3163, recovery=50.3%, FRI=577/1000, trees=2201/2550, CO2=1.06 tCO2e/yr` |
 | W8: World ID | PASS | `Scanned 1 requests, processed=0, verified=0, rejected=0` |
 
 ---
@@ -917,7 +917,7 @@ The entire R00t.fund protocol is deployed and fully operational on a [Tenderly V
 | ProtocolHealthMonitor | W5 | `0x50F8beE2E560F2335B268d0b6dC64F7153cC852d` |
 | ACE PolicyEngine | W6 | `0x89b493be4262D6786Be6D1b595BD5E829CFd152e` |
 | CompliantPrivateVault | W6 | `0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49` |
-| SerraEstrelaNativeForest | W7 | `0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B` |
+| PilotSiteForest | W7 | `0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B` |
 | WorldIDGatekeeper | W8 | `0x512d4a66760Aba053f4162205d729c8540d00145` |
 
 ### CRE Workflows on Tenderly
@@ -931,7 +931,7 @@ cre-workflows/workflow-3-ai/config.tenderly.json
 cre-workflows/workflow-4-prediction/config.tenderly.json
 cre-workflows/workflow-5-risk/config.tenderly.json
 cre-workflows/workflow-6-compliance/config.tenderly.json
-cre-workflows/workflow-7-serra-estrela/config.tenderly.json
+cre-workflows/workflow-7-pilot-site/config.tenderly.json
 cre-workflows/workflow-8-worldid/config.tenderly.json
 ```
 
@@ -1039,9 +1039,9 @@ Per hackathon requirements, here are the key files for each track:
 
 ### DeFi & Tokenization Track ($20,000)
 - [`cre-workflows/workflow-2-defi/main.ts`](cre-workflows/workflow-2-defi/main.ts) — Regenerative Proof of Reserve
-- [`cre-workflows/workflow-7-serra-estrela/main.ts`](cre-workflows/workflow-7-serra-estrela/main.ts) — Custom data feed
+- [`cre-workflows/workflow-7-pilot-site/main.ts`](cre-workflows/workflow-7-pilot-site/main.ts) — Custom data feed
 - [`contracts/src/cre/RegenProofOfReserve.sol`](contracts/src/cre/RegenProofOfReserve.sol) — AggregatorV3 PoR feed
-- [`contracts/src/cre/SerraEstrelaNativeForest.sol`](contracts/src/cre/SerraEstrelaNativeForest.sol) — Restoration data feed
+- [`contracts/src/cre/PilotSiteForest.sol`](contracts/src/cre/PilotSiteForest.sol) — Restoration data feed
 
 ### CRE & AI Track ($17,000)
 - [`cre-workflows/workflow-3-ai/main.ts`](cre-workflows/workflow-3-ai/main.ts) — AI land regeneration validator

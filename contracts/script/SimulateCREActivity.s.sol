@@ -12,7 +12,7 @@ import "forge-std/Script.sol";
 ///   forge script script/SimulateCREActivity.s.sol --rpc-url $TENDERLY_VIRTUAL_TESTNET_RPC --broadcast --slow
 
 // Minimal interfaces for each CRE contract
-interface ISerraEstrelaNativeForest {
+interface IPilotSiteForest {
     function receiveReport(
         int256 ndviCurrent, int256 ndviPreFire, uint256 ndviRecoveryPct,
         int256 dnbr, uint256 soilOrganicCarbon, uint256 estimatedLiveTrees,
@@ -115,7 +115,7 @@ contract SimulateCREActivityScript is Script {
         address deployer = vm.addr(deployerPrivateKey);
 
         // Contract addresses from .env.tenderly
-        address serraEstrela = vm.envAddress("SERRA_ESTRELA_DATAFEED_ADDRESS");
+        address pilotSite = vm.envAddress("PILOT_SITE_DATAFEED_ADDRESS");
         address proofOfReserve = vm.envAddress("REGEN_PROOF_OF_RESERVE_ADDRESS");
         address aiOrchestrator = vm.envAddress("AI_AGENT_ORCHESTRATOR_ADDRESS");
         address healthMonitor = vm.envAddress("PROTOCOL_HEALTH_MONITOR_ADDRESS");
@@ -140,13 +140,13 @@ contract SimulateCREActivityScript is Script {
         uint256 txCount = 0;
 
         // ==========================================
-        // W7: Serra da Estrela Data Feed -- 6 reports
+        // W7: Project 001 pilot site Data Feed -- 6 reports
         // Simulates 6-hourly NDVI/restoration updates
         // ==========================================
-        console.log("--- W7: Serra da Estrela Restoration Data Feed ---");
+        console.log("--- W7: Project 001 pilot site Restoration Data Feed ---");
 
         // Report 1: Early recovery (Month 1 -- Dec 2025)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             2800,   // ndviCurrent: 0.2800 (burned land, low vegetation)
             7200,   // ndviPreFire: 0.7200 (healthy forest before fire)
             38,     // ndviRecoveryPct: 38%
@@ -161,35 +161,35 @@ contract SimulateCREActivityScript is Script {
         console.log("  Report 1: Early recovery (NDVI 0.28, 2550 trees planted)");
 
         // Report 2: Spring growth (Month 4 -- Mar 2026)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             3400, 7200, 47, -380, 13200, 2480, 8500, 0, 340
         );
         txCount++;
         console.log("  Report 2: Spring growth (NDVI 0.34, 2480 surviving)");
 
         // Report 3: Summer check (Month 7 -- Jun 2026)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             4100, 7200, 57, -290, 14800, 2410, 22000, 5, 420
         );
         txCount++;
         console.log("  Report 3: Summer check (NDVI 0.41, 5 carbon credits)");
 
         // Report 4: Autumn assessment (Month 10 -- Sep 2026)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             4600, 7200, 64, -220, 16100, 2380, 35000, 12, 510
         );
         txCount++;
         console.log("  Report 4: Autumn assessment (NDVI 0.46, 12 credits)");
 
         // Report 5: First anniversary (Month 12 -- Nov 2026)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             5100, 7200, 71, -170, 17500, 2350, 42000, 18, 580
         );
         txCount++;
         console.log("  Report 5: First anniversary (NDVI 0.51, 18 credits)");
 
         // Report 6: Latest (Month 14 -- Jan 2027)
-        ISerraEstrelaNativeForest(serraEstrela).receiveReport(
+        IPilotSiteForest(pilotSite).receiveReport(
             5400, 7200, 75, -140, 18200, 2320, 48000, 24, 620
         );
         txCount++;
@@ -327,10 +327,10 @@ contract SimulateCREActivityScript is Script {
         txCount++;
         console.log("  Config: Min impact score set to 500");
 
-        cfv.receiveReport(1, 720, keccak256("verra_vcs_001_serra_estrela_reforestation"),
-            abi.encode("encrypted_attestation_serra_estrela_9ha_2550trees"));
+        cfv.receiveReport(1, 720, keccak256("verra_vcs_001_pilot_site_reforestation"),
+            abi.encode("encrypted_attestation_pilot_site_9ha_2550trees"));
         txCount++;
-        console.log("  Attestation 1: Proposal #1 -- Serra da Estrela (score 720)");
+        console.log("  Attestation 1: Proposal #1 -- Project 001 pilot site (score 720)");
 
         cfv.receiveReport(2, 650, keccak256("gold_standard_002_soil_restoration"),
             abi.encode("encrypted_attestation_soil_carbon_project"));
@@ -427,7 +427,7 @@ contract SimulateCREActivityScript is Script {
 
         pm.createMarket(1, "NDVI_RECOVERY_PCT", 70, block.timestamp + 180 days);
         txCount++;
-        console.log("  Market 1: Will Serra da Estrela reach 70% NDVI recovery?");
+        console.log("  Market 1: Will Project 001 pilot site reach 70% NDVI recovery?");
 
         pm.createMarket(2, "TREE_SURVIVAL_RATE", 90, block.timestamp + 365 days);
         txCount++;
@@ -539,7 +539,7 @@ contract SimulateCREActivityScript is Script {
         console.log("");
         console.log("Total transactions:", txCount);
         console.log("");
-        console.log("  W7 Serra da Estrela:     6 data feed reports");
+        console.log("  W7 Project 001 pilot site:     6 data feed reports");
         console.log("  W2 Proof of Reserve:     6 TVL/reserve reports");
         console.log("  W5 Health Monitor:       8 health checks");
         console.log("  W3 AI Orchestrator:      8 analysis + advisories");

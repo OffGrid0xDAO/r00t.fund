@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@r00t-fund/serra-estrela-native-forest",
+      "name": "@r00t-fund/pilot-site-native-forest",
       "dependencies": {
         "@chainlink/cre-sdk": "^1.0.9",
         "viem": "2.34.0",

@@ -41,7 +41,7 @@ const SEPOLIA_CONTRACTS = {
   shortsContract: '0xE76cb3eb5253f3cFaEEab29bF44F27af9c66dF6C',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
   // CRE Workflow Contracts
-  serraEstrela: '0x...',
+  pilotSite: '0x...',
   confidentialFundingVault: '0x...',
   regenProofOfReserve: '0x...',
   aiAgentOrchestrator: '0x...',
@@ -68,7 +68,7 @@ const TENDERLY_CONTRACTS = {
   shortsContract: '0xCc67e5664a4996C13ab8499E9ABD4c57B11b0107',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
   // CRE Workflow Contracts
-  serraEstrela: '0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B',
+  pilotSite: '0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B',
   confidentialFundingVault: '0x6840B8F438610217265fEBF084E578537c9AA361',
   regenProofOfReserve: '0x47Cbc90f86992004c57BCC25D8c25012cFcc8E21',
   aiAgentOrchestrator: '0xE9D7284DDBF635B35e0C3bCB9d9d0F607D08F824',
@@ -95,7 +95,7 @@ const ARBITRUM_CONTRACTS = {
   shortsContract: '0x...',
   worldIdGatekeeper: '0x...',
   // CRE Workflow Contracts
-  serraEstrela: '0x...',
+  pilotSite: '0x...',
   confidentialFundingVault: '0x...',
   regenProofOfReserve: '0x...',
   aiAgentOrchestrator: '0x...',
@@ -125,7 +125,7 @@ export const CONTRACTS = {
   poolRouter: FALLBACK.poolRouter,
   shortsContract: FALLBACK.shortsContract,
   worldIdGatekeeper: FALLBACK.worldIdGatekeeper,
-  serraEstrela: FALLBACK.serraEstrela,
+  pilotSite: FALLBACK.pilotSite,
   confidentialFundingVault: FALLBACK.confidentialFundingVault,
   regenProofOfReserve: FALLBACK.regenProofOfReserve,
   aiAgentOrchestrator: FALLBACK.aiAgentOrchestrator,
