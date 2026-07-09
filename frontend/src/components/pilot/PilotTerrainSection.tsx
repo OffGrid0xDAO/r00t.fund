@@ -27,7 +27,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
   }, []);
 
   return (
-    <section id="pilot-001" className="relative pt-10 pb-16 md:pt-14 md:pb-24 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+    <section id="pilot-001" className="relative pt-10 pb-16 md:pt-14 md:pb-24 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
       <div className="max-w-6xl mx-auto">
         {/* cinematic terrain stage */}
         <motion.div

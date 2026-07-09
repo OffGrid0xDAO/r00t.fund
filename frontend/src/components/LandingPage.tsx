@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
+import { CONTRACTS, TOKEN, getExplorerAddressUrl, hasExplorer } from '../config';
 
 // Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
@@ -120,6 +121,48 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
   );
 }
 
+// $R00T token contract chip — address + copy, links to explorer if available
+function TokenContract() {
+  const [copied, setCopied] = useState(false);
+  const addr = CONTRACTS.rootToken;
+  if (!addr || addr === '0x...') return null;
+  const short = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  const copy = () => {
+    navigator.clipboard.writeText(addr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+  const explorer = hasExplorer() ? getExplorerAddressUrl(addr) : '';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 1.6 }}
+      className="mt-6 inline-flex items-center gap-2.5 rounded-lg border border-[var(--border)] pl-3 pr-1.5 py-1.5 font-mono text-xs"
+      style={{ background: 'var(--bg-elevated)' }}
+    >
+      <span className="text-[var(--accent-on-bg)] font-medium">${TOKEN.symbol}</span>
+      <span className="text-[var(--text-muted)] hidden sm:inline">contract</span>
+      {explorer ? (
+        <a href={explorer} target="_blank" rel="noopener noreferrer" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">{short}</a>
+      ) : (
+        <span className="text-[var(--text-secondary)]">{short}</span>
+      )}
+      <button
+        onClick={copy}
+        className="flex items-center gap-1 rounded-md px-2 py-1 text-[var(--text-muted)] hover:text-[var(--accent-on-bg)] hover:bg-[var(--bg-secondary)] transition-colors"
+        aria-label="Copy contract address"
+      >
+        {copied ? (
+          <svg className="w-3.5 h-3.5 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        ) : (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+        )}
+      </button>
+    </motion.div>
+  );
+}
+
 export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -164,7 +207,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER
           ═══════════════════════════════════════════════════════════════════ */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[var(--bg-primary)]/70 border-b border-[var(--border)]/30">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[var(--bg-primary)]/70 border-b border-[var(--border)]/30 dark:border-transparent">
         <div className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-5 md:py-6">
           <motion.div
             initial={{ opacity: 0, x: -10 }}
@@ -288,6 +331,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 See How It Works
               </button>
             </motion.div>
+
+            {/* $R00T token contract */}
+            <TokenContract />
           </motion.div>
 
           {/* Logo — right side */}
@@ -400,7 +446,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           VERIFICATION PIPELINE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="Verification"
@@ -480,7 +526,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           SDK — OpenClaw Agent Setup
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
@@ -716,7 +762,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           TECH STACK
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -779,7 +825,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="relative border-t border-[var(--border)]/50">
+      <footer className="relative border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="px-6 md:px-12 lg:px-16 py-12">
           <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-10 md:gap-8">
             {/* Left column */}
@@ -864,7 +910,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-[var(--border)]/50 px-6 md:px-12 lg:px-16 py-5">
+        <div className="border-t border-[var(--border)]/50 dark:border-transparent px-6 md:px-12 lg:px-16 py-5">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-[var(--text-muted)] font-mono">&copy; 2025-2026 r00t.fund</span>
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
