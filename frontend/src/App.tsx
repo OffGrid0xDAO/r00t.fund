@@ -12,6 +12,15 @@ import { usePrivateWallet } from './hooks/usePrivateWallet';
 import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
 import { CONTRACTS, TOKEN, NETWORK } from './config';
+import { fetchParcelTokens } from './components/pilot/parcelTokens';
+
+// Deterministic synthetic address for a parcel token until its real pool exists
+// post-TGE. Valid 0x + 40-hex so viem reads fail gracefully (try/catch in SwapPanel).
+function parcelTokenAddress(ticker: string): string {
+  const hex = Array.from(ticker.toLowerCase())
+    .map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+  return ('0x' + hex.padEnd(40, '0')).slice(0, 42);
+}
 
 // Lazy load heavy components for better initial load
 const PortfolioPanel = lazy(() => import('./components/PortfolioPanel').then(m => ({ default: m.PortfolioPanel })));
@@ -334,6 +343,29 @@ function App() {
       }
     })();
   }, [publicClient, handleLiveTokensDiscovered]);
+
+  // Add live (tradable) parcel tokens to the swap token list. Pledging/launching
+  // parcels are NOT tradable yet, so they're excluded here (see LandsPanel).
+  useEffect(() => {
+    let cancelled = false;
+    fetchParcelTokens().then(tokens => {
+      if (cancelled) return;
+      const live = tokens.filter(t => t.tradable).map(t => ({
+        address: parcelTokenAddress(t.ticker),
+        name: `${t.emoji} ${t.name}`,
+        symbol: t.ticker,
+        isRoot: false,
+      }));
+      if (live.length) {
+        setAvailableTokens(prev => {
+          const seen = new Set(prev.map(t => t.address));
+          const add = live.filter(t => !seen.has(t.address));
+          return add.length ? [...prev, ...add] : prev;
+        });
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
   const expectedChainId = NETWORK.chainId;
