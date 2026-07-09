@@ -16,7 +16,7 @@ export const REWARD_LABEL: Record<PatronageReward, string> = {
   certificate: 'Certificate badge',
 };
 
-export const eur = (n: number) => '€' + Math.round(n).toLocaleString('en-GB');
+export const usd = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 
 export const pct = (funded: number, target: number) =>
   Math.min(100, Math.round((funded / Math.max(1, target)) * 100));

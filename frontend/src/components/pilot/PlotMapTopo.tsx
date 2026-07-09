@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePilotState } from './usePilotState';
-import { TYPE_COLOR, eur, pct, greenLevel, parcelHeat, recentEur, regenIndex, tickerFromName, landValueR00T, fmtR00T } from './ui';
+import { TYPE_COLOR, usd, pct, greenLevel, parcelHeat, recentEur, regenIndex, tickerFromName, landValueR00T, fmtR00T } from './ui';
 import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
@@ -219,11 +219,11 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
               </div>
               <div className="flex items-center justify-between text-[10px] font-mono text-[var(--text-muted)]">
                 <span>{hovered.contributions.length} backers</span>
-                <span>{hovered.fundedEur >= hovered.targetEur ? 'fully backed' : `${eur(hovered.targetEur - hovered.fundedEur)} to go`}</span>
+                <span>{hovered.fundedEur >= hovered.targetEur ? 'fully backed' : `${usd(hovered.targetEur - hovered.fundedEur)} to go`}</span>
               </div>
               <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono">
                 <span className="text-[var(--text-muted)]">Regen Index <span className="text-[var(--accent-on-bg)] font-medium">{regenIndex(hovered, now)}</span></span>
-                {recentEur(hovered, now) > 0 && <span className="text-[#FF7A00]">🔥 {eur(recentEur(hovered, now))}/min</span>}
+                {recentEur(hovered, now) > 0 && <span className="text-[#FF7A00]">🔥 {usd(recentEur(hovered, now))}/min</span>}
               </div>
               <p className="mt-1.5 text-[9px] text-[var(--accent-on-bg)] font-mono">click to back →</p>
             </motion.div>
@@ -243,8 +243,8 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
       {/* totals HUD */}
       <div className="absolute left-3 bottom-3 z-20 flex items-center gap-3 rounded-xl border border-[var(--border)] px-3.5 py-2.5 backdrop-blur-md" style={{ background: 'color-mix(in srgb, var(--bg-elevated) 88%, transparent)' }}>
         <div>
-          <p className="font-display text-base text-[var(--text-primary)] leading-none">{eur(totals.funded)}</p>
-          <p className="text-[9px] font-mono text-[var(--text-muted)] mt-0.5">of {eur(totals.target)} · {totals.backers} backers · {totals.verified}/{totals.plots} verified</p>
+          <p className="font-display text-base text-[var(--text-primary)] leading-none">{usd(totals.funded)}</p>
+          <p className="text-[9px] font-mono text-[var(--text-muted)] mt-0.5">of {usd(totals.target)} · {totals.backers} backers · {totals.verified}/{totals.plots} verified</p>
         </div>
         <div className="w-px h-8 bg-[var(--border)]" />
         <button onClick={() => setShowMachines(true)} className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors flex items-center gap-1.5">🚜 Machines & infra</button>
@@ -261,7 +261,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
               style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)', boxShadow: 'var(--shadow-md)' }}>
               <span>🌱</span>
               <span className="text-[var(--text-secondary)]">{f.who}</span>
-              <span className="text-[var(--accent-on-bg)] font-medium">+{eur(f.amt)}</span>
+              <span className="text-[var(--accent-on-bg)] font-medium">+{usd(f.amt)}</span>
               <span className="text-[var(--text-muted)] max-w-[120px] truncate">→ {f.parcel}</span>
             </motion.div>
           ))}

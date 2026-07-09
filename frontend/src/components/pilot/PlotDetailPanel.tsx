@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
 import { CROPS } from './data';
-import { TYPE_COLOR, REWARD_LABEL, eur, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact } from './ui';
+import { TYPE_COLOR, REWARD_LABEL, usd, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact } from './ui';
 
 const FUND_PRESETS = [25, 100, 500];
 
@@ -110,15 +110,15 @@ export function PlotDetailPanel({
         {/* funding progress */}
         <div className="rounded-xl border border-[var(--border)] p-4 mb-4" style={{ background: 'var(--bg-secondary)' }}>
           <div className="flex items-baseline justify-between mb-2">
-            <span className="font-display text-lg text-[var(--text-primary)]">{eur(plot.fundedEur)}</span>
-            <span className="text-xs font-mono text-[var(--text-muted)]">of {eur(plot.targetEur)}</span>
+            <span className="font-display text-lg text-[var(--text-primary)]">{usd(plot.fundedEur)}</span>
+            <span className="text-xs font-mono text-[var(--text-muted)]">of {usd(plot.targetEur)}</span>
           </div>
           <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
             <motion.div className="h-full rounded-full" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />
           </div>
           <div className="flex items-center justify-between mt-2 text-[11px] font-mono text-[var(--text-muted)]">
             <span>{plot.contributions.length} backers</span>
-            <span>{remaining > 0 ? `${eur(remaining)} to go` : 'fully backed'}</span>
+            <span>{remaining > 0 ? `${usd(remaining)} to go` : 'fully backed'}</span>
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function PlotDetailPanel({
           <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-muted)] mb-2">Back this plot</p>
           <div className="flex gap-2 mb-2">
             {FUND_PRESETS.map((v) => (
-              <button key={v} onClick={() => setAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${amount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={amount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{eur(v)}</button>
+              <button key={v} onClick={() => setAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${amount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={amount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
             ))}
             <input
               type="number" min={1} value={amount}
@@ -166,7 +166,7 @@ export function PlotDetailPanel({
             className="w-full py-3 rounded-lg text-white font-medium text-sm transition-opacity disabled:opacity-60 hover:opacity-90"
             style={{ background: color }}
           >
-            {busy ? 'Recording…' : `Back ${eur(amount)} → ${fmtCompact(alloc)} $${ticker}`}
+            {busy ? 'Recording…' : `Back ${usd(amount)} → ${fmtCompact(alloc)} $${ticker}`}
           </button>
           <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
             ⚡ early-bird price {fmtPrice(price)} · your € funds the land, tokens airdrop at TGE
@@ -215,7 +215,7 @@ export function PlotDetailPanel({
               {plot.contributions.slice(0, 5).map((c) => (
                 <li key={c.id} className="flex items-center justify-between text-xs">
                   <span className="font-mono text-[var(--text-secondary)]">{c.backer}</span>
-                  <span className="text-[var(--text-muted)]">{eur(c.amountEur)}</span>
+                  <span className="text-[var(--text-muted)]">{usd(c.amountEur)}</span>
                 </li>
               ))}
             </ul>

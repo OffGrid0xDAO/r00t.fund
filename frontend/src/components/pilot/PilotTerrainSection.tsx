@@ -5,11 +5,11 @@
  * source intro animation. Content lives over the blank left area; hovering the
  * glowing land shows a hint, and clicking it opens the top-down plot map.
  */
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { SEED_PLOTS } from './data';
+import { zonesToPlots, SEED_MACHINES, REVIVE_GOAL, type Zone } from './data';
 import { TYPE_LABEL } from './types';
-import { TYPE_COLOR, eur } from './ui';
+import { TYPE_COLOR, usd } from './ui';
 
 const PilotTerrain = lazy(() => import('./PilotTerrain').then(m => ({ default: m.PilotTerrain })));
 const PlotMapTopo = lazy(() => import('./PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
@@ -17,14 +17,20 @@ const PlotMapTopo = lazy(() => import('./PlotMapTopo').then(m => ({ default: m.P
 export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void }) {
   const [hovering, setHovering] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [zones, setZones] = useState<Zone[] | null>(null);
+
+  useEffect(() => {
+    fetch('/terrain/zones.json').then(r => r.json()).then(setZones).catch(() => {});
+  }, []);
 
   const stats = useMemo(() => {
-    const funded = SEED_PLOTS.reduce((s, p) => s + p.fundedEur, 0);
-    const target = SEED_PLOTS.reduce((s, p) => s + p.targetEur, 0);
-    const backers = new Set(SEED_PLOTS.flatMap(p => p.contributions.map(c => c.backer))).size;
-    const verified = SEED_PLOTS.filter(p => p.status === 'verified').length;
-    return { funded, target, backers, verified, plots: SEED_PLOTS.length };
-  }, []);
+    const plots = zones ? zonesToPlots(zones) : [];
+    const infraFunded = SEED_MACHINES.reduce((s, m) => s + m.fundedEur, 0);
+    const funded = plots.reduce((s, p) => s + p.fundedEur, 0) + infraFunded;
+    const backers = new Set(plots.flatMap(p => p.contributions.map(c => c.backer))).size;
+    const verified = plots.filter(p => p.status === 'verified').length;
+    return { funded, target: REVIVE_GOAL, backers, verified, plots: plots.length };
+  }, [zones]);
 
   return (
     <section id="pilot-001" className="relative pt-10 pb-16 md:pt-14 md:pb-24 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
@@ -59,7 +65,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
                 {/* live-ish stats */}
                 <div className="flex flex-wrap gap-x-8 gap-y-3 mb-6">
                   {[
-                    { v: eur(stats.funded), l: `raised of ${eur(stats.target)}` },
+                    { v: usd(stats.funded), l: `raised of ${usd(stats.target)}` },
                     { v: String(stats.backers), l: 'backers' },
                     { v: `${stats.verified}/${stats.plots}`, l: 'zones verified' },
                   ].map((s) => (

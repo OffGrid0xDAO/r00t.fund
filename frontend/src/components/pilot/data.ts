@@ -14,7 +14,11 @@ export const CROPS: Crop[] = [
   { id: 'fig', label: 'Fig & almond', emoji: '🫒', note: 'Fast pioneer fruit, early yield while the canopy grows' },
   { id: 'vine', label: 'Vine & berry', emoji: '🍇', note: 'Ground & climbing layer, holds moisture' },
   { id: 'herb', label: 'Aromatic herbs', emoji: '🌿', note: 'Rosemary, thyme, lavender — pollinators + fire-wise cover' },
+  { id: 'wachuma', label: 'Wachuma cactus', emoji: '🌵', note: 'Ornamental columnar cactus line — drought-proof living fence, legal as ornamental' },
 ];
+
+// Total capital to fully revive the pilot land (parcels + infrastructure).
+export const REVIVE_GOAL = 333_000;
 
 // seeking → greening → funded → planted → verified
 export const SEED_PLOTS: Plot[] = [
@@ -133,19 +137,52 @@ const BLURB_BY_TYPE: Record<InterventionType, string> = {
 // pool of evocative names early namers might pick (their choice → the token name)
 const NAMED_POOL = ['Dragon Oak', 'Emberhill', 'Mistvale', 'Thornwood', 'Greenmarch', 'Ashridge', 'Wolfspring', 'Fernhollow', 'Sunterrace', 'Rootdeep', 'Wildeacre', 'Stonebrook'];
 
+// Communal capex — funded together, separate from the plant-a-plot flow.
+// Those with x/y (terrain-normalized) also appear as pins on the plan map.
+export const SEED_MACHINES: Machine[] = [
+  { id: 'm1', name: 'Tractor', emoji: '🚜', kind: 'machine', targetEur: 20000, fundedEur: 12200, blurb: 'Shared compact tractor — swale digging, mulch hauling, no diesel middlemen.', x: 0.44, y: 0.588 },
+  { id: 'm2', name: 'Wood chipper', emoji: '🪵', kind: 'machine', targetEur: 7000, fundedEur: 6450, blurb: 'Turns salvaged burned trunks into biomass mulch for soil fertility.', x: 0.432, y: 0.596 },
+  { id: 'm3', name: 'Solar water pump', emoji: '💧', kind: 'machine', targetEur: 5000, fundedEur: 900, blurb: 'Solar pump lifts catchment water to the upper terraces — no grid, no diesel.', x: 0.30, y: 0.6 },
+  { id: 'm4', name: 'Swales & earthworks', emoji: '⛰️', kind: 'infrastructure', targetEur: 13000, fundedEur: 3000, blurb: 'Machine-cut keyline swales + catchment ponds across the slope — the water backbone.', x: 0.355, y: 0.596 },
+  { id: 'm5', name: 'Communal kitchen', emoji: '🍲', kind: 'infrastructure', targetEur: 9000, fundedEur: 1200, blurb: 'Where the crews and backers-in-residence cook and gather.', x: 0.415, y: 0.601 },
+  { id: 'm6', name: 'Tool barn & access', emoji: '🏚️', kind: 'infrastructure', targetEur: 6000, fundedEur: 0, blurb: 'Repair the fire-road switchback + a dry store so every parcel can be worked.', x: 0.425, y: 0.611 },
+];
+
+// Infrastructure and parcels together must sum to REVIVE_GOAL ($333k).
+const INFRA_TOTAL = SEED_MACHINES.reduce((s, m) => s + m.targetEur, 0);
+const PARCEL_POOL = REVIVE_GOAL - INFRA_TOTAL;   // budget shared across all parcels
+
 export function zonesToPlots(zones: Zone[]): Plot[] {
+  // pass 1 — raw target weight per parcel (area-based)
+  const raw = zones.map(z => 1 + polyArea(z.poly) * 4.0e6);
+  const rawSum = raw.reduce((a, b) => a + b, 0);
+  // scale so parcel targets sum to PARCEL_POOL, rounded to $100
+  let targets = raw.map(w => Math.max(2000, Math.round((PARCEL_POOL * w / rawSum) / 100) * 100));
+  // absorb rounding drift into the largest parcel so the sum is exact
+  const drift = PARCEL_POOL - targets.reduce((a, b) => a + b, 0);
+  const biggest = targets.indexOf(Math.max(...targets));
+  targets[biggest] += drift;
+
+  // designate the largest syntropic parcel as the Wachuma cactus line
+  const synIdx = zones.map((z, i) => ({ z, i })).filter(o => o.z.type === 'syntropic');
+  const wachumaIdx = synIdx.length
+    ? synIdx.reduce((m, o) => targets[o.i] > targets[m.i] ? o : m).i
+    : -1;
+
   return zones.map((z, idx) => {
     const rng = seedRng(z.id);
     const [cx, cy] = centroid(z.poly as Pt[]);
-    const target = Math.max(1200, Math.round((1200 + polyArea(z.poly) * 3.6e6) / 100) * 100);
+    const target = targets[idx];
     const f = rng();                       // funded fraction
     const fundedEur = Math.round((target * f) / 100) * 100;
     let status: PlotStatus = f < 0.12 ? 'seeking' : f < 0.85 ? 'greening' : 'funded';
     const r2 = rng();
     if (status === 'funded') { if (r2 < 0.45) status = 'planted'; if (r2 < 0.18) status = 'verified'; }
+    const isWachuma = idx === wachumaIdx;
     // established parcels have been named by an early backer; the rest are open
-    const named = f > 0.4;
-    const displayName = named ? NAMED_POOL[idx % NAMED_POOL.length] : `Parcel ${String(idx + 1).padStart(2, '0')}`;
+    const named = isWachuma || f > 0.4;
+    const displayName = isWachuma ? 'Wachuma Cactus Line'
+      : named ? NAMED_POOL[idx % NAMED_POOL.length] : `Parcel ${String(idx + 1).padStart(2, '0')}`;
 
     const n = 1 + Math.floor(rng() * 4);
     const contributions = fundedEur <= 0 ? [] : Array.from({ length: n }, (_, i) => ({
@@ -156,8 +193,9 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
     }));
 
     const isSyn = z.type === 'syntropic';
-    const cropIds = CROPS.map(c => c.id);
-    const cropOptions = isSyn ? [cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)]].filter((v, i, a) => a.indexOf(v) === i) : undefined;
+    const cropIds = CROPS.map(c => c.id).filter(c => c !== 'wachuma');
+    const cropOptions = isWachuma ? ['wachuma']
+      : isSyn ? [cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)]].filter((v, i, a) => a.indexOf(v) === i) : undefined;
 
     return {
       id: z.id,
@@ -173,19 +211,12 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
       status,
       rewards: REWARDS_BY_TYPE[z.type],
       cropOptions,
-      chosenCropId: isSyn && status !== 'seeking' ? cropOptions?.[0] : undefined,
-      blurb: BLURB_BY_TYPE[z.type],
+      chosenCropId: isWachuma ? 'wachuma' : (isSyn && status !== 'seeking' ? cropOptions?.[0] : undefined),
+      blurb: isWachuma
+        ? 'A living fence of ornamental Wachuma columnar cactus along the contour — drought-proof, striking, and legal as ornamental. Slow-grown, high-value, and it holds the terrace edge.'
+        : BLURB_BY_TYPE[z.type],
       contributions,
       verified: { attested: status === 'verified', ndvi: 0.18 + f * 0.3, source: 'CCIP attestation (mock)', at: status === 'verified' ? Date.now() - 3e6 : undefined },
     } as Plot;
   });
 }
-
-// Communal capex — funded together, separate from the plant-a-plot flow.
-// Those with x/y (terrain-normalized) also appear as pins on the plan map.
-export const SEED_MACHINES: Machine[] = [
-  { id: 'm1', name: 'Tractor', emoji: '🚜', kind: 'machine', targetEur: 9500, fundedEur: 6100, blurb: 'Shared compact tractor — swale digging, mulch hauling, no diesel middlemen.', x: 0.44, y: 0.588 },
-  { id: 'm2', name: 'Wood chipper', emoji: '🪵', kind: 'machine', targetEur: 3200, fundedEur: 2950, blurb: 'Turns salvaged burned trunks into biomass mulch for soil fertility.', x: 0.432, y: 0.596 },
-  { id: 'm3', name: 'Water pump', emoji: '💧', kind: 'machine', targetEur: 1400, fundedEur: 900, blurb: 'Solar pump lifts catchment water to the upper terraces.', x: 0.30, y: 0.6 },
-  { id: 'm4', name: 'Communal kitchen', emoji: '🍲', kind: 'infrastructure', targetEur: 5400, fundedEur: 1200, blurb: 'Where the crews and backers-in-residence cook and gather.', x: 0.415, y: 0.601 },
-];

@@ -5,7 +5,7 @@
  */
 import { motion } from 'framer-motion';
 import type { Machine } from './types';
-import { eur, pct } from './ui';
+import { usd, pct } from './ui';
 
 export function MachinesPanel({
   machines, pending, onClose, onFund,
@@ -57,7 +57,7 @@ export function MachinesPanel({
                       <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${progress}%` }} />
                     </div>
                     <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)]">
-                      <span>{eur(m.fundedEur)} / {eur(m.targetEur)}</span>
+                      <span>{usd(m.fundedEur)} / {usd(m.targetEur)}</span>
                       {done ? (
                         <span className="text-[var(--success)]">fully funded ✓</span>
                       ) : (

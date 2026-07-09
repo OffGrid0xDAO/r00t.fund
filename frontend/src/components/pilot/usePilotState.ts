@@ -94,12 +94,13 @@ export function usePilotState(
   }, [backend]);
 
   const totals = useMemo(() => {
-    const target = plots.reduce((s, p) => s + p.targetEur, 0);
-    const funded = plots.reduce((s, p) => s + p.fundedEur, 0);
+    // full revive goal = parcels + communal infrastructure
+    const target = plots.reduce((s, p) => s + p.targetEur, 0) + machines.reduce((s, m) => s + m.targetEur, 0);
+    const funded = plots.reduce((s, p) => s + p.fundedEur, 0) + machines.reduce((s, m) => s + m.fundedEur, 0);
     const backers = new Set(plots.flatMap((p) => p.contributions.map((c) => c.backer))).size;
     const verified = plots.filter((p) => p.status === 'verified').length;
     return { target, funded, backers, verified, plots: plots.length };
-  }, [plots]);
+  }, [plots, machines]);
 
   return { plots, machines, pending, totals, fundPlot, chooseCrop, plantPlot, verifyPlot, fundMachine, renamePlot };
 }
