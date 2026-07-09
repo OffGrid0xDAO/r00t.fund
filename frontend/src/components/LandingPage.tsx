@@ -250,9 +250,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.0 }}
               className="font-display text-[clamp(2.5rem,6vw,5.5rem)] leading-[0.95] tracking-[-0.03em] mb-6"
             >
-              <span className="text-[var(--text-primary)]">Fund what heals.</span>
+              <span className="text-[var(--text-primary)]">Fund a plot.</span>
               <br />
-              <span className="text-[var(--accent)] text-glow">Prove it on-chain.</span>
+              <span className="text-[var(--accent)] text-glow">Grow it back.</span>
             </motion.h1>
 
             {/* Sub-headline */}
@@ -262,7 +262,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.2 }}
               className="text-base md:text-lg text-[var(--text-secondary)] max-w-lg leading-relaxed mb-10"
             >
-              A private launchpad where communities fund regeneration projects, and Chainlink CRE proves they delivered — from satellite imagery to carbon credits.
+              Back a plot of real land, choose what grows on it, and watch it come back to life — every contribution traceable to the soil it heals, independently verified. Take from the casino, give back to the land.
             </motion.p>
 
             {/* CTAs */}
@@ -278,7 +278,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  Enter Protocol
+                  Back a Plot
                   <ArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
                 </span>
               </button>
@@ -495,11 +495,11 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
       </section>
 
-      {/* Serra da Estrela section — commented out for hackathon demo video
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        ... Serra da Estrela Real Project content ...
-      </section>
-      */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          PROJECT 001 — pilot terrain section + interactive plot map mounts here
+          (see components/pilot/*). Terrain is rendered from fuzzed, non-cadastral
+          geometry only — no real coordinates in the client bundle.
+          ═══════════════════════════════════════════════════════════════════ */}
 
       {/* ═══════════════════════════════════════════════════════════════════
           CRE WORKFLOWS — 7 workflows
@@ -519,7 +519,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               { num: 'W4', name: 'Prediction Markets', desc: 'Environmental outcome markets settled by real satellite data', track: 'Markets' },
               { num: 'W5', name: 'Health Monitor', desc: 'Real-time protocol risk scoring with automatic circuit breakers', track: 'Risk' },
               { num: 'W6', name: 'ACE Compliance', desc: 'Anonymous sanctions screening — EU MiCA without sacrificing privacy', track: 'Privacy' },
-              { num: 'W7', name: 'Serra Estrela Feed', desc: 'Custom Chainlink data feed publishing weekly satellite NDVI recovery', track: 'Data' },
+              { num: 'W7', name: 'Pilot Site Feed', desc: 'Custom data feed publishing weekly satellite NDVI recovery for the pilot terrain', track: 'Data' },
               { num: 'W8', name: 'World ID Bridge', desc: 'Sybil-resistant governance — World ID verification on any EVM chain', track: 'Identity' },
             ].map((w, i) => (
               <motion.div
@@ -610,7 +610,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 'ISRIC SoilGrids',
                 'Global Forest Watch',
                 'Verra / Gold Standard',
-                'ICNF / APA Portugal',
+                'National forest & soil registries',
               ].map((source, i) => (
                 <motion.span
                   key={source}
@@ -908,10 +908,10 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           >
             <RootLogo size={56} className="text-[var(--accent)] mx-auto mb-8 opacity-40" />
             <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] mb-4 leading-[1.1]">
-              Fund what heals.<br /><span className="text-[var(--accent)]">Verify on-chain.</span>
+              Fund what heals.<br /><span className="text-[var(--accent)]">Watch it grow back.</span>
             </h2>
             <p className="text-[var(--text-secondary)] mb-8 max-w-md mx-auto">
-              27 contracts. 8 CRE workflows. 12 ZK circuits. One protocol connecting capital to land.
+              Real land. Real trees. Every contribution traceable to the soil it heals — and independently verified as it regenerates.
             </p>
             <button
               onClick={onEnterApp}
@@ -919,7 +919,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <span className="relative z-10 flex items-center gap-2">
-                Enter Protocol
+                Back a Plot
                 <ArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
               </span>
             </button>
@@ -954,7 +954,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 transition={{ delay: 0.1 }}
                 className="font-display text-base md:text-lg italic text-[var(--text-secondary)] leading-relaxed max-w-sm"
               >
-                "Verified by Chainlink. Rooted in the earth."
+                "Take from the casino. Give back to the land."
               </motion.p>
             </div>
 
