@@ -49,6 +49,9 @@ export interface Plot {
   // terrain-derived investment polygon (normalized coords); set for zone parcels
   poly?: number[][];
   elev?: [number, number];
+  // per-parcel token (paired with $R00T): backers are airdropped this on a curve
+  ticker?: string;
+  tokenSupply?: number;
   targetEur: number;
   fundedEur: number;
   status: PlotStatus;

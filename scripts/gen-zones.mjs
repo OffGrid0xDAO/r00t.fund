@@ -170,8 +170,9 @@ function simplify(poly, eps) {
 const signedArea = (poly) => { let a = 0; for (let i = 0, n = poly.length; i < n; i++) { const [x0, y0] = poly[i], [x1, y1] = poly[(i + 1) % n]; a += x0 * y1 - x1 * y0; } return a / 2; };
 const areaOf = (poly) => Math.abs(signedArea(poly));
 
-// ── build parcels ──
-const parcels = [];
+void chaikin;
+// ── collect region loops as integer-node sequences (gapless staircase tiling) ──
+const kept = []; // { lb, nodes: [[i,j],...] }
 for (let lb = 0; lb < keyList.length; lb++) {
   const loops = labelLoops(lb);
   const withA = loops.map(l => ({ l, s: signedArea(l.map(toNorm)) })).filter(o => Math.abs(o.s) > 1e-6);
@@ -179,17 +180,51 @@ for (let lb = 0; lb < keyList.length; lb++) {
   const outer = Math.sign(withA.reduce((m, o) => Math.abs(o.s) > Math.abs(m.s) ? o : m).s);
   for (const { l, s } of withA) {
     if (Math.sign(s) !== outer) continue;
-    let poly = l.map(toNorm);
-    poly = simplify(poly, 0.0016);       // trim staircase before smoothing
-    poly = chaikin(poly, 2);             // organic rounded edges
-    poly = simplify(poly, 0.0006);       // trim redundant smoothed points
-    const a = areaOf(poly);
-    if (a < 0.00014) continue;           // drop slivers
-    // mean elevation of this parcel (sample its cells)
-    let es = 0, ec = 0;
-    for (let j = 0; j < CN; j += 2) for (let i = 0; i < CN; i += 2) if (label[j * CN + i] === lb) { es += elevAt(cx(i), cy(j)); ec++; }
-    parcels.push({ key: keyList[lb], poly, area: a, elev: ec ? es / ec : 0.5 });
+    if (Math.abs(s) < 0.00013) continue;
+    kept.push({ lb, nodes: l });
   }
+}
+
+// ── global Laplacian smoothing of the SHARED vertex graph ──
+// Shared edges move identically for both parcels ⇒ no gaps. Land-border nodes
+// are pinned so the outline stays crisp.
+const nkey = (p) => p[0] + ',' + p[1];
+const adj = new Map();
+for (const { nodes } of kept) {
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nkey(nodes[i]), b = nkey(nodes[(i + 1) % nodes.length]);
+    if (!adj.has(a)) adj.set(a, new Set());
+    if (!adj.has(b)) adj.set(b, new Set());
+    adj.get(a).add(b); adj.get(b).add(a);
+  }
+}
+const cellLabel = (i, j) => (i >= 0 && i < CN && j >= 0 && j < CN) ? label[j * CN + i] : -1;
+const isOuter = (i, j) => [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]].some(([ci, cj]) => cellLabel(ci, cj) === -1);
+const pos = new Map();
+for (const k of adj.keys()) { const [i, j] = k.split(',').map(Number); pos.set(k, [i, j]); }
+const pinned = new Set([...adj.keys()].filter(k => { const [i, j] = k.split(',').map(Number); return isOuter(i, j); }));
+for (let it = 0; it < 7; it++) {
+  const next = new Map();
+  for (const [k, nbrs] of adj) {
+    if (pinned.has(k)) { next.set(k, pos.get(k)); continue; }
+    let sx = 0, sy = 0, c = 0;
+    for (const nb of nbrs) { const p = pos.get(nb); sx += p[0]; sy += p[1]; c++; }
+    const p0 = pos.get(k);
+    next.set(k, [(sx / c) * 0.6 + p0[0] * 0.4, (sy / c) * 0.6 + p0[1] * 0.4]);
+  }
+  for (const [k, v] of next) pos.set(k, v);
+}
+
+// ── build parcels from smoothed shared nodes ──
+const parcels = [];
+for (const { lb, nodes } of kept) {
+  let poly = nodes.map(n => toNorm(pos.get(nkey(n))));
+  poly = simplify(poly, 0.0006);
+  const a = areaOf(poly);
+  if (a < 0.00012) continue;
+  let es = 0, ec = 0;
+  for (let j = 0; j < CN; j += 2) for (let i = 0; i < CN; i += 2) if (label[j * CN + i] === lb) { es += elevAt(cx(i), cy(j)); ec++; }
+  parcels.push({ key: keyList[lb], poly, area: a, elev: ec ? es / ec : 0.5 });
 }
 
 // ── assign type + name ──
