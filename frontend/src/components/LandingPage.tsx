@@ -5,6 +5,7 @@ import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
 import { CONTRACTS, getExplorerAddressUrl, hasExplorer } from '../config';
 import { RobinhoodMark } from './pilot/RobinhoodWordmark';
+import { UniswapLogo } from './pilot/UniswapLogo';
 
 // Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
@@ -122,16 +123,7 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
   );
 }
 
-// Uniswap unicorn mark (pink) — recognizable buy-venue logo
-function UniswapMark({ className = '', size = 18 }: { className?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path d="M8.9 3.2c.3.5.3.9-.1 1.4-.2.3-.6.5-1 .5.5.3.8.7.9 1.3.1.4 0 .8-.3 1.5 1 .4 1.7 1.1 2 2.2.2.7.1 1.4-.2 2.4-.2.6-.2.9 0 1.2.3.4.9.4 1.3.1.5-.4.6-1 .3-1.8-.1-.3-.1-.4 0-.4.3 0 .8.8.9 1.5.2 1.2-.5 2.3-1.7 2.6-.5.1-1.3.1-1.7-.1-.3-.2-.4-.3-1-1.2-.8-1.3-1.1-1.6-1.5-1.7-.6-.1-1 .2-1.1.8 0 .4.1.6.6 1.2.7.9.8 1.5.4 2.3-.3.5-.7.8-1.6.9-1.5.2-2.5-.2-3-1.3-.2-.4-.2-.5-.2-1.3 0-.9 0-1 .3-1.6.3-.8.3-1.1.1-1.5-.2-.3-.4-.4-1-.6-1.2-.3-1.9-1-2.2-2.1-.1-.6-.1-1.6.1-1.6.1 0 .1.1.1.4 0 .6.4 1.3 1 1.6.3.2.9.2 1.1 0 .3-.3.2-.6-.4-1.5C4 8 3.7 7.2 3.7 6.3c0-1.3.5-2.3 1.6-2.9.4-.2.5-.2 1.3-.2.9 0 1 0 1.5.3.3.2.6.4.6.4s-.1-.2-.2-.4C8 2.7 8.5 2.6 8.9 3.2z" fill="#FF007A"/>
-    </svg>
-  );
-}
-
-// Hero meta strip — one quiet utility line: buy · contract · partner.
+// Hero meta strip — one quiet utility line: buy · contract, then a partner row.
 // Kept low-emphasis so the primary actions above own the hierarchy.
 function HeroMeta() {
   const [copied, setCopied] = useState(false);
@@ -146,50 +138,48 @@ function HeroMeta() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
-  const Divider = () => <span className="hidden sm:block w-px h-4 bg-[var(--border)]" aria-hidden />;
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 1.5 }}
-      className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2.5 text-xs font-mono text-[var(--text-muted)]"
+      className="mt-7 flex flex-col gap-3 text-xs font-mono"
     >
-      {/* Buy on Uniswap */}
-      <a
-        href={uniswapUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-      >
-        <UniswapMark size={16} />
-        <span>Buy <span className="text-[var(--accent-on-bg)]">$R00T</span> on Uniswap</span>
-        <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-      </a>
+      {/* Row 1: buy on Uniswap · contract */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 text-[var(--text-muted)]">
+        <a
+          href={uniswapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <UniswapLogo size={16} className="text-[#FF007A]" />
+          <span>Buy <span className="text-[var(--accent-on-bg)]">$R00T</span> on Uniswap</span>
+          <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+        </a>
 
-      <Divider />
+        {hasToken && (
+          <>
+            <span className="hidden sm:block w-px h-4 bg-[var(--border)]" aria-hidden />
+            <button onClick={copy} className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors" aria-label="Copy $R00T contract">
+              <span className="text-[var(--text-secondary)]">{short}</span>
+              {explorer && <a href={explorer} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-[var(--accent-on-bg)]" aria-label="View on explorer">↗</a>}
+              {copied ? (
+                <svg className="w-3 h-3 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+              )}
+            </button>
+          </>
+        )}
+      </div>
 
-      {/* Contract address + copy */}
-      {hasToken && (
-        <button onClick={copy} className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors" aria-label="Copy $R00T contract">
-          <span className="text-[var(--text-secondary)]">{short}</span>
-          {explorer && <a href={explorer} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-[var(--accent-on-bg)]" aria-label="View on explorer">↗</a>}
-          {copied ? (
-            <svg className="w-3 h-3 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
-          )}
-        </button>
-      )}
-
-      <Divider />
-
-      {/* Robinhood partner mention */}
-      <span className="inline-flex items-center gap-1.5">
-        <span className="uppercase tracking-[0.12em] text-[10px]">Launching on</span>
-        <RobinhoodMark size={14} className="text-[var(--text-secondary)]" />
-        <span className="font-sans font-semibold text-[var(--text-secondary)] not-italic">Robinhood</span>
-      </span>
+      {/* Row 2 (bottom): Robinhood partner */}
+      <div className="inline-flex items-center gap-2 text-[var(--text-muted)]">
+        <span className="uppercase tracking-[0.14em] text-[10px]">Launching on</span>
+        <RobinhoodMark size={15} className="text-[var(--accent-on-bg)]" />
+        <span className="font-sans font-semibold text-[var(--text-secondary)]">Robinhood</span>
+      </div>
     </motion.div>
   );
 }
