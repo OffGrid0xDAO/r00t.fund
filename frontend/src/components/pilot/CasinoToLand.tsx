@@ -22,7 +22,7 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
           <div className="relative p-8 md:p-12 lg:p-16">
             <div className="flex items-center gap-4 mb-6">
               <div className="w-8 h-px" style={{ background: LIME }} />
-              <span className="text-xs tracking-[0.2em] uppercase font-mono" style={{ color: LIME }}>Launching on · Liquidity partner</span>
+              <span className="text-xs tracking-[0.2em] uppercase font-mono" style={{ color: LIME }}>Built on Robinhood Chain</span>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
@@ -38,17 +38,17 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
                   to life. Same energy, better ending.
                 </p>
                 <p className="text-sm text-white/45 leading-relaxed max-w-lg mb-8">
-                  r00t launches on <span className="font-medium text-white/80">Robinhood</span> so the same rails
-                  millions already trade on can fund a plot, plant a tree, and prove it on-chain — patronage in,
-                  no revenue extracted out.
+                  $R00T and its trading layer are <span className="font-medium text-white/80">built on Robinhood Chain</span>,
+                  so the same rails millions already trade on can fund a plot, plant a tree, and prove it on-chain.
+                  Verification stays independent on the CRE chain — patronage in, no revenue extracted out.
                 </p>
 
-                {/* partner lockup */}
+                {/* chain lockup */}
                 <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border" style={{ borderColor: `${LIME}55`, background: `${LIME}10` }}>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/50">Powered by</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/50">Built on</span>
                   <span className="inline-flex items-center gap-2" style={{ color: LIME }}>
                     <RobinhoodMark size={20} />
-                    <span className="font-display text-lg tracking-tight">Robinhood</span>
+                    <span className="font-display text-lg tracking-tight">Robinhood Chain</span>
                   </span>
                 </div>
 

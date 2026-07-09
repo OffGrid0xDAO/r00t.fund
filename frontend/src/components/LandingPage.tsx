@@ -174,11 +174,11 @@ function HeroMeta() {
         )}
       </div>
 
-      {/* Row 2 (bottom): Robinhood partner */}
+      {/* Row 2 (bottom): Robinhood Chain */}
       <div className="inline-flex items-center gap-2 text-[var(--text-muted)]">
-        <span className="uppercase tracking-[0.14em] text-[10px]">Launching on</span>
+        <span className="uppercase tracking-[0.14em] text-[10px]">Built on</span>
         <RobinhoodMark size={15} className="text-[var(--accent-on-bg)]" />
-        <span className="font-sans font-semibold text-[var(--text-secondary)]">Robinhood</span>
+        <span className="font-sans font-semibold text-[var(--text-secondary)]">Robinhood Chain</span>
       </div>
     </motion.div>
   );
