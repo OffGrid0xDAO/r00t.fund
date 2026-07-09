@@ -45,12 +45,17 @@ interface Palette {
 }
 function readPalette(): Palette {
   const accent = cssVar('--accent', '#4A8B5C');
+  const bg = new THREE.Color(cssVar('--bg-primary', '#F5F1E8'));
+  // Contour lines follow the roots color scheme (--accent-on-bg green), fading
+  // to bg for the lighter tiers so the relief reads as green ink, not black.
+  const inkGreen = new THREE.Color(cssVar('--accent-on-bg', '#5C7A00'));
+  const tier = (t: number) => new THREE.Color().copy(inkGreen).lerp(bg, t);
   return {
-    bg: new THREE.Color(cssVar('--bg-primary', '#F5F1E8')),
-    grid: new THREE.Color(cssVar('--text-muted', '#9C9C96')),
-    major: new THREE.Color(cssVar('--text-primary', '#2A2A28')),
-    medium: new THREE.Color(cssVar('--text-secondary', '#5C5C58')),
-    minor: new THREE.Color(cssVar('--text-muted', '#9C9C96')),
+    bg,
+    grid: tier(0.72),
+    major: inkGreen.clone(),
+    medium: tier(0.32),
+    minor: tier(0.55),
     accent: new THREE.Color(accent),
     accentSoft: new THREE.Color(accent).lerp(new THREE.Color('#ffffff'), 0.4),
     river: new THREE.Color('#5BA8B5'),

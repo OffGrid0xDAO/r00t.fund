@@ -34,7 +34,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
           initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="relative rounded-2xl border border-[var(--border)] overflow-hidden"
-          style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-md)' }}
+          style={{ background: 'var(--bg-primary)', boxShadow: 'var(--shadow-md)' }}
         >
           <div className="relative w-full h-[64vh] md:h-[80vh]">
             <Suspense fallback={<div className="absolute inset-0 grid place-items-center text-xs font-mono text-[var(--text-muted)]">rendering terrain…</div>}>
