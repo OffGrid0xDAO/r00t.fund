@@ -5,7 +5,8 @@
  * placed inside the de-georeferenced land border; r is a normalized radius.
  * These are indicative zones, not a survey — no real geometry.
  */
-import type { Crop, Plot, Machine } from './types';
+import type { Crop, Plot, Machine, InterventionType, PatronageReward, PlotStatus } from './types';
+import { centroid, type Pt } from './voronoi';
 
 export const CROPS: Crop[] = [
   { id: 'oak', label: 'Native oak', emoji: '🌳', note: 'Cork & holm oak — the canopy layer, deep roots for burned slopes' },
@@ -87,6 +88,90 @@ export const SEED_PLOTS: Plot[] = [
     verified: { attested: false, source: 'CCIP attestation (mock)' },
   },
 ];
+
+// ── Terrain-derived investment parcels ──────────────────────────────────────
+// zones.json is produced by scripts/gen-zones.mjs from the fuzzed terrain
+// (elevation terraces + water corridor). Each zone becomes an investable Plot
+// with deterministic, seeded funding so the map is stable across reloads.
+
+export interface Zone {
+  id: string;
+  name: string;
+  type: InterventionType;
+  elev: [number, number];
+  poly: number[][];
+}
+
+function seedRng(str: string) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return () => {
+    h += 0x6D2B79F5; let t = h;
+    t = Math.imul(t ^ (t >>> 15), 1 | t);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function polyArea(poly: number[][]): number {
+  let a = 0;
+  for (let i = 0, n = poly.length; i < n; i++) { const [x0, y0] = poly[i], [x1, y1] = poly[(i + 1) % n]; a += x0 * y1 - x1 * y0; }
+  return Math.abs(a) / 2;
+}
+
+const BACKERS = ['lural.eth', 'anon·7f3', 'meadow', 'hydro.dao', 'silva', 'terra', 'wellspring', 'anon·b12', 'anon·9aa', 'anon·e55', 'anon·0dd', 'grove', 'anon·1c4', 'seedbank'];
+const REWARDS_BY_TYPE: Record<InterventionType, PatronageReward[]> = {
+  syntropic: ['produce', 'choose-crop', 'naming', 'certificate'],
+  water: ['naming', 'stay', 'certificate'],
+  structure: ['naming', 'stay', 'certificate'],
+};
+const BLURB_BY_TYPE: Record<InterventionType, string> = {
+  syntropic: 'Contour rows of food forest on this terrace — trees on the level so water soaks in, not runs off.',
+  water: 'The watercourse corridor — swales and catchment that slow and sink winter rain across the slope.',
+  structure: 'The steep upper band — erosion barriers from salvaged trunks, plus the access track that serves every terrace below.',
+};
+
+export function zonesToPlots(zones: Zone[]): Plot[] {
+  return zones.map((z) => {
+    const rng = seedRng(z.id);
+    const [cx, cy] = centroid(z.poly as Pt[]);
+    const target = Math.max(1200, Math.round((1200 + polyArea(z.poly) * 3.6e6) / 100) * 100);
+    const f = rng();                       // funded fraction
+    const fundedEur = Math.round((target * f) / 100) * 100;
+    let status: PlotStatus = f < 0.12 ? 'seeking' : f < 0.85 ? 'greening' : 'funded';
+    const r2 = rng();
+    if (status === 'funded') { if (r2 < 0.45) status = 'planted'; if (r2 < 0.18) status = 'verified'; }
+
+    const n = 1 + Math.floor(rng() * 4);
+    const contributions = fundedEur <= 0 ? [] : Array.from({ length: n }, (_, i) => ({
+      id: `${z.id}-c${i}`,
+      backer: BACKERS[Math.floor(rng() * BACKERS.length)],
+      amountEur: Math.max(100, Math.round((fundedEur / n) / 50) * 50),
+      at: Date.now() - Math.floor(rng() * 1.1e8),
+    }));
+
+    const isSyn = z.type === 'syntropic';
+    const cropIds = CROPS.map(c => c.id);
+    const cropOptions = isSyn ? [cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)]].filter((v, i, a) => a.indexOf(v) === i) : undefined;
+
+    return {
+      id: z.id,
+      name: z.name,
+      type: z.type,
+      x: cx, y: cy, r: 0.02,
+      poly: z.poly,
+      elev: z.elev,
+      targetEur: target,
+      fundedEur,
+      status,
+      rewards: REWARDS_BY_TYPE[z.type],
+      cropOptions,
+      chosenCropId: isSyn && status !== 'seeking' ? cropOptions?.[0] : undefined,
+      blurb: BLURB_BY_TYPE[z.type],
+      contributions,
+      verified: { attested: status === 'verified', ndvi: 0.18 + f * 0.3, source: 'CCIP attestation (mock)', at: status === 'verified' ? Date.now() - 3e6 : undefined },
+    } as Plot;
+  });
+}
 
 // Communal capex — funded together, separate from the plant-a-plot flow.
 // Those with x/y (terrain-normalized) also appear as pins on the plan map.

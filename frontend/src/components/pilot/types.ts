@@ -46,6 +46,9 @@ export interface Plot {
   x: number;
   y: number;
   r: number;         // indicative radius (terrain-normalized)
+  // terrain-derived investment polygon (normalized coords); set for zone parcels
+  poly?: number[][];
+  elev?: [number, number];
   targetEur: number;
   fundedEur: number;
   status: PlotStatus;

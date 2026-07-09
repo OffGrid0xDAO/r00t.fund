@@ -25,10 +25,11 @@ function nextStatusAfterFund(p: Plot): PlotStatus {
 }
 
 export function usePilotState(
+  initialPlots?: Plot[],
   backend: PatronageBackend = mockPatronageBackend,
   attestation: AttestationAdapter = mockAttestationAdapter,
 ) {
-  const [plots, setPlots] = useState<Plot[]>(() => SEED_PLOTS.map((p) => ({ ...p })));
+  const [plots, setPlots] = useState<Plot[]>(() => (initialPlots ?? SEED_PLOTS).map((p) => ({ ...p })));
   const [machines, setMachines] = useState<Machine[]>(() => SEED_MACHINES.map((m) => ({ ...m })));
   const [pending, setPending] = useState<Record<string, boolean>>({});
 
