@@ -88,8 +88,10 @@ function sampleElevation(s: Float32Array, res: number, nx: number, ny: number, s
   return (h00 * (1 - fx) * (1 - fy) + h10 * fx * (1 - fy) + h01 * (1 - fx) * fy + h11 * fx * fy) * scale;
 }
 
-function Terrain({ heightmap, contours, river, palette }: {
+function Terrain({ heightmap, contours, river, palette, onLandHover, onLandClick }: {
   heightmap: HeightmapData; contours: ContoursData; river: RiverData | null; palette: Palette;
+  onLandHover?: (hovering: boolean) => void;
+  onLandClick?: () => void;
 }) {
   const propRef = useRef<THREE.Mesh>(null);
   const rimRef = useRef<THREE.LineLoop>(null);
@@ -280,7 +282,13 @@ function Terrain({ heightmap, contours, river, palette }: {
       <lineSegments geometry={result.mediumGeo}><lineBasicMaterial vertexColors transparent opacity={0.55} /></lineSegments>
       <lineSegments geometry={result.majorGeo}><lineBasicMaterial vertexColors /></lineSegments>
       {result.shapeGeo && (
-        <mesh ref={propRef} geometry={result.shapeGeo}>
+        <mesh
+          ref={propRef}
+          geometry={result.shapeGeo}
+          onPointerOver={(e) => { e.stopPropagation(); onLandHover?.(true); document.body.style.cursor = 'pointer'; }}
+          onPointerOut={() => { onLandHover?.(false); document.body.style.cursor = 'auto'; }}
+          onClick={(e) => { e.stopPropagation(); onLandClick?.(); }}
+        >
           <meshBasicMaterial color={palette.accent} side={THREE.DoubleSide} transparent opacity={0.32} depthWrite={false} />
         </mesh>
       )}
@@ -306,7 +314,11 @@ function LockedCamera() {
   return null;
 }
 
-export function PilotTerrain({ className = '' }: { className?: string }) {
+export function PilotTerrain({ className = '', onLandHover, onLandClick }: {
+  className?: string;
+  onLandHover?: (hovering: boolean) => void;
+  onLandClick?: () => void;
+}) {
   const [heightmap, setHeightmap] = useState<HeightmapData | null>(null);
   const [contours, setContours] = useState<ContoursData | null>(null);
   const [river, setRiver] = useState<RiverData | null>(null);
@@ -336,7 +348,7 @@ export function PilotTerrain({ className = '' }: { className?: string }) {
       >
         <Suspense fallback={null}>
           {heightmap && contours && palette && (
-            <Terrain heightmap={heightmap} contours={contours} river={river} palette={palette} />
+            <Terrain heightmap={heightmap} contours={contours} river={river} palette={palette} onLandHover={onLandHover} onLandClick={onLandClick} />
           )}
           <LockedCamera />
         </Suspense>

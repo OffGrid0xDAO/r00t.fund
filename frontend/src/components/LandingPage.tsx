@@ -1,11 +1,8 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { formatEther } from 'viem';
 import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
-import { useProofOfReserve } from './projects/hooks/useProofOfReserve';
-import { useProtocolHealth } from './projects/hooks/useProtocolHealth';
 
 // Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
@@ -122,9 +119,6 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
 }
 
 export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
-  const { data: reserveData } = useProofOfReserve();
-  const { report: healthReport } = useProtocolHealth();
-
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -341,78 +335,15 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             </motion.div>
           </motion.div>
         </div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.5 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        >
-          <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-[0.3em] uppercase">Scroll</span>
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-px h-8 bg-gradient-to-b from-[var(--accent)]/60 to-transparent"
-          />
-        </motion.div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          METRICS
+          PROJECT 001 — pilot terrain (cinematic 3D) + interactive plot map.
+          Moved up to sit right under the hero. Fuzzed, non-cadastral geometry.
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-10 border-y border-[var(--border)]/50">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            {([
-              { label: 'Trees Planted', value: '2,550' },
-              { label: 'Hectares Restoring', value: '9' },
-              { label: 'Backing Ratio', value: reserveData ? `${(reserveData.backingRatio / 100).toFixed(0)}%` : '—', live: !!reserveData },
-              { label: 'Protocol Risk', value: healthReport ? ['NONE','LOW','MED','HIGH','CRIT'][healthReport.overallRiskLevel] : '—', live: !!healthReport, color: healthReport ? (healthReport.overallRiskLevel <= 1 ? 'var(--success)' : healthReport.overallRiskLevel === 2 ? 'var(--warning)' : 'var(--error)') : undefined },
-            ] as { label: string; value: string; live?: boolean; color?: string }[]).map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="text-center md:text-left"
-              >
-                <p className="text-3xl md:text-4xl font-display tracking-tight tabular-nums" style={{ color: stat.color || 'var(--text-primary)' }}>
-                  {stat.value}
-                </p>
-                <span className="text-[11px] tracking-[0.15em] text-[var(--text-muted)] uppercase font-mono inline-flex items-center gap-1.5">
-                  {stat.live && (
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
-                    </span>
-                  )}
-                  {stat.label}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-          {reserveData && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.35 }}
-              className="mt-6 flex items-center justify-center md:justify-start gap-2"
-            >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
-              </span>
-              <span className="text-xs font-mono text-[var(--text-muted)]">TVL</span>
-              <span className="text-sm font-mono font-medium" style={{ color: 'var(--accent)' }}>
-                {Number(formatEther(reserveData.totalTVL)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH
-              </span>
-            </motion.div>
-          )}
-        </div>
-      </section>
+      <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
+        <PilotTerrainSection onEnterApp={onEnterApp} />
+      </Suspense>
 
       {/* ═══════════════════════════════════════════════════════════════════
           THE LIFECYCLE — 5 steps
@@ -455,101 +386,6 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               desc="Verified projects generate carbon credits backed by satellite data. Tradeable through ZkAMM with full privacy."
               delay={0.32}
             />
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          THE PROBLEM
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="The Problem"
-            title={<>Why carbon markets <br className="hidden md:block" /><span className="text-[var(--accent)]">are broken</span></>}
-          />
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <InfoCard
-              num="01"
-              title="The money never reaches the ground"
-              desc="60-80% of climate finance consumed by intermediaries. A &euro;25 carbon credit delivers &euro;3-5 to the person who restored the land."
-              delay={0}
-            />
-            <InfoCard
-              num="02"
-              title="No one checks if land recovered"
-              desc="Registries rely on self-reported data. No oracle. No satellite feed. No on-chain proof."
-              delay={0.08}
-            />
-            <InfoCard
-              num="03"
-              title="Privacy vs compliance deadlock"
-              desc="Institutions need compliance, protocols offer privacy. Neither can serve both."
-              delay={0.16}
-            />
-            <InfoCard
-              num="04"
-              title="No accountability"
-              desc="Launchpads raise funds with no verification of delivery. No milestone gates. No consequences."
-              delay={0.24}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          PROJECT 001 — pilot terrain section + interactive plot map
-          (see components/pilot/*). Terrain is rendered from fuzzed, non-cadastral
-          geometry only — no real coordinates in the client bundle.
-          ═══════════════════════════════════════════════════════════════════ */}
-      <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
-        <PilotTerrainSection onEnterApp={onEnterApp} />
-      </Suspense>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          CRE WORKFLOWS — 7 workflows
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="CRE Workflows"
-            title={<>8 Chainlink CRE Workflows<br className="hidden md:block" /><span className="text-[var(--accent)]">Independent verification</span></>}
-          />
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { num: 'W1', name: 'Confidential Funding', desc: 'ZK-shielded capital allocation with milestone-based releases', track: 'Privacy' },
-              { num: 'W2', name: 'Proof of Reserve', desc: 'On-chain reserves + carbon credit pricing as composite backing ratio', track: 'DeFi' },
-              { num: 'W3', name: 'AI Validator', desc: 'Llama 3.3 70B analyzes satellite imagery for regeneration verification', track: 'AI' },
-              { num: 'W4', name: 'Prediction Markets', desc: 'Environmental outcome markets settled by real satellite data', track: 'Markets' },
-              { num: 'W5', name: 'Health Monitor', desc: 'Real-time protocol risk scoring with automatic circuit breakers', track: 'Risk' },
-              { num: 'W6', name: 'ACE Compliance', desc: 'Anonymous sanctions screening — EU MiCA without sacrificing privacy', track: 'Privacy' },
-              { num: 'W7', name: 'Pilot Site Feed', desc: 'Custom data feed publishing weekly satellite NDVI recovery for the pilot terrain', track: 'Data' },
-              { num: 'W8', name: 'World ID Bridge', desc: 'Sybil-resistant governance — World ID verification on any EVM chain', track: 'Identity' },
-            ].map((w, i) => (
-              <motion.div
-                key={w.num}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.5, delay: i * 0.06 }}
-              >
-                <div
-                  className="relative p-6 rounded-xl border border-[var(--border)] overflow-hidden h-full hover:border-[var(--accent)]/30 transition-colors duration-300"
-                  style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono text-[var(--accent)] font-medium">{w.num}</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
-                      {w.track}
-                    </span>
-                  </div>
-                  <h3 className="font-display text-lg text-[var(--text-primary)] mb-2 tracking-tight">{w.name}</h3>
-                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{w.desc}</p>
-                </div>
-              </motion.div>
-            ))}
           </div>
         </div>
       </section>
