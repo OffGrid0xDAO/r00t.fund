@@ -1,5 +1,5 @@
 /** Shared presentational helpers for the pilot map (r00t tokens only). */
-import type { InterventionType, PlotStatus, PatronageReward } from './types';
+import type { InterventionType, PlotStatus, PatronageReward, Plot } from './types';
 
 // Intervention colour keys map onto existing r00t tokens / palette values.
 export const TYPE_COLOR: Record<InterventionType, string> = {
@@ -27,4 +27,34 @@ export function greenLevel(status: PlotStatus, funded: number, target: number): 
     seeking: 0.15, greening: 0.4, funded: 0.6, planted: 0.8, verified: 1,
   };
   return Math.max(base[status], 0.15 + 0.7 * (funded / Math.max(1, target)));
+}
+
+// ── Momentum / heat ──────────────────────────────────────────────────────────
+// Recency-weighted € pledged into a parcel within the rolling window. Drives the
+// "this parcel is hot" FOMO signal (a momentum metric, not a price).
+const HEAT_WINDOW_MS = 45_000;
+export function parcelHeat(plot: Plot, now = Date.now(), windowMs = HEAT_WINDOW_MS): number {
+  let s = 0;
+  for (const c of plot.contributions) {
+    const age = now - c.at;
+    if (age >= 0 && age < windowMs) s += c.amountEur * (1 - age / windowMs);
+  }
+  return s;
+}
+// € pledged into a parcel within the last `windowMs` (for the "€X recently" chip)
+export function recentEur(plot: Plot, now = Date.now(), windowMs = HEAT_WINDOW_MS): number {
+  let s = 0;
+  for (const c of plot.contributions) {
+    const age = now - c.at;
+    if (age >= 0 && age < windowMs) s += c.amountEur;
+  }
+  return s;
+}
+// A "Regen Index" — a non-price number-go-up score per parcel: backers + funding
+// progress + momentum. Reads like a stat, confers nothing financial.
+export function regenIndex(plot: Plot, now = Date.now()): number {
+  const progress = Math.min(1, plot.fundedEur / Math.max(1, plot.targetEur));
+  const backers = plot.contributions.length;
+  const heat = parcelHeat(plot, now);
+  return Math.round(progress * 600 + backers * 22 + Math.min(300, heat * 1.2));
 }

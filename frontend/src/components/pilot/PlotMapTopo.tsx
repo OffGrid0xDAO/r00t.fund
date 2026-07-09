@@ -9,10 +9,10 @@
  *
  * Firewall: all geometry is fuzzed/de-georeferenced (see scripts/fuzz-terrain.mjs).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePilotState } from './usePilotState';
-import { TYPE_COLOR, eur, pct, greenLevel } from './ui';
+import { TYPE_COLOR, eur, pct, greenLevel, parcelHeat, recentEur, regenIndex } from './ui';
 import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
@@ -50,6 +50,33 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showMachines, setShowMachines] = useState(false);
+
+  // ── live momentum: a clock tick + a pledge simulator so heat feels alive ──
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+
+  const [feed, setFeed] = useState<{ id: string; who: string; amt: number; parcel: string }[]>([]);
+  const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;
+  const plotsRef = useRef(plots); plotsRef.current = plots;
+  useEffect(() => {
+    const names = ['0xF3…a1', 'degen.eth', 'anon·moon', 'ser.eth', 'wagmi', 'anon·7b2', 'pleb.eth', 'apemaxi', '0x9c…d4'];
+    const t = setInterval(() => {
+      const open = plotsRef.current.filter(p => p.fundedEur < p.targetEur);
+      if (!open.length) return;
+      // bias toward already-hot parcels — momentum begets momentum
+      const p = open[Math.floor(Math.random() * open.length)];
+      const amt = 20 + Math.floor(Math.random() * 12) * 20;
+      const who = names[Math.floor(Math.random() * names.length)];
+      fundRef.current(p.id, amt, who);
+      setFeed(f => [{ id: `${Date.now()}-${p.id}`, who, amt, parcel: p.name }, ...f].slice(0, 4));
+    }, 3200);
+    return () => clearInterval(t);
+  }, []);
+
+  const heats = plots.map(p => parcelHeat(p, now));
+  const maxHeat = Math.max(1, ...heats);
+  const hottestIdx = heats.indexOf(Math.max(...heats));
+  const hottestId = maxHeat > 30 && hottestIdx >= 0 ? plots[hottestIdx].id : null;
 
   const view = useMemo(() => {
     const xs = boundary.map(p => p[0]), ys = boundary.map(p => p[1]);
@@ -117,10 +144,19 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
           const showName = w > 78 && h > 30;
           const funded = p.fundedEur >= p.targetEur;
           const d = polyPath(p.poly);
+          const hn = parcelHeat(p, now) / maxHeat;   // 0..1 momentum
+          const isHot = p.id === hottestId;
           return (
             <g key={p.id} style={{ cursor: 'pointer' }}
                onMouseEnter={() => setHoveredId(p.id)} onMouseLeave={() => setHoveredId(h2 => h2 === p.id ? null : h2)}
                onClick={() => setSelectedId(p.id)}>
+              {/* momentum glow — hot parcels pulse orange */}
+              {hn > 0.14 && (
+                <motion.path d={d} fill="none" stroke="#FF7A00" strokeLinejoin="round"
+                  strokeWidth={4 + 5 * hn}
+                  animate={{ strokeOpacity: [0.15 * hn + 0.1, 0.5 * hn + 0.15, 0.15 * hn + 0.1] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />
+              )}
               {/* fully-funded parcels get a solid saturated fill + glow ring;
                   still-seeking parcels stay faint & dashed */}
               {funded && <path d={d} fill="none" stroke={color} strokeWidth={5} strokeOpacity={0.18} strokeLinejoin="round" />}
@@ -130,7 +166,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                     strokeDasharray={funded ? undefined : '5 4'}
                     strokeLinejoin="round" />
               <text x={cx} y={cy + (showName ? -1 : 3)} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={600} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
-                {p.status === 'verified' ? '✅ ' : ''}{pct(p.fundedEur, p.targetEur)}%
+                {p.status === 'verified' ? '✅ ' : ''}{pct(p.fundedEur, p.targetEur)}%{isHot ? ' 🔥' : ''}
               </text>
               {showName && (
                 <text x={cx} y={cy + 10} textAnchor="middle" className="font-mono" fontSize={7} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
@@ -179,6 +215,10 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                 <span>{hovered.contributions.length} backers</span>
                 <span>{hovered.fundedEur >= hovered.targetEur ? 'fully backed' : `${eur(hovered.targetEur - hovered.fundedEur)} to go`}</span>
               </div>
+              <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono">
+                <span className="text-[var(--text-muted)]">Regen Index <span className="text-[var(--accent-on-bg)] font-medium">{regenIndex(hovered, now)}</span></span>
+                {recentEur(hovered, now) > 0 && <span className="text-[#FF7A00]">🔥 {eur(recentEur(hovered, now))}/min</span>}
+              </div>
               <p className="mt-1.5 text-[9px] text-[var(--accent-on-bg)] font-mono">click to back →</p>
             </motion.div>
           );
@@ -202,6 +242,24 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
         </div>
         <div className="w-px h-8 bg-[var(--border)]" />
         <button onClick={() => setShowMachines(true)} className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors flex items-center gap-1.5">🚜 Machines & infra</button>
+      </div>
+
+      {/* live pledge feed — momentum FOMO */}
+      <div className="pointer-events-none absolute right-3 bottom-3 z-20 flex flex-col-reverse gap-1.5 items-end">
+        <AnimatePresence initial={false}>
+          {feed.slice(0, 3).map((f) => (
+            <motion.div key={f.id}
+              initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] pl-2.5 pr-3 py-1.5 backdrop-blur-md text-[11px] font-mono"
+              style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)', boxShadow: 'var(--shadow-md)' }}>
+              <span>🌱</span>
+              <span className="text-[var(--text-secondary)]">{f.who}</span>
+              <span className="text-[var(--accent-on-bg)] font-medium">+{eur(f.amt)}</span>
+              <span className="text-[var(--text-muted)] max-w-[120px] truncate">→ {f.parcel}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* detail drawer */}
