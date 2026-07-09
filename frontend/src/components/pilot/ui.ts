@@ -58,3 +58,36 @@ export function regenIndex(plot: Plot, now = Date.now()): number {
   const heat = parcelHeat(plot, now);
   return Math.round(progress * 600 + backers * 22 + Math.min(300, heat * 1.2));
 }
+
+// ── Parcel token ($PARCEL, paired with $R00T) ────────────────────────────────
+// Each parcel has its own token; backers are airdropped it on an early-bird
+// bonding curve (earlier = cheaper price in $R00T = more tokens). "Land value"
+// is the token's market cap in $R00T, so a popular parcel visibly appreciates.
+export const PARCEL_SUPPLY = 1_000_000;
+
+export function tickerFromName(name: string): string {
+  const words = name.replace(/[^a-zA-Z\s]/g, '').split(/\s+/).filter(Boolean);
+  const salient = words.sort((a, b) => b.length - a.length)[0] || name;
+  return salient.toUpperCase().slice(0, 6) || 'PARCEL';
+}
+
+// Price of one $PARCEL in $R00T — early-bird bonding curve on funding progress.
+export function tokenPriceR00T(plot: Plot): number {
+  const progress = plot.fundedEur / Math.max(1, plot.targetEur);
+  return 0.0008 * (1 + 4 * Math.min(1.4, progress));   // 0% → 0.0008, 100% → 0.004
+}
+// "Land value" = market cap of the parcel token, in $R00T.
+export function landValueR00T(plot: Plot): number {
+  return tokenPriceR00T(plot) * (plot.tokenSupply ?? PARCEL_SUPPLY);
+}
+// $PARCEL you'd be airdropped for a given € pledge at the current price.
+export function allocationFor(amountEur: number, plot: Plot): number {
+  return amountEur / tokenPriceR00T(plot);   // 1 € ≈ 1 $R00T for display
+}
+
+export const fmtCompact = (n: number) =>
+  n >= 1_000_000 ? (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
+  : n >= 1_000 ? (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K'
+  : String(Math.round(n));
+export const fmtR00T = (n: number) => `${fmtCompact(n)} R00T`;
+export const fmtPrice = (n: number) => `${n.toFixed(4)} R00T`;

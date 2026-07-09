@@ -8,12 +8,12 @@ import { motion } from 'framer-motion';
 import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
 import { CROPS } from './data';
-import { TYPE_COLOR, REWARD_LABEL, eur, pct } from './ui';
+import { TYPE_COLOR, REWARD_LABEL, eur, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact } from './ui';
 
 const FUND_PRESETS = [25, 100, 500];
 
 export function PlotDetailPanel({
-  plot, busy, verifying, onClose, onFund, onChooseCrop, onPlant, onVerify,
+  plot, busy, verifying, onClose, onFund, onChooseCrop, onPlant, onVerify, onRename,
 }: {
   plot: Plot;
   busy: boolean;
@@ -23,13 +23,19 @@ export function PlotDetailPanel({
   onChooseCrop: (cropId: string) => void;
   onPlant: () => void;
   onVerify: () => void;
+  onRename?: (name: string) => void;
 }) {
   const [amount, setAmount] = useState(100);
+  const [nameInput, setNameInput] = useState('');
   const color = TYPE_COLOR[plot.type];
   const progress = pct(plot.fundedEur, plot.targetEur);
   const remaining = Math.max(0, plot.targetEur - plot.fundedEur);
   const isSyntropic = plot.type === 'syntropic';
   const statusIdx = STATUS_ORDER.indexOf(plot.status);
+  const ticker = tickerFromName(plot.name);
+  const price = tokenPriceR00T(plot);
+  const landValue = landValueR00T(plot);
+  const alloc = allocationFor(amount, plot);
 
   return (
     <motion.div
@@ -55,7 +61,41 @@ export function PlotDetailPanel({
           </button>
         </div>
 
-        <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-5">{plot.blurb}</p>
+        {/* token strip — $TICKER · price · land value */}
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2 mb-3" style={{ background: 'var(--bg-secondary)' }}>
+          <span className="font-mono text-sm font-semibold" style={{ color }}>${ticker}</span>
+          <span className="text-[11px] font-mono text-[var(--text-muted)]">{fmtPrice(price)} <span className="text-[var(--accent-on-bg)]">▲</span></span>
+          <span className="text-[11px] font-mono text-[var(--text-secondary)]">Land value <span className="font-semibold text-[var(--text-primary)]">{fmtR00T(landValue)}</span></span>
+        </div>
+
+        <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">{plot.blurb}</p>
+
+        {/* naming right — the pledger who names it sets the token name */}
+        {!plot.named && onRename && (
+          <div className="rounded-xl border border-dashed p-3 mb-4" style={{ borderColor: `color-mix(in srgb, ${color} 50%, var(--border))`, background: `color-mix(in srgb, ${color} 6%, transparent)` }}>
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1.5">🏷️ Unclaimed — name it & its token</p>
+            <div className="flex gap-2">
+              <input
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="e.g. Dragon Oak"
+                maxLength={24}
+                className="flex-1 min-w-0 px-2.5 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)]"
+              />
+              <button
+                onClick={() => { onRename(nameInput); setNameInput(''); }}
+                disabled={!nameInput.trim()}
+                className="shrink-0 px-3 py-2 rounded-lg text-white font-medium text-sm disabled:opacity-50"
+                style={{ background: color }}
+              >
+                Claim
+              </button>
+            </div>
+            {nameInput.trim() && (
+              <p className="mt-1.5 text-[11px] font-mono text-[var(--text-muted)]">token → <span className="font-semibold" style={{ color }}>${tickerFromName(nameInput)}</span></p>
+            )}
+          </div>
+        )}
 
         {/* lifecycle stepper */}
         <div className="flex items-center gap-1 mb-5">
@@ -126,8 +166,11 @@ export function PlotDetailPanel({
             className="w-full py-3 rounded-lg text-white font-medium text-sm transition-opacity disabled:opacity-60 hover:opacity-90"
             style={{ background: color }}
           >
-            {busy ? 'Recording…' : `Fund ${eur(amount)} — patronage`}
+            {busy ? 'Recording…' : `Back ${eur(amount)} → ${fmtCompact(alloc)} $${ticker}`}
           </button>
+          <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
+            ⚡ early-bird price {fmtPrice(price)} · your € funds the land, tokens airdrop at TGE
+          </p>
         </div>
 
         {/* lifecycle actions */}

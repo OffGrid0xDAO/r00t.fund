@@ -61,6 +61,13 @@ export function usePilotState(
     setPlots((prev) => prev.map((p) => (p.id === plotId ? { ...p, chosenCropId: cropId } : p)));
   }, []);
 
+  // Naming right: a pledger names the parcel — that name becomes the token name.
+  const renamePlot = useCallback((plotId: string, name: string) => {
+    const clean = name.trim().slice(0, 24);
+    if (!clean) return;
+    setPlots((prev) => prev.map((p) => (p.id === plotId ? { ...p, name: clean, named: true } : p)));
+  }, []);
+
   const plantPlot = useCallback((plotId: string) => {
     setPlots((prev) => prev.map((p) => (p.id === plotId && p.status === 'funded' ? { ...p, status: 'planted' } : p)));
   }, []);
@@ -94,5 +101,5 @@ export function usePilotState(
     return { target, funded, backers, verified, plots: plots.length };
   }, [plots]);
 
-  return { plots, machines, pending, totals, fundPlot, chooseCrop, plantPlot, verifyPlot, fundMachine };
+  return { plots, machines, pending, totals, fundPlot, chooseCrop, plantPlot, verifyPlot, fundMachine, renamePlot };
 }

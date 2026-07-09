@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePilotState } from './usePilotState';
-import { TYPE_COLOR, eur, pct, greenLevel, parcelHeat, recentEur, regenIndex } from './ui';
+import { TYPE_COLOR, eur, pct, greenLevel, parcelHeat, recentEur, regenIndex, tickerFromName, landValueR00T, fmtR00T } from './ui';
 import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
@@ -203,11 +203,17 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
             <motion.div key={hovered.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }}
               className="pointer-events-none absolute z-30 w-52 -translate-x-1/2 rounded-lg border border-[var(--border)] p-3 backdrop-blur-md"
               style={{ ...toPct(sx, sy), marginTop: 10, background: 'color-mix(in srgb, var(--bg-elevated) 92%, transparent)', boxShadow: 'var(--shadow-md)' }}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: TYPE_COLOR[hovered.type] }} />
-                <span className="text-[9px] font-mono uppercase tracking-wide text-[var(--text-muted)]">{TYPE_LABEL[hovered.type]}</span>
+              <div className="flex items-center justify-between gap-1.5 mb-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ background: TYPE_COLOR[hovered.type] }} />
+                  <span className="text-[9px] font-mono uppercase tracking-wide text-[var(--text-muted)]">{TYPE_LABEL[hovered.type]}</span>
+                </span>
+                <span className="font-mono text-[10px] font-semibold" style={{ color: TYPE_COLOR[hovered.type] }}>${tickerFromName(hovered.name)}</span>
               </div>
-              <p className="font-display text-sm text-[var(--text-primary)] leading-tight mb-1.5">{hovered.name}</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="font-display text-sm text-[var(--text-primary)] leading-tight">{hovered.name}</p>
+                <span className="text-[9px] font-mono text-[var(--text-muted)]">{fmtR00T(landValueR00T(hovered))}</span>
+              </div>
               <div className="h-1 rounded-full overflow-hidden mb-1.5" style={{ background: 'var(--border)' }}>
                 <div className="h-full rounded-full" style={{ background: TYPE_COLOR[hovered.type], width: `${pct(hovered.fundedEur, hovered.targetEur)}%` }} />
               </div>
@@ -267,7 +273,8 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
         {selected && (
           <PlotDetailPanel plot={selected} busy={!!pending[selected.id]} verifying={!!pending[selected.id + ':verify']}
             onClose={() => setSelectedId(null)} onFund={(amt) => state.fundPlot(selected.id, amt)}
-            onChooseCrop={(cid) => state.chooseCrop(selected.id, cid)} onPlant={() => state.plantPlot(selected.id)} onVerify={() => state.verifyPlot(selected.id)} />
+            onChooseCrop={(cid) => state.chooseCrop(selected.id, cid)} onPlant={() => state.plantPlot(selected.id)} onVerify={() => state.verifyPlot(selected.id)}
+            onRename={(name) => state.renamePlot(selected.id, name)} />
         )}
       </AnimatePresence>
 

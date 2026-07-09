@@ -130,8 +130,11 @@ const BLURB_BY_TYPE: Record<InterventionType, string> = {
   structure: 'The steep upper band — erosion barriers from salvaged trunks, plus the access track that serves every terrace below.',
 };
 
+// pool of evocative names early namers might pick (their choice → the token name)
+const NAMED_POOL = ['Dragon Oak', 'Emberhill', 'Mistvale', 'Thornwood', 'Greenmarch', 'Ashridge', 'Wolfspring', 'Fernhollow', 'Sunterrace', 'Rootdeep', 'Wildeacre', 'Stonebrook'];
+
 export function zonesToPlots(zones: Zone[]): Plot[] {
-  return zones.map((z) => {
+  return zones.map((z, idx) => {
     const rng = seedRng(z.id);
     const [cx, cy] = centroid(z.poly as Pt[]);
     const target = Math.max(1200, Math.round((1200 + polyArea(z.poly) * 3.6e6) / 100) * 100);
@@ -140,6 +143,9 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
     let status: PlotStatus = f < 0.12 ? 'seeking' : f < 0.85 ? 'greening' : 'funded';
     const r2 = rng();
     if (status === 'funded') { if (r2 < 0.45) status = 'planted'; if (r2 < 0.18) status = 'verified'; }
+    // established parcels have been named by an early backer; the rest are open
+    const named = f > 0.4;
+    const displayName = named ? NAMED_POOL[idx % NAMED_POOL.length] : `Parcel ${String(idx + 1).padStart(2, '0')}`;
 
     const n = 1 + Math.floor(rng() * 4);
     const contributions = fundedEur <= 0 ? [] : Array.from({ length: n }, (_, i) => ({
@@ -155,11 +161,13 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
 
     return {
       id: z.id,
-      name: z.name,
+      name: displayName,
       type: z.type,
       x: cx, y: cy, r: 0.02,
       poly: z.poly,
       elev: z.elev,
+      named,
+      tokenSupply: 1_000_000,
       targetEur: target,
       fundedEur,
       status,

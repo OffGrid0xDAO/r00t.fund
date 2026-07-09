@@ -52,6 +52,7 @@ export interface Plot {
   // per-parcel token (paired with $R00T): backers are airdropped this on a curve
   ticker?: string;
   tokenSupply?: number;
+  named?: boolean;   // false → open for a pledger to name it (naming right → token name)
   targetEur: number;
   fundedEur: number;
   status: PlotStatus;
