@@ -153,8 +153,8 @@ function HeroMeta() {
           rel="noopener noreferrer"
           className="group inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         >
-          <UniswapLogo size={16} className="text-[#FF007A]" />
           <span>Buy <span className="text-[var(--accent-on-bg)]">$R00T</span> on Uniswap</span>
+          <UniswapLogo size={16} className="text-[#FF007A]" />
           <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
         </a>
 
