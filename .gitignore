@@ -70,3 +70,10 @@ coverage/
 # Claude context folders
 .context/
 contracts/.context/
+
+# ── Firewall: real geodata / identity — NEVER commit ──
+secret/
+
+# Fuzzed (non-cadastral) terrain assets — safe & required in the bundle
+!frontend/public/terrain/
+!frontend/public/terrain/*.json
