@@ -53,9 +53,9 @@ export function PlotDetailPanel({
           <div>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.15em]" style={{ color }}>
               <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-              {TYPE_LABEL[plot.type]}
+              {TYPE_LABEL[plot.type]}{plot.areaHa != null ? ` · ${plot.areaHa.toFixed(2)} ha` : ''}
             </span>
-            <h3 className="font-display text-2xl text-[var(--text-primary)] mt-1 leading-tight">{plot.name}</h3>
+            <h3 className="font-display text-2xl text-[var(--text-primary)] mt-1 leading-tight">{plot.emoji} {plot.name}</h3>
           </div>
           <button onClick={onClose} className="shrink-0 p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>

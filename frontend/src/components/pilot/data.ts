@@ -37,6 +37,8 @@ const CULTURE_ORDER = ['oak', 'chestnut', 'carrot', 'turnip', 'vine', 'potato', 
 
 // Total capital to fully revive the pilot land (parcels + infrastructure).
 export const REVIVE_GOAL = 333_000;
+// Total pilot land area (hectares) — parcels share it by polygon area.
+export const LAND_HECTARES = 9;
 
 // seeking → greening → funded → planted → verified
 export const SEED_PLOTS: Plot[] = [
@@ -168,6 +170,11 @@ const INFRA_TOTAL = SEED_MACHINES.reduce((s, m) => s + m.targetEur, 0);
 const PARCEL_POOL = REVIVE_GOAL - INFRA_TOTAL;   // budget shared across all parcels
 
 export function zonesToPlots(zones: Zone[]): Plot[] {
+  // parcel areas → hectares (share of the 9 ha land)
+  const polyAreas = zones.map(z => polyArea(z.poly));
+  const polySum = polyAreas.reduce((a, b) => a + b, 0) || 1;
+  const areaHaOf = (i: number) => Math.round((polyAreas[i] / polySum) * LAND_HECTARES * 100) / 100;
+
   // pass 1 — raw target weight per parcel (area-based)
   const raw = zones.map(z => 1 + polyArea(z.poly) * 4.0e6);
   const rawSum = raw.reduce((a, b) => a + b, 0);
@@ -200,20 +207,20 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
     // ── parcel identity = its culture; the culture IS the token ($TICKER) ──
     const isWachuma = idx === wachumaIdx;
     const cropById = (id: string) => CROPS.find(k => k.id === id) ?? CROPS[0];
-    let displayName: string, ticker: string, cropId: string | undefined, blurb: string;
+    let displayName: string, ticker: string, cropId: string | undefined, blurb: string, emoji: string;
     if (isWachuma) {
       const c = cropById('wachuma');
-      displayName = 'Wachuma Cactus Line'; ticker = c.ticker; cropId = c.id;
+      displayName = 'Wachuma Cactus Line'; ticker = c.ticker; cropId = c.id; emoji = c.emoji;
       blurb = 'A living fence of ornamental Wachuma columnar cactus along the contour — drought-proof, striking, and legal as ornamental. Slow-grown, high-value, and it holds the terrace edge.';
     } else if (z.type === 'water') {
       const t = WATER_TOKENS[watCount++ % WATER_TOKENS.length];
-      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.water;
+      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.water; emoji = t.emoji;
     } else if (z.type === 'structure') {
       const t = STRUCTURE_TOKENS[strCount++ % STRUCTURE_TOKENS.length];
-      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.structure;
+      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.structure; emoji = t.emoji;
     } else {
       const c = cropById(CULTURE_ORDER[synCount++ % CULTURE_ORDER.length]);
-      displayName = `${c.label} Field`; ticker = c.ticker; cropId = c.id; blurb = c.note;
+      displayName = `${c.label} Field`; ticker = c.ticker; cropId = c.id; blurb = c.note; emoji = c.emoji;
     }
 
     const n = 1 + Math.floor(rng() * 4);
@@ -228,6 +235,8 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
       id: z.id,
       name: displayName,
       ticker,
+      emoji,
+      areaHa: areaHaOf(idx),
       type: z.type,
       x: cx, y: cy, r: 0.02,
       poly: z.poly,

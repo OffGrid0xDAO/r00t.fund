@@ -141,11 +141,12 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
           const sxs = p.poly.map(pt => view.project(pt[0], pt[1]));
           const w = Math.max(...sxs.map(s => s[0])) - Math.min(...sxs.map(s => s[0]));
           const h = Math.max(...sxs.map(s => s[1])) - Math.min(...sxs.map(s => s[1]));
-          const showName = w > 78 && h > 30;
+          const showName = w > 70 && h > 34;
           const funded = p.fundedEur >= p.targetEur;
           const d = polyPath(p.poly);
           const hn = parcelHeat(p, now) / maxHeat;   // 0..1 momentum
           const isHot = p.id === hottestId;
+          const areaTxt = p.areaHa != null ? `${p.areaHa.toFixed(2)} ha` : '';
           return (
             <g key={p.id} style={{ cursor: 'pointer' }}
                onMouseEnter={() => setHoveredId(p.id)} onMouseLeave={() => setHoveredId(h2 => h2 === p.id ? null : h2)}
@@ -165,12 +166,15 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                     strokeOpacity={funded ? 1 : p.status === 'seeking' ? 0.45 : 0.8}
                     strokeDasharray={funded ? undefined : '5 4'}
                     strokeLinejoin="round" />
-              <text x={cx} y={cy + (showName ? -1 : 3)} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={600} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
-                {p.status === 'verified' ? '✅ ' : ''}{pct(p.fundedEur, p.targetEur)}%{isHot ? ' 🔥' : ''}
+              {/* culture glyph — instant visual ID of what grows here */}
+              <text x={cx} y={cy - (showName ? 12 : 6)} textAnchor="middle" fontSize={showName ? 15 : 12}>{p.emoji}</text>
+              {/* ticker + funding % + hot flag */}
+              <text x={cx} y={cy + (showName ? 6 : 8)} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={700} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                {p.status === 'verified' ? '✅ ' : ''}${p.ticker ?? tickerFromName(p.name)} · {pct(p.fundedEur, p.targetEur)}%{isHot ? ' 🔥' : ''}
               </text>
               {showName && (
-                <text x={cx} y={cy + 10} textAnchor="middle" className="font-mono" fontSize={7} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
-                  {p.name}
+                <text x={cx} y={cy + 18} textAnchor="middle" className="font-mono" fontSize={7.5} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
+                  {p.name} · {areaTxt}
                 </text>
               )}
             </g>
@@ -210,9 +214,12 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                 </span>
                 <span className="font-mono text-[10px] font-semibold" style={{ color: TYPE_COLOR[hovered.type] }}>${hovered.ticker ?? tickerFromName(hovered.name)}</span>
               </div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="font-display text-sm text-[var(--text-primary)] leading-tight">{hovered.name}</p>
-                <span className="text-[9px] font-mono text-[var(--text-muted)]">{fmtR00T(landValueR00T(hovered))}</span>
+              <div className="flex items-center justify-between mb-1">
+                <p className="font-display text-sm text-[var(--text-primary)] leading-tight">{hovered.emoji} {hovered.name}</p>
+                {hovered.areaHa != null && <span className="text-[9px] font-mono text-[var(--text-muted)]">{hovered.areaHa.toFixed(2)} ha</span>}
+              </div>
+              <div className="flex items-center justify-between mb-1.5 text-[9px] font-mono text-[var(--text-muted)]">
+                <span>Land value</span><span>{fmtR00T(landValueR00T(hovered))}</span>
               </div>
               <div className="h-1 rounded-full overflow-hidden mb-1.5" style={{ background: 'var(--border)' }}>
                 <div className="h-full rounded-full" style={{ background: TYPE_COLOR[hovered.type], width: `${pct(hovered.fundedEur, hovered.targetEur)}%` }} />

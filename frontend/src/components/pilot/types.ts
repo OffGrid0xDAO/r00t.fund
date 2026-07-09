@@ -54,6 +54,8 @@ export interface Plot {
   ticker?: string;
   tokenSupply?: number;
   named?: boolean;   // false → open for a pledger to name it (naming right → token name)
+  emoji?: string;    // culture / zone glyph shown on the map
+  areaHa?: number;   // parcel area in hectares (share of the 9 ha land)
   targetEur: number;
   fundedEur: number;
   status: PlotStatus;
