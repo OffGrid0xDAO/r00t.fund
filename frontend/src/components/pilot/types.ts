@@ -15,10 +15,11 @@ export type InterventionType = 'syntropic' | 'water' | 'structure';
 // Per-plot lifecycle: seeking → greening → funded → planted → verified.
 export type PlotStatus = 'seeking' | 'greening' | 'funded' | 'planted' | 'verified';
 
-// What a backer may choose to grow on a syntropic plot (choose-what-grows reward).
+// A crop culture — also the identity of the parcel's token ($TICKER).
 export interface Crop {
   id: string;
   label: string;
+  ticker: string;    // parcel token ticker, e.g. OAK, NUT, CARROT
   emoji: string;
   note: string;
 }

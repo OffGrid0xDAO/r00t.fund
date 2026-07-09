@@ -32,7 +32,8 @@ export function PlotDetailPanel({
   const remaining = Math.max(0, plot.targetEur - plot.fundedEur);
   const isSyntropic = plot.type === 'syntropic';
   const statusIdx = STATUS_ORDER.indexOf(plot.status);
-  const ticker = tickerFromName(plot.name);
+  const ticker = plot.ticker ?? tickerFromName(plot.name);
+  const crop = plot.chosenCropId ? CROPS.find(c => c.id === plot.chosenCropId) : undefined;
   const price = tokenPriceR00T(plot);
   const landValue = landValueR00T(plot);
   const alloc = allocationFor(amount, plot);
@@ -67,6 +68,15 @@ export function PlotDetailPanel({
           <span className="text-[11px] font-mono text-[var(--text-muted)]">{fmtPrice(price)} <span className="text-[var(--accent-on-bg)]">▲</span></span>
           <span className="text-[11px] font-mono text-[var(--text-secondary)]">Land value <span className="font-semibold text-[var(--text-primary)]">{fmtR00T(landValue)}</span></span>
         </div>
+
+        {/* culture — the crop that defines this parcel's token */}
+        {crop && (
+          <div className="flex items-center gap-2 mb-3 text-sm">
+            <span className="text-lg leading-none">{crop.emoji}</span>
+            <span className="text-[var(--text-primary)] font-medium">{crop.label}</span>
+            <span className="text-[var(--text-muted)]">— the culture behind <span className="font-mono" style={{ color }}>${ticker}</span></span>
+          </div>
+        )}
 
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">{plot.blurb}</p>
 

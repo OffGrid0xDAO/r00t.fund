@@ -208,7 +208,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                   <span className="w-2 h-2 rounded-full" style={{ background: TYPE_COLOR[hovered.type] }} />
                   <span className="text-[9px] font-mono uppercase tracking-wide text-[var(--text-muted)]">{TYPE_LABEL[hovered.type]}</span>
                 </span>
-                <span className="font-mono text-[10px] font-semibold" style={{ color: TYPE_COLOR[hovered.type] }}>${tickerFromName(hovered.name)}</span>
+                <span className="font-mono text-[10px] font-semibold" style={{ color: TYPE_COLOR[hovered.type] }}>${hovered.ticker ?? tickerFromName(hovered.name)}</span>
               </div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="font-display text-sm text-[var(--text-primary)] leading-tight">{hovered.name}</p>

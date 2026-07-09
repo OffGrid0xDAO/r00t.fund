@@ -8,14 +8,32 @@
 import type { Crop, Plot, Machine, InterventionType, PatronageReward, PlotStatus } from './types';
 import { centroid, type Pt } from './voronoi';
 
+// Each crop culture is also a parcel token identity ($TICKER).
 export const CROPS: Crop[] = [
-  { id: 'oak', label: 'Native oak', emoji: '🌳', note: 'Cork & holm oak — the canopy layer, deep roots for burned slopes' },
-  { id: 'chestnut', label: 'Sweet chestnut', emoji: '🌰', note: 'Food + timber, thrives on granitic soils' },
-  { id: 'fig', label: 'Fig & almond', emoji: '🫒', note: 'Fast pioneer fruit, early yield while the canopy grows' },
-  { id: 'vine', label: 'Vine & berry', emoji: '🍇', note: 'Ground & climbing layer, holds moisture' },
-  { id: 'herb', label: 'Aromatic herbs', emoji: '🌿', note: 'Rosemary, thyme, lavender — pollinators + fire-wise cover' },
-  { id: 'wachuma', label: 'Wachuma cactus', emoji: '🌵', note: 'Ornamental columnar cactus line — drought-proof living fence, legal as ornamental' },
+  { id: 'oak', label: 'Native oak', ticker: 'OAK', emoji: '🌳', note: 'Cork & holm oak — the canopy layer, deep roots for burned slopes' },
+  { id: 'chestnut', label: 'Sweet chestnut', ticker: 'NUT', emoji: '🌰', note: 'Food + timber, thrives on granitic soils' },
+  { id: 'carrot', label: 'Carrot', ticker: 'CARROT', emoji: '🥕', note: 'Root row between the young trees — fast first harvest for backers' },
+  { id: 'turnip', label: 'Turnip', ticker: 'TURNIP', emoji: '🥬', note: 'Hardy winter root, breaks compacted burned soil' },
+  { id: 'potato', label: 'Potato', ticker: 'SPUD', emoji: '🥔', note: 'Pioneer tuber — feeds the crew while the canopy grows' },
+  { id: 'bean', label: 'Bean & pea', ticker: 'BEAN', emoji: '🫘', note: 'Nitrogen fixers — rebuild the burned soil for free' },
+  { id: 'squash', label: 'Squash', ticker: 'SQUASH', emoji: '🎃', note: 'Ground-cover sprawl, holds moisture and shades the soil' },
+  { id: 'fig', label: 'Fig & almond', ticker: 'FIG', emoji: '🪺', note: 'Fast pioneer fruit, early yield while the canopy grows' },
+  { id: 'vine', label: 'Vine & berry', ticker: 'VINE', emoji: '🍇', note: 'Ground & climbing layer, holds moisture' },
+  { id: 'herb', label: 'Aromatic herbs', ticker: 'HERB', emoji: '🌿', note: 'Rosemary, thyme, lavender — pollinators + fire-wise cover' },
+  { id: 'wachuma', label: 'Wachuma cactus', ticker: 'WACHUMA', emoji: '🌵', note: 'Ornamental columnar cactus line — drought-proof living fence, legal as ornamental' },
 ];
+
+// Non-crop parcel identities (water / structure zones) — still tokenised.
+const WATER_TOKENS = [
+  { ticker: 'SWALE', name: 'Spring Swale', emoji: '💧' },
+  { ticker: 'POND', name: 'Catchment Pond', emoji: '🌊' },
+];
+const STRUCTURE_TOKENS = [
+  { ticker: 'STONE', name: 'Upper Terrace & Access', emoji: '⛰️' },
+  { ticker: 'BARN', name: 'Tool Barn & Track', emoji: '🏚️' },
+];
+// order syntropic parcels cycle through their crop cultures
+const CULTURE_ORDER = ['oak', 'chestnut', 'carrot', 'turnip', 'vine', 'potato', 'bean', 'herb', 'squash', 'fig'];
 
 // Total capital to fully revive the pilot land (parcels + infrastructure).
 export const REVIVE_GOAL = 333_000;
@@ -124,7 +142,7 @@ function polyArea(poly: number[][]): number {
 
 const BACKERS = ['lural.eth', 'anon·7f3', 'meadow', 'hydro.dao', 'silva', 'terra', 'wellspring', 'anon·b12', 'anon·9aa', 'anon·e55', 'anon·0dd', 'grove', 'anon·1c4', 'seedbank'];
 const REWARDS_BY_TYPE: Record<InterventionType, PatronageReward[]> = {
-  syntropic: ['produce', 'choose-crop', 'naming', 'certificate'],
+  syntropic: ['produce', 'naming', 'certificate'],
   water: ['naming', 'stay', 'certificate'],
   structure: ['naming', 'stay', 'certificate'],
 };
@@ -133,9 +151,6 @@ const BLURB_BY_TYPE: Record<InterventionType, string> = {
   water: 'The watercourse corridor — swales and catchment that slow and sink winter rain across the slope.',
   structure: 'The steep upper band — erosion barriers from salvaged trunks, plus the access track that serves every terrace below.',
 };
-
-// pool of evocative names early namers might pick (their choice → the token name)
-const NAMED_POOL = ['Dragon Oak', 'Emberhill', 'Mistvale', 'Thornwood', 'Greenmarch', 'Ashridge', 'Wolfspring', 'Fernhollow', 'Sunterrace', 'Rootdeep', 'Wildeacre', 'Stonebrook'];
 
 // Communal capex — funded together, separate from the plant-a-plot flow.
 // Those with x/y (terrain-normalized) also appear as pins on the plan map.
@@ -169,6 +184,9 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
     ? synIdx.reduce((m, o) => targets[o.i] > targets[m.i] ? o : m).i
     : -1;
 
+  // per-type counters so each parcel gets a distinct culture / token identity
+  let synCount = 0, watCount = 0, strCount = 0;
+
   return zones.map((z, idx) => {
     const rng = seedRng(z.id);
     const [cx, cy] = centroid(z.poly as Pt[]);
@@ -178,11 +196,24 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
     let status: PlotStatus = f < 0.12 ? 'seeking' : f < 0.85 ? 'greening' : 'funded';
     const r2 = rng();
     if (status === 'funded') { if (r2 < 0.45) status = 'planted'; if (r2 < 0.18) status = 'verified'; }
+
+    // ── parcel identity = its culture; the culture IS the token ($TICKER) ──
     const isWachuma = idx === wachumaIdx;
-    // established parcels have been named by an early backer; the rest are open
-    const named = isWachuma || f > 0.4;
-    const displayName = isWachuma ? 'Wachuma Cactus Line'
-      : named ? NAMED_POOL[idx % NAMED_POOL.length] : `Parcel ${String(idx + 1).padStart(2, '0')}`;
+    let displayName: string, ticker: string, cropId: string | undefined, blurb: string;
+    if (isWachuma) {
+      const c = CROPS.find(k => k.id === 'wachuma')!;
+      displayName = 'Wachuma Cactus Line'; ticker = c.ticker; cropId = 'wachuma';
+      blurb = 'A living fence of ornamental Wachuma columnar cactus along the contour — drought-proof, striking, and legal as ornamental. Slow-grown, high-value, and it holds the terrace edge.';
+    } else if (z.type === 'water') {
+      const t = WATER_TOKENS[watCount++ % WATER_TOKENS.length];
+      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.water;
+    } else if (z.type === 'structure') {
+      const t = STRUCTURE_TOKENS[strCount++ % STRUCTURE_TOKENS.length];
+      displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.structure;
+    } else {
+      const c = CROPS.find(k => k.id === CULTURE_ORDER[synCount++ % CULTURE_ORDER.length])!;
+      displayName = `${c.label} Field`; ticker = c.ticker; cropId = c.id; blurb = c.note;
+    }
 
     const n = 1 + Math.floor(rng() * 4);
     const contributions = fundedEur <= 0 ? [] : Array.from({ length: n }, (_, i) => ({
@@ -192,29 +223,22 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
       at: Date.now() - Math.floor(rng() * 1.1e8),
     }));
 
-    const isSyn = z.type === 'syntropic';
-    const cropIds = CROPS.map(c => c.id).filter(c => c !== 'wachuma');
-    const cropOptions = isWachuma ? ['wachuma']
-      : isSyn ? [cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)], cropIds[Math.floor(rng() * cropIds.length)]].filter((v, i, a) => a.indexOf(v) === i) : undefined;
-
     return {
       id: z.id,
       name: displayName,
+      ticker,
       type: z.type,
       x: cx, y: cy, r: 0.02,
       poly: z.poly,
       elev: z.elev,
-      named,
+      named: true,
       tokenSupply: 1_000_000,
       targetEur: target,
       fundedEur,
       status,
       rewards: REWARDS_BY_TYPE[z.type],
-      cropOptions,
-      chosenCropId: isWachuma ? 'wachuma' : (isSyn && status !== 'seeking' ? cropOptions?.[0] : undefined),
-      blurb: isWachuma
-        ? 'A living fence of ornamental Wachuma columnar cactus along the contour — drought-proof, striking, and legal as ornamental. Slow-grown, high-value, and it holds the terrace edge.'
-        : BLURB_BY_TYPE[z.type],
+      chosenCropId: cropId,
+      blurb,
       contributions,
       verified: { attested: status === 'verified', ndvi: 0.18 + f * 0.3, source: 'CCIP attestation (mock)', at: status === 'verified' ? Date.now() - 3e6 : undefined },
     } as Plot;
