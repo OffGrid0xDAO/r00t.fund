@@ -89,13 +89,13 @@ export function PlotMapTopo({ className = '' }: { className?: string }) {
         {/* faint contour texture inside the land */}
         <g opacity={0.5}>
           {contourPaths.map((c, i) => (
-            <path key={i} d={c.d} fill="none" stroke="var(--text-muted)" strokeOpacity={c.l === 'major' ? 0.5 : c.l === 'medium' ? 0.3 : 0.16} strokeWidth={c.l === 'major' ? 1.1 : 0.7} strokeLinejoin="round" />
+            <path key={i} d={c.d} fill="none" stroke="var(--accent-on-bg)" strokeOpacity={c.l === 'major' ? 0.5 : c.l === 'medium' ? 0.3 : 0.16} strokeWidth={c.l === 'major' ? 1.1 : 0.7} strokeLinejoin="round" />
           ))}
         </g>
 
         {/* land border */}
-        <path d={borderPath} fill="var(--accent)" fillOpacity={0.05} stroke="var(--accent)" strokeWidth={2.4} strokeLinejoin="round" strokeOpacity={0.85} />
-        <path d={borderPath} fill="none" stroke="var(--accent)" strokeWidth={6} strokeLinejoin="round" strokeOpacity={0.08} />
+        <path d={borderPath} fill="var(--accent-on-bg)" fillOpacity={0.05} stroke="var(--accent-on-bg)" strokeWidth={2.4} strokeLinejoin="round" strokeOpacity={0.85} />
+        <path d={borderPath} fill="none" stroke="var(--accent-on-bg)" strokeWidth={6} strokeLinejoin="round" strokeOpacity={0.08} />
 
         {/* river */}
         {riverPath && <path d={riverPath} fill="none" stroke="#5BA8B5" strokeWidth={3.2} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" />}
