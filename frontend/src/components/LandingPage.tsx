@@ -13,6 +13,7 @@ const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
 const CasinoToLand = lazy(() => import('./pilot/CasinoToLand'));
 // Multi-tenant land network + "Start your land" onboarding.
 const LandsSection = lazy(() => import('./pilot/LandsSection'));
+import { SectionBoundary } from './pilot/SectionBoundary';
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -412,19 +413,25 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           PROJECT 001 — pilot terrain (cinematic 3D) + interactive plot map.
           Moved up to sit right under the hero. Fuzzed, non-cadastral geometry.
           ═══════════════════════════════════════════════════════════════════ */}
-      <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
-        <PilotTerrainSection onEnterApp={onEnterApp} />
-      </Suspense>
+      <SectionBoundary label="Pilot site">
+        <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
+          <PilotTerrainSection onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
 
       {/* Robinhood partner + "casino → land" liquidity narrative */}
-      <Suspense fallback={null}>
-        <CasinoToLand onEnterApp={onEnterApp} />
-      </Suspense>
+      <SectionBoundary label="Partner section">
+        <Suspense fallback={null}>
+          <CasinoToLand onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
 
       {/* Multi-tenant land network + Start your land */}
-      <Suspense fallback={null}>
-        <LandsSection onEnterApp={onEnterApp} />
-      </Suspense>
+      <SectionBoundary label="Land network">
+        <Suspense fallback={null}>
+          <LandsSection onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
 
       {/* ═══════════════════════════════════════════════════════════════════
           THE LIFECYCLE — 5 steps

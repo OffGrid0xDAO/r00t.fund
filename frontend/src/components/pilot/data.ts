@@ -199,10 +199,11 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
 
     // ── parcel identity = its culture; the culture IS the token ($TICKER) ──
     const isWachuma = idx === wachumaIdx;
+    const cropById = (id: string) => CROPS.find(k => k.id === id) ?? CROPS[0];
     let displayName: string, ticker: string, cropId: string | undefined, blurb: string;
     if (isWachuma) {
-      const c = CROPS.find(k => k.id === 'wachuma')!;
-      displayName = 'Wachuma Cactus Line'; ticker = c.ticker; cropId = 'wachuma';
+      const c = cropById('wachuma');
+      displayName = 'Wachuma Cactus Line'; ticker = c.ticker; cropId = c.id;
       blurb = 'A living fence of ornamental Wachuma columnar cactus along the contour — drought-proof, striking, and legal as ornamental. Slow-grown, high-value, and it holds the terrace edge.';
     } else if (z.type === 'water') {
       const t = WATER_TOKENS[watCount++ % WATER_TOKENS.length];
@@ -211,7 +212,7 @@ export function zonesToPlots(zones: Zone[]): Plot[] {
       const t = STRUCTURE_TOKENS[strCount++ % STRUCTURE_TOKENS.length];
       displayName = t.name; ticker = t.ticker; cropId = undefined; blurb = BLURB_BY_TYPE.structure;
     } else {
-      const c = CROPS.find(k => k.id === CULTURE_ORDER[synCount++ % CULTURE_ORDER.length])!;
+      const c = cropById(CULTURE_ORDER[synCount++ % CULTURE_ORDER.length]);
       displayName = `${c.label} Field`; ticker = c.ticker; cropId = c.id; blurb = c.note;
     }
 
