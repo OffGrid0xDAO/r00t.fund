@@ -4,6 +4,7 @@ import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
 import { CONTRACTS, TOKEN, getExplorerAddressUrl, hasExplorer } from '../config';
+import { RobinhoodWordmark } from './pilot/RobinhoodWordmark';
 
 // Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
@@ -117,6 +118,47 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
       <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] max-w-xl">
         {title}
       </h2>
+    </motion.div>
+  );
+}
+
+// Uniswap unicorn mark (pink) — recognizable buy-venue logo
+function UniswapMark({ className = '', size = 18 }: { className?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path d="M8.9 3.2c.3.5.3.9-.1 1.4-.2.3-.6.5-1 .5.5.3.8.7.9 1.3.1.4 0 .8-.3 1.5 1 .4 1.7 1.1 2 2.2.2.7.1 1.4-.2 2.4-.2.6-.2.9 0 1.2.3.4.9.4 1.3.1.5-.4.6-1 .3-1.8-.1-.3-.1-.4 0-.4.3 0 .8.8.9 1.5.2 1.2-.5 2.3-1.7 2.6-.5.1-1.3.1-1.7-.1-.3-.2-.4-.3-1-1.2-.8-1.3-1.1-1.6-1.5-1.7-.6-.1-1 .2-1.1.8 0 .4.1.6.6 1.2.7.9.8 1.5.4 2.3-.3.5-.7.8-1.6.9-1.5.2-2.5-.2-3-1.3-.2-.4-.2-.5-.2-1.3 0-.9 0-1 .3-1.6.3-.8.3-1.1.1-1.5-.2-.3-.4-.4-1-.6-1.2-.3-1.9-1-2.2-2.1-.1-.6-.1-1.6.1-1.6.1 0 .1.1.1.4 0 .6.4 1.3 1 1.6.3.2.9.2 1.1 0 .3-.3.2-.6-.4-1.5C4 8 3.7 7.2 3.7 6.3c0-1.3.5-2.3 1.6-2.9.4-.2.5-.2 1.3-.2.9 0 1 0 1.5.3.3.2.6.4.6.4s-.1-.2-.2-.4C8 2.7 8.5 2.6 8.9 3.2z" fill="#FF007A"/>
+    </svg>
+  );
+}
+
+// Buy row — where to actually get $R00T + Robinhood mention
+function BuyRow() {
+  const addr = CONTRACTS.rootToken;
+  const uniswapUrl = addr && addr !== '0x...'
+    ? `https://app.uniswap.org/swap?outputCurrency=${addr}`
+    : 'https://app.uniswap.org/swap';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 1.5 }}
+      className="mt-6 flex flex-wrap items-center gap-3"
+    >
+      <a
+        href={uniswapUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group inline-flex items-center gap-2 px-5 py-3 rounded-xl border font-medium text-sm transition-colors"
+        style={{ borderColor: 'rgba(255,0,122,0.4)', background: 'rgba(255,0,122,0.06)', color: 'var(--text-primary)' }}
+      >
+        <UniswapMark />
+        Buy $R00T on Uniswap
+        <ArrowRight className="opacity-60 group-hover:translate-x-0.5 transition-transform" />
+      </a>
+      <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-muted)]" style={{ background: 'var(--bg-elevated)' }}>
+        <span className="text-[10px] font-mono uppercase tracking-[0.15em]">Launching on</span>
+        <span className="text-[var(--text-secondary)]"><RobinhoodWordmark height={15} /></span>
+      </span>
     </motion.div>
   );
 }
@@ -331,6 +373,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 See How It Works
               </button>
             </motion.div>
+
+            {/* Buy on Uniswap + Robinhood mention */}
+            <BuyRow />
 
             {/* $R00T token contract */}
             <TokenContract />
