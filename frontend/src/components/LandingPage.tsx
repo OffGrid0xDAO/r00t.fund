@@ -6,6 +6,8 @@ import { AppBackground } from './AppBackground';
 
 // Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
+// Robinhood partner + liquidity narrative.
+const CasinoToLand = lazy(() => import('./pilot/CasinoToLand'));
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -343,6 +345,11 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           ═══════════════════════════════════════════════════════════════════ */}
       <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
         <PilotTerrainSection onEnterApp={onEnterApp} />
+      </Suspense>
+
+      {/* Robinhood partner + "casino → land" liquidity narrative */}
+      <Suspense fallback={null}>
+        <CasinoToLand onEnterApp={onEnterApp} />
       </Suspense>
 
       {/* ═══════════════════════════════════════════════════════════════════

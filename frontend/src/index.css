@@ -49,6 +49,9 @@ input:focus {
   --accent-glow: #3A7A50;
   --accent-secondary: #B8860B;
 
+  /* Robinhood brand green — used only for the partner / liquidity narrative */
+  --rh-green: #00C805;
+
   --border: #E5E4E0;
   --border-focus: #2D5A3D;
 
@@ -91,6 +94,9 @@ input:focus {
   --accent: #5DA870;
   --accent-glow: #6EC786;
   --accent-secondary: #D4A84B;
+
+  /* Robinhood brand green — brighter on dark for contrast */
+  --rh-green: #1FE01F;
 
   --border: #2A2A28;
   --border-focus: #5DA870;
