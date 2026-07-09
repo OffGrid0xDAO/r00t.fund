@@ -11,6 +11,8 @@ import { UniswapLogo } from './pilot/UniswapLogo';
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
 // Robinhood partner + liquidity narrative.
 const CasinoToLand = lazy(() => import('./pilot/CasinoToLand'));
+// Multi-tenant land network + "Start your land" onboarding.
+const LandsSection = lazy(() => import('./pilot/LandsSection'));
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -417,6 +419,11 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* Robinhood partner + "casino → land" liquidity narrative */}
       <Suspense fallback={null}>
         <CasinoToLand onEnterApp={onEnterApp} />
+      </Suspense>
+
+      {/* Multi-tenant land network + Start your land */}
+      <Suspense fallback={null}>
+        <LandsSection onEnterApp={onEnterApp} />
       </Suspense>
 
       {/* ═══════════════════════════════════════════════════════════════════

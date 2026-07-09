@@ -38,12 +38,32 @@ Tiered rounds with a rising price + visible FOMO:
 Earlier € buys more $R00T ⇒ early pledgers hold the largest positions at the
 lowest cost basis. Simple, legible, degen-legible.
 
-## One global $R00T (not per-parcel tokens)
+## Per-parcel tokens, $R00T as the universal base pair
 
-Parcels are **gamified allocation buckets**, not separate tokens. All pledges earn
-the one $R00T; per-parcel flavor comes from badges, heat, and (optional) per-parcel
-bonus multipliers. Per-parcel tokens would fragment liquidity into dead markets and
-multiply legal/technical risk — avoided.
+Founder direction (2026-07): **each parcel launches its own token**, paired against
+**$R00T** (like pump.fun coins pair against SOL — here $R00T is the base). Backers
+are **airdropped that parcel's token** on the early-bird curve. "Land value" = the
+parcel token's market cap in $R00T, so a popular parcel visibly appreciates and
+early backers win.
+
+Flywheel: to back land you buy $R00T ⇒ backing pumps $R00T; popular parcels ⇒ more
+$R00T demand ⇒ $R00T up *and* your parcel token up. The pledged € still funds the soil.
+
+**Naming right:** the first/top pledger names a parcel — that name becomes the token
+name/ticker (`Dragon Oak → $DRAGON`). Naming real land + its coin is the hook.
+
+Shipped UI: `ui.ts` (`tickerFromName`, `tokenPriceR00T` bonding curve,
+`landValueR00T`, `allocationFor`), `PlotDetailPanel` (token strip, claim-name input,
+airdrop preview on the fund CTA), map tooltip ($TICKER + land value).
+
+## Multi-tenant: every land pairs with $R00T
+
+r00t is a **network of lands**. Project 001 is the template; other stewards onboard
+via **Start your land** (`StartYourLand.tsx`): submit topography + boundary, the
+pipeline (`fuzz-terrain.mjs` + `gen-zones.mjs`, server-side on ingest) fuzzes and
+auto-parcels it. **Every land's parcel tokens pair with $R00T** — so each onboarded
+land compounds $R00T demand. Registry in `lands.ts`; network shown in `LandsSection`.
+Same identity/geometry firewall applies to tenants (real geodata never published).
 
 ## Momentum / heat (shipped, non-price)
 
