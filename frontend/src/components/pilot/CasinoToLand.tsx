@@ -7,7 +7,7 @@
  * exactly like their own brand surface — regardless of site theme.
  */
 import { motion } from 'framer-motion';
-import { RobinhoodWordmark } from './RobinhoodWordmark';
+import { RobinhoodMark } from './RobinhoodWordmark';
 
 const LIME = '#D6FE51';
 
@@ -46,7 +46,10 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
                 {/* partner lockup */}
                 <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border" style={{ borderColor: `${LIME}55`, background: `${LIME}10` }}>
                   <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/50">Powered by</span>
-                  <span style={{ color: LIME }}><RobinhoodWordmark height={18} /></span>
+                  <span className="inline-flex items-center gap-2" style={{ color: LIME }}>
+                    <RobinhoodMark size={20} />
+                    <span className="font-display text-lg tracking-tight">Robinhood</span>
+                  </span>
                 </div>
 
                 {onEnterApp && (
