@@ -15,6 +15,7 @@ import { TYPE_COLOR, eur, pct, greenLevel } from './ui';
 import { TYPE_LABEL } from './types';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { MachinesPanel } from './MachinesPanel';
+import { clippedVoronoi, centroid, type Pt } from './voronoi';
 
 interface Boundary { propertyBoundary: number[][] }
 interface Contours { contours: { l: string; p: number[][] }[] }
@@ -75,6 +76,19 @@ export function PlotMapTopo({ className = '' }: { className?: string }) {
     return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${view.project(p[0], p[1]).map(n => n.toFixed(1)).join(' ')}`).join(' ');
   }, [river, view]);
 
+  // Partition the land into one investment polygon per plot (clipped Voronoi).
+  const cells = useMemo(() => {
+    if (!boundary || boundary.length < 3) return {} as Record<string, { poly: Pt[]; c: Pt }>;
+    const seeds: Pt[] = plots.map(p => [p.x, p.y]);
+    const polys = clippedVoronoi(seeds, boundary as Pt[]);
+    const out: Record<string, { poly: Pt[]; c: Pt }> = {};
+    plots.forEach((p, i) => {
+      const poly = polys[i];
+      if (poly && poly.length >= 3) out[p.id] = { poly, c: centroid(poly) };
+    });
+    return out;
+  }, [boundary, plots]);
+
   const selected = plots.find(p => p.id === selectedId) || null;
   const hovered = plots.find(p => p.id === hoveredId) || null;
 
@@ -100,22 +114,32 @@ export function PlotMapTopo({ className = '' }: { className?: string }) {
         {/* river */}
         {riverPath && <path d={riverPath} fill="none" stroke="#5BA8B5" strokeWidth={3.2} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" />}
 
-        {/* plots */}
+        {/* investment polygons — "polígonos de investimento" partitioning the land */}
         {plots.map((p) => {
-          const [sx, sy] = view.project(p.x, p.y);
-          const rr = p.r * view.S;
+          const cell = cells[p.id];
+          if (!cell) return null;
           const color = TYPE_COLOR[p.type];
           const g = greenLevel(p.status, p.fundedEur, p.targetEur);
           const active = hoveredId === p.id || selectedId === p.id;
+          const [cx, cy] = view.project(cell.c[0], cell.c[1]);
+          const d = cell.poly.map((pt, i) => `${i === 0 ? 'M' : 'L'}${view.project(pt[0], pt[1]).map(n => n.toFixed(1)).join(' ')}`).join(' ') + ' Z';
           return (
             <g key={p.id} style={{ cursor: 'pointer' }}
                onMouseEnter={() => setHoveredId(p.id)} onMouseLeave={() => setHoveredId(h => h === p.id ? null : h)}
                onClick={() => setSelectedId(p.id)}>
-              <circle cx={sx} cy={sy} r={rr * (active ? 1.12 : 1)} fill={color} fillOpacity={0.14 + 0.34 * g} />
-              <circle cx={sx} cy={sy} r={rr * 0.62} fill={color} fillOpacity={0.22 + 0.4 * g} />
-              <circle cx={sx} cy={sy} r={rr} fill="none" stroke={color} strokeWidth={1.6}
-                      strokeDasharray={p.status === 'verified' ? undefined : '4 3'} strokeOpacity={p.status === 'seeking' ? 0.6 : 0.95} />
-              {p.status === 'verified' && <text x={sx} y={sy + rr * 0.35} textAnchor="middle" fontSize={rr} >✅</text>}
+              {/* parcel fill — greening intensity tracks funding */}
+              <path d={d} fill={color} fillOpacity={(0.1 + 0.32 * g) * (active ? 1.5 : 1)}
+                    stroke={color} strokeWidth={active ? 2.4 : 1.4}
+                    strokeOpacity={p.status === 'seeking' ? 0.6 : 0.9}
+                    strokeDasharray={p.status === 'verified' ? undefined : '5 4'}
+                    strokeLinejoin="round" />
+              {/* label at the parcel centroid */}
+              <text x={cx} y={cy - 2} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={600} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                {p.status === 'verified' ? '✅ ' : ''}{pct(p.fundedEur, p.targetEur)}%
+              </text>
+              <text x={cx} y={cy + 11} textAnchor="middle" className="font-mono" fontSize={7.5} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
+                {p.name}
+              </text>
             </g>
           );
         })}
