@@ -1,11 +1,14 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { formatEther } from 'viem';
 import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
 import { useProofOfReserve } from './projects/hooks/useProofOfReserve';
 import { useProtocolHealth } from './projects/hooks/useProtocolHealth';
+
+// Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
+const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -496,10 +499,13 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          PROJECT 001 — pilot terrain section + interactive plot map mounts here
+          PROJECT 001 — pilot terrain section + interactive plot map
           (see components/pilot/*). Terrain is rendered from fuzzed, non-cadastral
           geometry only — no real coordinates in the client bundle.
           ═══════════════════════════════════════════════════════════════════ */}
+      <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
+        <PilotTerrainSection />
+      </Suspense>
 
       {/* ═══════════════════════════════════════════════════════════════════
           CRE WORKFLOWS — 7 workflows
