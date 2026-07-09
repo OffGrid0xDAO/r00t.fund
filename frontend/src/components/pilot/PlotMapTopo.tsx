@@ -100,28 +100,43 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
           ))}
         </g>
 
-        {/* investment polygons — terrain-derived terraces + water corridor */}
+        {/* faint land base — hides any smoothing gaps between parcels */}
+        <path d={borderPath} fill="var(--accent-on-bg)" fillOpacity={0.05} stroke="none" />
+
+        {/* investment polygons — terrain-derived organic parcels */}
         {plots.map((p) => {
           if (!p.poly) return null;
           const color = TYPE_COLOR[p.type];
           const g = greenLevel(p.status, p.fundedEur, p.targetEur);
           const active = hoveredId === p.id || selectedId === p.id;
           const [cx, cy] = view.project(p.x, p.y);
+          // screen size of the parcel → decide whether the name fits
+          const sxs = p.poly.map(pt => view.project(pt[0], pt[1]));
+          const w = Math.max(...sxs.map(s => s[0])) - Math.min(...sxs.map(s => s[0]));
+          const h = Math.max(...sxs.map(s => s[1])) - Math.min(...sxs.map(s => s[1]));
+          const showName = w > 78 && h > 30;
+          const funded = p.fundedEur >= p.targetEur;
+          const d = polyPath(p.poly);
           return (
             <g key={p.id} style={{ cursor: 'pointer' }}
-               onMouseEnter={() => setHoveredId(p.id)} onMouseLeave={() => setHoveredId(h => h === p.id ? null : h)}
+               onMouseEnter={() => setHoveredId(p.id)} onMouseLeave={() => setHoveredId(h2 => h2 === p.id ? null : h2)}
                onClick={() => setSelectedId(p.id)}>
-              <path d={polyPath(p.poly)} fill={color} fillOpacity={(0.12 + 0.34 * g) * (active ? 1.5 : 1)}
-                    stroke={color} strokeWidth={active ? 2.6 : 1.3}
-                    strokeOpacity={p.status === 'seeking' ? 0.55 : 0.9}
-                    strokeDasharray={p.status === 'verified' ? undefined : '5 4'}
+              {/* fully-funded parcels get a solid saturated fill + glow ring;
+                  still-seeking parcels stay faint & dashed */}
+              {funded && <path d={d} fill="none" stroke={color} strokeWidth={5} strokeOpacity={0.18} strokeLinejoin="round" />}
+              <path d={d} fill={color} fillOpacity={funded ? (0.5 * (active ? 1.15 : 1)) : (0.12 + 0.3 * g) * (active ? 1.4 : 1)}
+                    stroke={color} strokeWidth={active ? 2.6 : funded ? 1.8 : 1.1}
+                    strokeOpacity={funded ? 1 : p.status === 'seeking' ? 0.45 : 0.8}
+                    strokeDasharray={funded ? undefined : '5 4'}
                     strokeLinejoin="round" />
-              <text x={cx} y={cy - 1} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={600} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+              <text x={cx} y={cy + (showName ? -1 : 3)} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={600} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
                 {p.status === 'verified' ? '✅ ' : ''}{pct(p.fundedEur, p.targetEur)}%
               </text>
-              <text x={cx} y={cy + 10} textAnchor="middle" className="font-mono" fontSize={7} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
-                {p.name}
-              </text>
+              {showName && (
+                <text x={cx} y={cy + 10} textAnchor="middle" className="font-mono" fontSize={7} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
+                  {p.name}
+                </text>
+              )}
             </g>
           );
         })}
