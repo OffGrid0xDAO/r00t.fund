@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BASE_TOKEN } from './lands';
+import { useLandFactory } from '../../hooks/useLandFactory';
 
 type Step = 0 | 1 | 2 | 3;
 
@@ -38,7 +39,27 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   const [files, setFiles] = useState<Files>({});
   const [supply, setSupply] = useState(1_000_000);
   const [treasury, setTreasury] = useState('');
+  const [rootPledge, setRootPledge] = useState(1000);
   const [submitted, setSubmitted] = useState(false);
+
+  const { createLand, status, error, configured, toPledge } = useLandFactory();
+  const submitting = status === 'approving' || status === 'creating';
+
+  const handleSubmit = async () => {
+    // On-chain path when the factory is deployed + a treasury address is given.
+    if (configured && treasury.trim().startsWith('0x')) {
+      const res = await createLand({
+        name, region,
+        boundaryText: files.boundary, topoText: files.heightmap,
+        treasury: treasury.trim() as `0x${string}`,
+        r00tPledge: toPledge(rootPledge),
+      });
+      if (res) setSubmitted(true);
+      return;
+    }
+    // Not configured yet → queue locally (demo/onboarding).
+    setSubmitted(true);
+  };
 
   const boundary = useMemo(() => (files.boundary ? parseBoundary(files.boundary) : null), [files.boundary]);
   const boundaryPath = useMemo(() => {
@@ -151,6 +172,10 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                 <Field label="Land treasury address (receives pledges)">
                   <input value={treasury} onChange={(e) => setTreasury(e.target.value)} placeholder="0x…" className={`${inputCls} font-mono`} />
                 </Field>
+                <Field label={`$${BASE_TOKEN} pledge (seeds your parcels' liquidity)`}>
+                  <input type="number" min={0} value={rootPledge} onChange={(e) => setRootPledge(Math.max(0, Number(e.target.value) || 0))} className={inputCls} />
+                  <p className="mt-1 text-[10px] font-mono text-[var(--text-muted)]">Locked at creation as the seed liquidity for your parcel/${BASE_TOKEN} pools — this is the OTC ${BASE_TOKEN} you sell to backers.</p>
+                </Field>
               </motion.div>
             ) : (
               <motion.div key="s3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
@@ -159,13 +184,21 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                   ['Boundary', files.boundary ? '✓ uploaded' : '—'], ['Topography', files.heightmap ? '✓ uploaded' : '— (auto-flat)'],
                   ['Watercourse', files.river ? '✓ uploaded' : '— (none)'],
                   ['Token base', `$${BASE_TOKEN}`], ['Supply / parcel', supply.toLocaleString()], ['Treasury', treasury || '—'],
+                  [`$${BASE_TOKEN} pledge`, rootPledge.toLocaleString()],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between text-sm border-b border-[var(--border)]/60 pb-2">
                     <span className="text-[var(--text-muted)] font-mono text-xs">{k}</span>
                     <span className="text-[var(--text-primary)]">{v}</span>
                   </div>
                 ))}
-                <p className="text-[11px] font-mono text-[var(--text-muted)] pt-1">On submit: terrain is fuzzed → auto-parceled → your land goes live for pledges.</p>
+                <p className="text-[11px] font-mono text-[var(--text-muted)] pt-1">
+                  {configured
+                    ? `On submit: approve your $${BASE_TOKEN} pledge → createLand on-chain → terrain fuzzed & auto-parceled.`
+                    : 'On submit: terrain is fuzzed → auto-parceled → your land goes live for pledges.'}
+                </p>
+                {status === 'error' && error && (
+                  <p className="text-[11px] font-mono text-[var(--error,#e5484d)] pt-1">⚠ {error}</p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -183,8 +216,8 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                 Continue
               </button>
             ) : (
-              <button onClick={() => setSubmitted(true)} className="px-6 py-2.5 rounded-xl text-[var(--accent-ink)] font-medium text-sm" style={{ background: 'var(--accent)' }}>
-                Submit land
+              <button onClick={handleSubmit} disabled={submitting} className="px-6 py-2.5 rounded-xl text-[var(--accent-ink)] font-medium text-sm disabled:opacity-50" style={{ background: 'var(--accent)' }}>
+                {status === 'approving' ? `Approving $${BASE_TOKEN}…` : status === 'creating' ? 'Creating land…' : 'Submit land'}
               </button>
             )}
           </div>

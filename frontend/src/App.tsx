@@ -281,8 +281,8 @@ function App() {
   }, []);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') === 'dark' ||
-        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      // Dark is the baseline on entry — only light if the visitor picked it before.
+      return localStorage.getItem('theme') !== 'light';
     }
     return true;
   });

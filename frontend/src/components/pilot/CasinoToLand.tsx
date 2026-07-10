@@ -36,8 +36,8 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
               {/* copy */}
               <div>
-                <h2 className="font-display text-2xl md:text-4xl tracking-[-0.02em] leading-[1.08] mb-5 text-[var(--text-primary)]">
-                  The extractive engine of the memecoin casino, <span style={{ color: GREEN }}>pointed at the ground.</span>
+                <h2 className="font-display text-3xl md:text-4xl tracking-[-0.02em] leading-[1.08] mb-5 text-[var(--text-primary)]">
+                  The casino, <span style={{ color: GREEN }}>pointed at the ground.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-5">
                   Same fair-launch mechanics, same speculative velocity that mints tokens by the

@@ -12,7 +12,7 @@ import type { Plot, Machine, PlotStatus } from './types';
 import { SEED_PLOTS, SEED_MACHINES } from './data';
 import {
   mockPatronageBackend, mockAttestationAdapter,
-  type PatronageBackend, type AttestationAdapter,
+  type PatronageBackend, type AttestationAdapter, type PledgePay,
 } from './patronage';
 
 function nextStatusAfterFund(p: Plot): PlotStatus {
@@ -35,11 +35,11 @@ export function usePilotState(
 
   const setBusy = (id: string, v: boolean) => setPending((s) => ({ ...s, [id]: v }));
 
-  const fundPlot = useCallback(async (plotId: string, amountEur: number, backer = 'you') => {
+  const fundPlot = useCallback(async (plotId: string, amountEur: number, backer = 'you', pay?: PledgePay) => {
     const plot = plots.find((p) => p.id === plotId);
     if (!plot || amountEur <= 0) return;
     setBusy(plotId, true);
-    const receipt = await backend.fund(plotId, amountEur, backer, plot.rewards);
+    const receipt = await backend.fund(plotId, amountEur, backer, plot.rewards, pay);
     setBusy(plotId, false);
     if (!receipt.ok) return;
     setPlots((prev) => prev.map((p) => {

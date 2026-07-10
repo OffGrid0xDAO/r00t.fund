@@ -28,13 +28,18 @@ export interface FundReceipt {
   ref: string;             // mock tx/receipt ref
 }
 
+/** How a pledge is paid. amountEur/amountUsd is always the USD-denominated size
+ *  (for the progress bar + token allocation); ethAmount carries the raw ETH when
+ *  paying in ETH so the contract backend can send the right msg.value. */
+export interface PledgePay { asset: 'ETH' | 'USDC'; ethAmount?: number }
+
 export interface PatronageBackend {
-  fund(targetId: string, amountEur: number, backer: string, rewards: PatronageReward[]): Promise<FundReceipt>;
+  fund(targetId: string, amountEur: number, backer: string, rewards: PatronageReward[], pay?: PledgePay): Promise<FundReceipt>;
 }
 
 /** Local, no-chain implementation used for the demo/dev flow. */
 export const mockPatronageBackend: PatronageBackend = {
-  async fund(targetId, amountEur, backer, rewards) {
+  async fund(targetId, amountEur, backer, rewards, _pay) {
     // simulate a short settlement delay
     await new Promise((r) => setTimeout(r, 450));
     return {

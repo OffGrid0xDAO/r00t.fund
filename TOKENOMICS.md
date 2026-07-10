@@ -1,86 +1,108 @@
-# $R00T — Regen Launch tokenomics (draft)
+# $R00T — tokenomics & the OTC land mechanism
 
-> Direction set by the founder (2026-07): move from strict patronage-only to a
-> degen-friendly launch to attract capital to the land. The guiding invariant
-> that remains: **pledged ETH/USDC funds the land — it is never used as LP.**
+> Direction set by the founder (2026-07). Launch target: **Robinhood Chain**
+> (chainId 4663) — native Uniswap v2/v3/**v4** + Chainlink CCIP/Data Feeds day-one.
+> Guiding invariant: **pledged ETH/USDC funds the land — it is never used as LP.**
 >
-> ⚠️ This is a token-distribution / launch design, not legal advice. "Early
-> pledgers get more token supply" + a tradable token has securities-law exposure
-> in many jurisdictions. Get counsel before mainnet.
+> ⚠️ Token-distribution / launch design, not legal advice. A tradable token +
+> real-world land has securities-law exposure. Get counsel before mainnet.
 
-## The two-loop model
+## One sentence
 
-**Loop A — Pledge (funds the land).**
-- Degens pledge ETH/USDC to parcels they like on the land map.
-- **100% of pledges → land treasury** (regeneration capex). Not LP, not yield.
-- In return, pledgers accrue a **$R00T allocation on an early-bird curve** —
-  earlier = more $R00T per €. Allocation is locked, claimable at TGE.
+**Opening a land is an OTC sale of the steward's $R00T to the crowd:** the steward
+locks $R00T at creation as the seed liquidity for real Uniswap v4 parcel/$R00T
+pools; backers pledge ETH/USDC (100% to the treasury — the ground) and mint the
+parcel's culture token **at the live pool price**; their exit is against the
+steward's $R00T float, so demand sets the price the steward realizes — premium or
+discount.
 
-**Loop B — Token (number-go-up).**
-- At TGE a **reserved $R00T allocation** seeds a **Uniswap v4 one-sided-liquidity**
-  position (range order in $R00T only — no ETH needed to bootstrap). Buyers bring
-  the ETH; that buy-side ETH can also route to the land treasury.
-- Token trades on the open market. Early pledgers acquired it below the launch
-  price on the curve → their position is up vs market. The upside lives in the
-  token's own market, decoupled from the pledged land money.
+## The two token layers
 
-## Early-bird distribution (favor early degens)
+| Layer | Token | What it is |
+|---|---|---|
+| **Base** | **$R00T** | Protocol reserve currency, fixed 69M supply. Everything is priced in it. |
+| **Parcel** | $OAK / $CARROT / … | A localized, yield-bearing wrapper around $R00T. Always paired to $R00T in a v4 pool. "$R00T with a place and a carbon yield." |
 
-Tiered rounds with a rising price + visible FOMO:
+## The contracts (as built — `contracts/src/`)
 
-| Round | Price (€/$R00T) | Cap | Signal |
-|------:|:---------------:|:---:|--------|
-| 1 | 0.010 | first €X or N days | best deal, "genesis" badge |
-| 2 | 0.014 | next tranche | — |
-| 3 | 0.019 | next tranche | — |
-| … | … | … | "Round k of N — price rises in €X or Yh" |
+- **`RootToken.sol`** — $R00T (ERC20, 69M).
+- **`ParcelToken.sol`** — per-parcel culture token; mint restricted to its `Land`.
+- **`LandFactory.sol`** — anyone opens a land. Holds the shared Uniswap v4 wiring
+  (`PoolManager`, fee tier, tick spacing, protocol treasury). `createLand(...)`
+  requires an $R00T pledge ≥ `minR00tPledge`, pulls it into the new `Land`, and
+  earmarks it as that land's seed reserve.
+- **`Land.sol`** — one steward's land:
+  - **Own treasury.** `pledgeETH` / `pledgeUSDC` forward **100%** to `treasury`.
+  - **Geo validation.** `boundaryHash` (KMZ) + `topoHash` (topography) + IPFS `cid`
+    committed on-chain; a `validator` flips `validated` after the OFF-CHAIN check.
+    Parcel creation + pledging are gated on `validated`.
+  - **Parcel tokens.** `createParcel(id, name, symbol)` deploys a `ParcelToken`.
+  - **Real v4 liquidity.** `seedParcelLiquidity(id, sqrtPriceX96, rootAmount,
+    parcelAmount)` initializes the parcel/$R00T pool on the live `PoolManager` and
+    adds full-range liquidity via the v4 unlock/settle callback — $R00T from the
+    reserve, parcel tokens freshly minted into the pool.
+  - **Mint-at-pool-price.** Pledges read the pool's `sqrtPrice` (`StateLibrary`),
+    value the pledge in $R00T (`rootPriceE6`), and mint the parcel token **at
+    market**. No fixed rate ⇒ nothing to arb.
+  - **Fee split.** `collectParcelFees(id)` collects v4 swap fees and splits them
+    **70% steward / 30% protocol** (`STEWARD_FEE_BPS = 7000`).
 
-Earlier € buys more $R00T ⇒ early pledgers hold the largest positions at the
-lowest cost basis. Simple, legible, degen-legible.
+## Loop A — Pledge (funds the land)
 
-## Per-parcel tokens, $R00T as the universal base pair
+- Degens pledge ETH/USDC to a parcel on the land map.
+- **100% → land treasury** (regeneration capex). Never LP, never yield.
+- The parcel's culture token is **minted to the pledger at the live v4 pool price**
+  — so a backer always receives fair value, and cannot mint-cheap-then-dump.
+- A separate **early-bird points ledger** (`allocationPoints`, `bonusBps`) rewards
+  earliness — reserved for a future $R00T airdrop / governance weight. Points do
+  **not** mint extra parcel tokens (that would reopen the arb).
 
-Founder direction (2026-07): **each parcel launches its own token**, paired against
-**$R00T** (like pump.fun coins pair against SOL — here $R00T is the base). Backers
-are **airdropped that parcel's token** on the early-bird curve. "Land value" = the
-parcel token's market cap in $R00T, so a popular parcel visibly appreciates and
-early backers win.
+## Loop B — the OTC $R00T sale (why discount/premium)
 
-Flywheel: to back land you buy $R00T ⇒ backing pumps $R00T; popular parcels ⇒ more
-$R00T demand ⇒ $R00T up *and* your parcel token up. The pledged € still funds the soil.
+The crowd's only source of $R00T for a parcel is the **steward's seeded float**.
+So across the whole loop: **ETH in → treasury, $R00T out → crowd, the parcel token
+is the transport layer.** The steward converts illiquid $R00T into real regeneration
+capital.
 
-**Naming right:** the first/top pledger names a parcel — that name becomes the token
-name/ticker (`Dragon Oak → $DRAGON`). Naming real land + its coin is the hook.
+Effective price the steward realizes ≈ `ETH raised ÷ $R00T distributed`:
 
-Shipped UI: `ui.ts` (`tickerFromName`, `tokenPriceR00T` bonding curve,
-`landValueR00T`, `allocationFor`), `PlotDetailPanel` (token strip, claim-name input,
-airdrop preview on the fund CTA), map tooltip ($TICKER + land value).
+- **Hot land** → parcels trade up, crowd pays up → steward sells $R00T at a **premium**.
+- **Cold land** → parcels trade down → steward sells $R00T at a **discount**.
+
+The premium/discount is **the crowd's verdict on that specific land**, denominated
+in $R00T. Trading fees on top split 70/30 steward/protocol.
 
 ## Multi-tenant: every land pairs with $R00T
 
-r00t is a **network of lands**. Project 001 is the template; other stewards onboard
-via **Start your land** (`StartYourLand.tsx`): submit topography + boundary, the
-pipeline (`fuzz-terrain.mjs` + `gen-zones.mjs`, server-side on ingest) fuzzes and
-auto-parcels it. **Every land's parcel tokens pair with $R00T** — so each onboarded
-land compounds $R00T demand. Registry in `lands.ts`; network shown in `LandsSection`.
-Same identity/geometry firewall applies to tenants (real geodata never published).
+r00t is a **network of lands**. The Pilot Project is the template; other stewards
+onboard via **Start your land** (`StartYourLand.tsx`): submit boundary + topography,
+the pipeline (`fuzz-terrain.mjs` → `apply-kml-boundary.mjs` → `gen-zones.mjs`,
+server-side on ingest) fuzzes and auto-parcels it, and the hashes are committed for
+on-chain validation. Every land's parcel tokens pair with $R00T ⇒ each onboarded
+land compounds $R00T demand. The same identity/geometry firewall applies to tenants.
 
-## Momentum / heat (shipped, non-price)
+## Deploy
 
-The map surfaces a **Regen Index** and **parcel heat** — momentum signals (recent
-pledge velocity, backers, funding %). These are *stats that go up*, not prices:
-they drive FOMO and competition without asserting a financial claim on a parcel.
+`contracts/script/DeployLandFactory.s.sol` — deploys (or reuses) $R00T and the
+`LandFactory` wired to Robinhood Chain's Uniswap v4 `PoolManager`
+(`0x8366a39CC670B4001A1121B8F6A443A643e40951`). Set `CONTRACTS.landFactory`
+(`VITE_LAND_FACTORY`) in `frontend/src/config.ts` after deploy.
 
-Implemented in `frontend/src/components/pilot/`:
-- `ui.ts` — `parcelHeat`, `recentEur`, `regenIndex`.
-- `PlotMapTopo.tsx` — hot parcels pulse; 🔥 on the hottest; live pledge feed;
-  a demo pledge simulator so momentum is visible; Regen Index in the tooltip.
+## Deferred (post-launch)
 
-## Open build TODOs
-- [ ] Pledge contract: `pledge(bytes32 parcel)` → funds land treasury, records
-      €/ETH + timestamp + round; emits allocation. No LP path from pledges.
-- [ ] Early-bird curve on-chain (round price schedule or continuous bonding).
-- [ ] TGE + claim contract; vesting/lock as chosen.
-- [ ] Uniswap v4 one-sided-liquidity hook to seed the market from the reserve
-      allocation; route buy-side ETH to treasury.
-- [ ] Legal review before any of the above ships to mainnet.
+- **Two-pool privacy** (public v4 + ZK shielded pool, peg-keeper routing arb →
+  treasury). See `PRIVACY_LIQUIDITY.md`. Kept optional — clashes with the public
+  degen loop + Robinhood compliance posture at launch.
+- **$R00T price oracle.** `rootPriceE6` is owner-set today; swap for a $R00T base
+  pool read or a Chainlink feed once $R00T has market depth.
+- **Vesting of minted parcel tokens** tied to satellite-verified regeneration
+  (Chainlink CRE) — an on-brand alternative/complement to mint-at-market.
+- **v4 fee hook** — move the 70/30 split into a hook if per-swap routing is wanted.
+- Legal review before mainnet.
+
+## Legacy note
+
+An earlier draft used a fixed early-bird **price-tier airdrop** (Round 1/2/3…) and a
+one-sided-liquidity seed. That is superseded: fixed-rate mint + an open pool is a
+free arb. The shipped model mints **at the live pool price** and keeps earliness as
+a **points reward**, not extra supply.

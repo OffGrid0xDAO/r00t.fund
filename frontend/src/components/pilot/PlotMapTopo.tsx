@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePilotState } from './usePilotState';
+import { useLandBackend } from '../../hooks/useLandBackend';
 import { TYPE_COLOR, usd, pct, greenLevel, parcelHeat, recentEur, regenIndex, tickerFromName, landValueR00T, fmtR00T } from './ui';
 import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
@@ -52,14 +53,29 @@ export function PlotMapTopo({ className = '' }: { className?: string }) {
   const [contours, setContours] = useState<{ l: string; p: number[][] }[]>([]);
   const [river, setRiver] = useState<number[][] | null>(null);
   const [plots, setPlots] = useState<Plot[] | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/terrain/heightmap.json').then(r => r.json()).then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary)).catch(() => {});
-    fetch('/terrain/contours.json').then(r => r.json()).then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch(() => {});
-    fetch('/terrain/river.json').then(r => r.json()).then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch(() => {});
-    fetch('/terrain/zones.json').then(r => r.json()).then((z: Zone[]) => setPlots(zonesToPlots(z))).catch(() => {});
+    const getJson = async (url: string) => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} → ${r.status}`);
+      return r.json();
+    };
+    // boundary + plots are required to render; contours/river are optional flourish
+    getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary))
+      .catch((e) => { console.error('[PlotMap] boundary load failed', e); setLoadErr(String(e.message || e)); });
+    getJson('/terrain/zones.json').then((z: Zone[]) => setPlots(zonesToPlots(z)))
+      .catch((e) => { console.error('[PlotMap] zones load failed', e); setLoadErr(String(e.message || e)); });
+    getJson('/terrain/contours.json').then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch((e) => console.warn('[PlotMap] contours', e));
+    getJson('/terrain/river.json').then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch((e) => console.warn('[PlotMap] river', e));
   }, []);
 
+  if (loadErr) {
+    return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] gap-1 text-center px-4 ${className}`}>
+      <span>couldn't load the land</span>
+      <span className="text-[10px] opacity-70">{loadErr} · check console / dev server</span>
+    </div>;
+  }
   if (!boundary || !plots) {
     return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] ${className}`}>dividing the land…</div>;
   }
@@ -74,7 +90,9 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   contours: { l: string; p: number[][] }[];
   river: number[][] | null;
 }) {
-  const state = usePilotState(initialPlots);
+  // Real Land pledges when the pilot Land is deployed + wallet connected; mock otherwise.
+  const { backend, onChain } = useLandBackend();
+  const state = usePilotState(initialPlots, backend);
   const { plots, machines, pending, totals } = state;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -88,6 +106,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;
   const plotsRef = useRef(plots); plotsRef.current = plots;
   useEffect(() => {
+    if (onChain) return; // never fire simulated pledges as real on-chain txs
     const names = ['0xF3…a1', 'degen.eth', 'anon·moon', 'ser.eth', 'wagmi', 'anon·7b2', 'pleb.eth', 'apemaxi', '0x9c…d4'];
     const t = setInterval(() => {
       const open = plotsRef.current.filter(p => p.fundedEur < p.targetEur);
@@ -100,7 +119,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
       setFeed(f => [{ id: `${Date.now()}-${p.id}`, who, amt, parcel: p.name }, ...f].slice(0, 4));
     }, 3200);
     return () => clearInterval(t);
-  }, []);
+  }, [onChain]);
 
   const heats = plots.map(p => parcelHeat(p, now));
   const maxHeat = Math.max(1, ...heats);
@@ -340,7 +359,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
       <AnimatePresence>
         {selected && (
           <PlotDetailPanel plot={selected} busy={!!pending[selected.id]} verifying={!!pending[selected.id + ':verify']}
-            onClose={() => setSelectedId(null)} onFund={(amt) => state.fundPlot(selected.id, amt)}
+            onClose={() => setSelectedId(null)} onFund={(amt, pay) => state.fundPlot(selected.id, amt, 'you', pay)}
             onChooseCrop={(cid) => state.chooseCrop(selected.id, cid)} onPlant={() => state.plantPlot(selected.id)} onVerify={() => state.verifyPlot(selected.id)}
             onRename={(name) => state.renamePlot(selected.id, name)} />
         )}

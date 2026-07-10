@@ -18,6 +18,11 @@ export const REWARD_LABEL: Record<PatronageReward, string> = {
 
 export const usd = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 
+// UI-side ETH/USD used for progress accounting + previews. Mirrors the Land's
+// default ethPriceE6 ($3,000); the contract is the source of truth on-chain.
+export const ETH_USD = 3000;
+export const fmtEth = (n: number) => `${n < 0.001 ? n.toFixed(5) : n.toFixed(n < 1 ? 3 : 2)} ETH`;
+
 export const pct = (funded: number, target: number) =>
   Math.min(100, Math.round((funded / Math.max(1, target)) * 100));
 

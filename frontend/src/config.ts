@@ -118,6 +118,16 @@ export const CONTRACTS = {
   rootToken: FALLBACK.rootToken,
   // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
   parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
+  // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
+  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x...',
+  // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
+  poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
+  // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
+  stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
+  // The deployed pilot Land (steward: r00t). Pledges route here once set.
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x...',
+  // USDC used for pledges on the target chain.
+  usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
   lpPool: FALLBACK.lpPool,
   nullifierRegistry: FALLBACK.nullifierRegistry,

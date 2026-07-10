@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1500, initial-scale=1" />
+<title>r00t.fund — X / Twitter banner (1500×500)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0B0D0A;
+    --bg-2: #121210;
+    --border: rgba(255,255,255,0.10);
+    --text: #F5F5F3;
+    --text-2: #A8A8A4;
+    --text-3: #6C6C68;
+    --lime: #D6FE51;
+    --ink: #10140A;
+    --display: 'Newsreader', Georgia, serif;
+    --body: 'Inter', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #0B0D0A;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+    font-family: var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── The exact X/Twitter banner canvas ───────────────────────────── */
+  .banner {
+    position: relative;
+    width: 1500px;
+    height: 500px;
+    overflow: hidden;
+    background: #0B0D0A;
+    color: var(--text);
+    isolation: isolate;
+  }
+
+  /* ── cinematic terrain — big, near full-bleed, the hero of the banner ── */
+  .terrain {
+    position: absolute; inset: 0;
+    background: url('pilot-terrain.png') 22% 44% / 150% no-repeat;
+    filter: brightness(1.15) saturate(1.12) contrast(1.05);
+    z-index: 0;
+    /* soften the outer edges so it melts into the dark; weighted to the right */
+    -webkit-mask-image: radial-gradient(ellipse 88% 98% at 70% 48%, #000 60%, transparent 100%);
+            mask-image: radial-gradient(ellipse 88% 98% at 70% 48%, #000 60%, transparent 100%);
+  }
+  /* lime bloom rising off the ridge */
+  .terrain-glow {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse 44% 52% at 70% 42%, rgba(214,254,81,0.13) 0%, transparent 62%);
+  }
+  /* left scrim — just enough dark to seat the logo + line, keeps it abstract */
+  .scrim {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      linear-gradient(90deg, #0B0D0A 0%, rgba(11,13,10,0.92) 20%, rgba(11,13,10,0.55) 38%, transparent 60%),
+      linear-gradient(180deg, rgba(11,13,10,0.7) 0%, transparent 26%);
+  }
+
+  /* content sits TOP-left, clear of the profile avatar (bottom-left) */
+  .content {
+    position: absolute; z-index: 2;
+    top: 56px; left: 92px;
+    max-width: 620px;
+  }
+
+  .brandrow { display: flex; align-items: center; gap: 13px; margin-bottom: 26px; }
+  .wordmark {
+    font-family: var(--display);
+    font-size: 34px; font-weight: 500; letter-spacing: -0.02em;
+    color: var(--text); line-height: 1;
+  }
+  .wordmark .dot { color: var(--lime); }
+  .rootmark { color: var(--lime); display: inline-flex; filter: drop-shadow(0 0 12px rgba(214,254,81,0.4)); }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.2em;
+    color: var(--ink); background: var(--lime);
+    padding: 6px 12px; border-radius: 8px; font-weight: 500;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-family: var(--display); font-weight: 400;
+    font-size: 80px; line-height: 1.0; letter-spacing: -0.025em;
+    color: var(--text);
+  }
+  h1 .accent { color: var(--lime); font-style: italic; }
+
+  /* small "built on Robinhood Chain" chip, top-right over the terrain */
+  .rh {
+    position: absolute; z-index: 2; top: 60px; right: 40px;
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid rgba(214,254,81,0.25);
+    background: rgba(11,13,10,0.55); backdrop-filter: blur(6px);
+    color: var(--lime);
+  }
+  .rh .feather { display: inline-flex; filter: drop-shadow(0 0 6px rgba(214,254,81,0.35)); }
+  .rh .rh-label { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-3); }
+  .rh .rh-text { font-family: var(--display); font-size: 15px; letter-spacing: -0.01em; }
+
+  /* screenshot helper (not exported) */
+  .hint {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 12px; color: #9c9c96;
+    background: #000; padding: 8px 14px; border-radius: 999px; border: 1px solid #333; z-index: 99;
+  }
+  @media print { .hint { display: none; } }
+</style>
+</head>
+<body>
+  <div class="hint">1500×500 — right-click the banner → “Capture node screenshot”, or screenshot this box</div>
+
+  <div class="banner" id="banner">
+    <div class="terrain"></div>
+    <div class="terrain-glow"></div>
+    <div class="scrim"></div>
+
+    <!-- built on Robinhood Chain -->
+    <div class="rh">
+      <span class="rh-label">Built on</span>
+      <span class="feather">
+        <svg viewBox="0 5 120 145" width="18" height="18" fill="currentColor" aria-label="Robinhood">
+          <path d="m73.96,33.73h-30.4c-1.1,0-2.03.44-2.8,1.4l-21.8,27c-3.2,4-4,7.7-4,13v27.6C7.86,122.63,3.36,136.13.06,148.33c-.2.78.1,1.2.8,1.2h3.3c.6,0,1.2-.3,1.4-.8C30.46,85.33,57.56,53.93,74.56,35.13c.7-.8.4-1.4-.6-1.4Z" />
+          <path d="m74.86,2.63c-2.04.79-4,2.13-4.9,2.9-9,7.7-15,13.8-20.7,19.8-.7.7-.4,1.4.6,1.4h33.7c3.1,0,4.9,1.8,4.9,4.9v38c0,1,.8,1.3,1.4.4l20.3-26.5c3.3-4.3,4.3-5.6,5.2-11.6,1.2-8.8.5-22.3-4.8-27.9-4.7-5-25.9-5.2-35.7-1.4Z" />
+          <path d="m79.96,41.33c-20.9,23.3-37.2,47.8-52.3,77.3-.38.74.1,1.4,1,1.1l31.2-9.6c3.52-1.08,5.5-2.5,7.2-5.3l13.9-22.9c.3-.6.4-1.3.4-1.8v-38.2c0-1-.7-1.4-1.4-.6Z" />
+        </svg>
+      </span>
+      <span class="rh-text">Robinhood Chain</span>
+    </div>
+
+    <div class="content">
+      <div class="brandrow">
+        <span class="rootmark">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="60 20 250 380" width="38" height="38" fill="currentColor" aria-label="r00t.fund root logo">
+            <path d="M212.521332,290.474915 C216.026886,293.578308 219.322052,296.383972 222.522064,299.294250 C246.724380,321.305176 240.959717,358.669464 210.941635,374.454926 C184.330643,388.448761 150.493912,376.351196 139.356140,348.861145 C132.007019,330.722229 137.307526,309.935028 153.288895,297.728394 C170.754272,284.388275 178.548080,266.483978 179.853516,245.218597 C180.271378,238.411499 180.149384,231.556915 179.979416,224.731400 C179.704697,213.700165 172.631454,208.843750 162.525558,213.085983 C146.624115,219.761078 134.772034,230.160370 130.069855,247.764099 C126.775711,260.096527 115.278198,267.565643 103.298645,266.709991 C90.673042,265.808197 80.772224,257.257599 78.395973,245.203415 C74.986389,227.907440 90.072647,212.085281 108.328331,214.581711 C124.465866,216.788483 139.076263,213.570160 152.659683,204.883270 C153.640869,204.255783 154.628738,203.633926 155.570190,202.949844 C164.245544,196.646042 163.920959,190.078781 154.402817,185.055939 C137.097687,175.923828 119.010185,170.310944 99.227829,175.000275 C91.991035,176.715714 85.091179,179.956177 77.819023,181.399536 C55.177525,185.893356 31.899712,168.176132 29.194962,144.854752 C26.514469,121.742516 44.553093,100.230537 67.714584,98.918144 C88.774246,97.724846 105.761673,107.864021 111.662323,126.968140 C117.885674,147.117020 131.128784,160.201843 149.427246,169.064240 C154.202042,171.376785 159.109528,173.548019 164.161819,175.124847 C172.451981,177.712204 178.290359,174.859848 179.237686,166.384857 C181.245087,148.425873 182.133347,130.260727 170.344818,114.623222 C167.072876,110.282974 163.200592,106.232811 159.000763,102.783806 C144.013870,90.476219 138.468826,74.397957 143.906677,57.632801 C149.524445,40.312874 165.616028,28.091072 183.953751,27.216412 C207.676666,26.084894 226.928665,40.454231 231.303680,63.474380 C234.074249,78.052315 228.982788,90.655457 217.674240,100.003166 C206.274933,109.425880 196.693283,119.976334 194.869156,135.052124 C193.619614,145.379181 193.787811,155.994949 194.494431,166.402039 C194.999908,173.846878 201.256699,177.794769 208.152130,175.581558 C226.552719,169.675583 243.316544,160.954590 254.171051,144.101913 C257.272125,139.287231 259.372894,133.680283 261.141907,128.182297 C267.417511,108.678108 284.018829,97.648224 305.785278,98.942902 C324.215332,100.039116 340.923798,114.938301 343.780029,133.706451 C346.135376,149.183456 341.224304,162.574829 328.886292,172.352875 C316.618256,182.075439 302.077057,185.867691 287.615265,179.463058 C264.337555,169.154144 242.768265,173.267792 221.384979,183.860229 C209.065811,189.962646 208.936813,196.890152 220.388611,204.482590 C234.036942,213.531326 248.822662,216.926697 265.099243,214.557739 C276.897339,212.840607 287.793793,218.720581 292.972046,228.881821 C297.972198,238.693588 296.626465,249.794830 288.758881,258.007843 C281.872650,265.196381 273.243683,268.130188 263.297852,266.019073 C252.893829,263.810699 245.825165,257.388519 243.248672,247.271866 C238.614639,229.076233 225.831207,219.109482 209.658676,212.446274 C202.248154,209.393051 195.445404,212.720963 194.667419,220.562256 C192.436142,243.051636 192.932022,265.279205 207.353485,284.573975 C208.843903,286.568024 210.622177,288.346893 212.521332,290.474915 z" />
+          </svg>
+        </span>
+        <span class="wordmark">r00t<span class="dot">.</span>fund</span>
+      </div>
+
+      <span class="chip">RWA ReFi launchpad</span>
+
+      <h1 id="headline">From Degens<br /><span class="accent">to ReGens.</span></h1>
+    </div>
+  </div>
+
+  <script>
+    window.saveBanner = function () {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = function () {
+        html2canvas(document.getElementById('banner'), { scale: 2, backgroundColor: null, useCORS: true }).then(function (canvas) {
+          var a = document.createElement('a');
+          a.download = 'r00t-twitter-banner-1500x500.png';
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+        });
+      };
+      document.body.appendChild(s);
+    };
+  </script>
+</body>
+</html>

@@ -7,10 +7,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
+import type { PledgePay } from './patronage';
 import { CROPS } from './data';
-import { TYPE_COLOR, REWARD_LABEL, usd, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact } from './ui';
+import { TYPE_COLOR, REWARD_LABEL, usd, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact, ETH_USD, fmtEth } from './ui';
 
-const FUND_PRESETS = [25, 100, 500];
+const ETH_PRESETS = [0.01, 0.05, 0.25];
+const USDC_PRESETS = [25, 100, 500];
 
 export function PlotDetailPanel({
   plot, busy, verifying, onClose, onFund, onChooseCrop, onPlant, onVerify, onRename,
@@ -19,13 +21,16 @@ export function PlotDetailPanel({
   busy: boolean;
   verifying: boolean;
   onClose: () => void;
-  onFund: (amount: number) => void;
+  onFund: (amountUsd: number, pay: PledgePay) => void;
   onChooseCrop: (cropId: string) => void;
   onPlant: () => void;
   onVerify: () => void;
   onRename?: (name: string) => void;
 }) {
-  const [amount, setAmount] = useState(100);
+  const [asset, setAsset] = useState<'ETH' | 'USDC'>('ETH');
+  const [usdcAmount, setUsdcAmount] = useState(100);
+  const [ethAmount, setEthAmount] = useState(0.05);
+  const amountUsd = asset === 'ETH' ? ethAmount * ETH_USD : usdcAmount;
   const [nameInput, setNameInput] = useState('');
   const color = TYPE_COLOR[plot.type];
   const progress = pct(plot.fundedEur, plot.targetEur);
@@ -36,7 +41,8 @@ export function PlotDetailPanel({
   const crop = plot.chosenCropId ? CROPS.find(c => c.id === plot.chosenCropId) : undefined;
   const price = tokenPriceR00T(plot);
   const landValue = landValueR00T(plot);
-  const alloc = allocationFor(amount, plot);
+  const alloc = allocationFor(amountUsd, plot);
+  const doFund = () => onFund(amountUsd, asset === 'ETH' ? { asset: 'ETH', ethAmount } : { asset: 'USDC' });
 
   return (
     <motion.div
@@ -159,27 +165,52 @@ export function PlotDetailPanel({
 
         {/* fund controls */}
         <div className="mb-4">
-          <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-muted)] mb-2">Back this plot</p>
-          <div className="flex gap-2 mb-2">
-            {FUND_PRESETS.map((v) => (
-              <button key={v} onClick={() => setAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${amount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={amount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
-            ))}
-            <input
-              type="number" min={1} value={amount}
-              onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 0))}
-              className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono"
-            />
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-muted)]">Back this plot</p>
+            {/* pay-with toggle — ETH primary, USDC optional */}
+            <div className="inline-flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px] font-mono">
+              {(['ETH', 'USDC'] as const).map((a) => (
+                <button key={a} onClick={() => setAsset(a)}
+                  className={`px-2.5 py-1 transition-colors ${asset === a ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                  style={asset === a ? { background: color } : undefined}>{a}</button>
+              ))}
+            </div>
           </div>
+
+          {asset === 'ETH' ? (
+            <div className="flex gap-2 mb-2">
+              {ETH_PRESETS.map((v) => (
+                <button key={v} onClick={() => setEthAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${ethAmount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={ethAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{v} Ξ</button>
+              ))}
+              <input
+                type="number" min={0} step={0.01} value={ethAmount}
+                onChange={(e) => setEthAmount(Math.max(0, Number(e.target.value) || 0))}
+                className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono"
+              />
+            </div>
+          ) : (
+            <div className="flex gap-2 mb-2">
+              {USDC_PRESETS.map((v) => (
+                <button key={v} onClick={() => setUsdcAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${usdcAmount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={usdcAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
+              ))}
+              <input
+                type="number" min={1} value={usdcAmount}
+                onChange={(e) => setUsdcAmount(Math.max(1, Number(e.target.value) || 0))}
+                className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono"
+              />
+            </div>
+          )}
+
           <button
-            onClick={() => onFund(amount)}
+            onClick={doFund}
             disabled={busy}
             className="w-full py-3 rounded-lg text-white font-medium text-sm transition-opacity disabled:opacity-60 hover:opacity-90"
             style={{ background: color }}
           >
-            {busy ? 'Recording…' : `Back ${usd(amount)} → ${fmtCompact(alloc)} $${ticker}`}
+            {busy ? 'Pledging…' : `Back ${asset === 'ETH' ? fmtEth(ethAmount) : usd(usdcAmount)} → ${fmtCompact(alloc)} $${ticker}`}
           </button>
           <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
-            ⚡ early-bird price {fmtPrice(price)} · your € funds the land, tokens airdrop at TGE
+            ⚡ live price {fmtPrice(price)} · 100% funds the land · ${ticker} mints to you now
           </p>
         </div>
 
