@@ -12,14 +12,17 @@
 // Network: Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Mainnet target for r00t.
 // Contracts are not yet deployed here — FALLBACK resolves to placeholder addresses
 // until a fresh (non-leaked) deployer broadcasts and the addresses are pasted in.
-const chainId = 4663;
+const chainId = Number(import.meta.env.VITE_CHAIN_ID) || 4663;
 const isSepoliaTestnet = false;
 const isTenderlyVNet = false;
 
 export const NETWORK = {
   chainId,
   name: 'Robinhood Chain',
-  rpcUrl: 'https://rpc.mainnet.chain.robinhood.com',
+  // Prefer a provider endpoint from env (VITE_RPC_URL, e.g. Alchemy); fall back
+  // to the public RH RPC. Note: VITE_ vars ship in the browser bundle — use an
+  // Alchemy key with a domain allowlist for production.
+  rpcUrl: (import.meta.env.VITE_RPC_URL as string) || 'https://rpc.mainnet.chain.robinhood.com',
   explorerUrl: 'https://robinhoodchain.blockscout.com',
   explorerName: 'Blockscout',
   indexerUrl: '',
