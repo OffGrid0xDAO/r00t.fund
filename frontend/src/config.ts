@@ -9,19 +9,21 @@
  * 2. Update the fallback addresses below
  */
 
-// Network: hardcoded to Tenderly VNet for now. Change when deploying to mainnet.
-const chainId = 73571;
+// Network: Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Mainnet target for r00t.
+// Contracts are not yet deployed here — FALLBACK resolves to placeholder addresses
+// until a fresh (non-leaked) deployer broadcasts and the addresses are pasted in.
+const chainId = 4663;
 const isSepoliaTestnet = false;
-const isTenderlyVNet = true;
+const isTenderlyVNet = false;
 
 export const NETWORK = {
   chainId,
-  name: 'Tenderly VNet',
-  rpcUrl: 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1',
-  explorerUrl: '',
-  explorerName: 'Tenderly Explorer',
+  name: 'Robinhood Chain',
+  rpcUrl: 'https://rpc.mainnet.chain.robinhood.com',
+  explorerUrl: 'https://robinhoodchain.blockscout.com',
+  explorerName: 'Blockscout',
   indexerUrl: '',
-  isTestnet: true,
+  isTestnet: false,
 } as const;
 
 // Sepolia fallback addresses (fresh deploy - 2026-02-06, configurable OI limit + liquidation fix)
@@ -204,13 +206,16 @@ export function isContractDeployed(address: string): boolean {
 import { defineChain } from 'viem';
 
 export const CHAIN = defineChain({
-  id: 73571,
-  name: 'Tenderly VNet',
+  id: 4663,
+  name: 'Robinhood Chain',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
     default: {
       http: [NETWORK.rpcUrl],
     },
   },
-  testnet: true,
+  blockExplorers: {
+    default: { name: 'Blockscout', url: 'https://robinhoodchain.blockscout.com' },
+  },
+  testnet: false,
 });
