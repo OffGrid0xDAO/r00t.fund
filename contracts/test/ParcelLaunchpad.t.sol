@@ -75,6 +75,30 @@ contract ParcelLaunchpadTest is Test {
         lp.advanceRound(9000);  // below 1x
     }
 
+    function test_createParcel_thenPledge_mintsCultureTokenToPledger() public {
+        address tokenAddr = lp.createParcel(PARCEL, "Oak Field", "OAK");
+        ParcelToken oak = ParcelToken(tokenAddr);
+        assertEq(oak.symbol(), "OAK");
+
+        usdc.mint(backer, 100e6);
+        vm.startPrank(backer);
+        usdc.approve(address(lp), 100e6);
+        lp.pledgeUSDC(PARCEL, 100e6);          // 150e6 points → 150e18 tokens
+        vm.stopPrank();
+
+        assertEq(oak.balanceOf(backer), 150e18, "minted culture token to pledger");
+        assertEq(usdc.balanceOf(treasury), 100e6, "funds still went to treasury");
+    }
+
+    function test_createParcel_onlyOwner_andNoDuplicate() public {
+        lp.createParcel(PARCEL, "Oak Field", "OAK");
+        vm.expectRevert(bytes("exists"));
+        lp.createParcel(PARCEL, "Oak Field", "OAK");
+        vm.prank(backer);
+        vm.expectRevert();
+        lp.createParcel(keccak256("other"), "X", "X");
+    }
+
     function test_pause_blocksPledges() public {
         lp.pause();
         vm.deal(backer, 1 ether);

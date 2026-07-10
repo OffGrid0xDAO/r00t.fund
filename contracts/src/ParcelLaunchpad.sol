@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "./ParcelToken.sol";
 
 /// @title ParcelLaunchpad
 /// @notice Phase-1 funding rail for the Project 001 parcel map. Backers pledge
@@ -38,6 +39,9 @@ contract ParcelLaunchpad is Ownable, ReentrancyGuard, Pausable {
     uint256 public totalAllocationPoints;
     uint256 public pledgeCount;
 
+    /// @notice Per-parcel culture token, minted to pledgers at pledge time.
+    mapping(bytes32 => ParcelToken) public parcelToken;
+
     event Pledged(
         address indexed backer,
         bytes32 indexed parcelId,
@@ -47,6 +51,8 @@ contract ParcelLaunchpad is Ownable, ReentrancyGuard, Pausable {
         uint256 points,       // early-bird allocation points earned
         uint256 round
     );
+    event ParcelCreated(bytes32 indexed parcelId, address token, string name, string symbol);
+    event TokensMinted(bytes32 indexed parcelId, address indexed to, uint256 amount);
     event TreasuryUpdated(address indexed treasury);
     event RoundAdvanced(uint256 indexed round, uint256 bonusBps);
     event EthPriceUpdated(uint256 ethPriceE6);
@@ -82,7 +88,7 @@ contract ParcelLaunchpad is Ownable, ReentrancyGuard, Pausable {
     }
 
     function _record(bytes32 parcelId, address token, uint256 amount, uint256 usd6) internal {
-        uint256 points = (usd6 * bonusBps) / 10000;
+        uint256 points = (usd6 * bonusBps) / 10000;   // early-bird weighted (6 decimals)
         totalRaisedUsd6 += usd6;
         raisedByParcelUsd6[parcelId] += usd6;
         pledgedUsd6[msg.sender] += usd6;
@@ -90,6 +96,27 @@ contract ParcelLaunchpad is Ownable, ReentrancyGuard, Pausable {
         totalAllocationPoints += points;
         unchecked { pledgeCount++; }
         emit Pledged(msg.sender, parcelId, token, amount, usd6, points, round);
+
+        // mint the parcel's culture token straight to the pledger (if launched).
+        // points are 6-decimals USD-weighted → scale to 18-decimals token units.
+        ParcelToken pt = parcelToken[parcelId];
+        if (address(pt) != address(0)) {
+            uint256 mintAmount = points * 1e12;
+            pt.mint(msg.sender, mintAmount);
+            emit TokensMinted(parcelId, msg.sender, mintAmount);
+        }
+    }
+
+    /// @notice Deploy a parcel's culture token so pledges to it mint that token.
+    ///         name/symbol come from the parcel's culture (e.g. "Oak Field", "OAK").
+    function createParcel(bytes32 parcelId, string calldata name, string calldata symbol)
+        external onlyOwner returns (address)
+    {
+        require(address(parcelToken[parcelId]) == address(0), "exists");
+        ParcelToken pt = new ParcelToken(name, symbol, address(this));
+        parcelToken[parcelId] = pt;
+        emit ParcelCreated(parcelId, address(pt), name, symbol);
+        return address(pt);
     }
 
     // ── views ──────────────────────────────────────────────────────────────────
