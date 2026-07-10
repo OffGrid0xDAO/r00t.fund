@@ -37,7 +37,7 @@ import "../src/cre/RegenProofOfReserve.sol";
 import "../src/cre/AIAgentOrchestrator.sol";
 import "../src/cre/RegenPredictionMarket.sol";
 import "../src/cre/ProtocolHealthMonitor.sol";
-import "../src/cre/SerraEstrelaNativeForest.sol";
+import "../src/cre/PilotSiteForest.sol";
 import "../src/cre/WorldIDGatekeeper.sol";
 
 /// @title DeployTenderlyVNet
@@ -257,12 +257,12 @@ contract DeployTenderlyVNetScript is Script {
         );
         console.log("  ProtocolHealthMonitor:", address(healthMonitor));
 
-        // W7: SerraEstrelaNativeForest
-        console.log("Deploying W7: SerraEstrelaNativeForest...");
-        SerraEstrelaNativeForest serraDaEstrela = new SerraEstrelaNativeForest(
+        // W7: PilotSiteForest
+        console.log("Deploying W7: PilotSiteForest...");
+        PilotSiteForest pilotSiteForest = new PilotSiteForest(
             donForwarder, deployer
         );
-        console.log("  SerraEstrelaNativeForest:", address(serraDaEstrela));
+        console.log("  PilotSiteForest:", address(pilotSiteForest));
 
         // W8: WorldIDGatekeeper
         console.log("Deploying W8: WorldIDGatekeeper...");
@@ -328,7 +328,7 @@ contract DeployTenderlyVNetScript is Script {
         console.log("  W5 HealthMonitor:        ", address(healthMonitor));
         console.log("  W6 PolicyEngine:         ", address(policyEngine));
         console.log("  W6 CompliantVault:        ", address(vault));
-        console.log("  W7 SerraEstrelaDataFeed: ", address(serraDaEstrela));
+        console.log("  W7 PilotSiteDataFeed: ", address(pilotSiteForest));
         console.log("  W8 WorldIDGatekeeper:    ", address(worldIdGatekeeper));
         console.log("");
         console.log("DON Forwarder (test):      ", donForwarder);

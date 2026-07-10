@@ -1,11 +1,20 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
-import { formatEther } from 'viem';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrandedZeros } from './ui/BrandedZeros';
 import { RootLogo } from './ui/RootLogo';
 import { AppBackground } from './AppBackground';
-import { useProofOfReserve } from './projects/hooks/useProofOfReserve';
-import { useProtocolHealth } from './projects/hooks/useProtocolHealth';
+import { CONTRACTS, getExplorerAddressUrl, hasExplorer } from '../config';
+import { RobinhoodMark } from './pilot/RobinhoodWordmark';
+import { UniswapLogo } from './pilot/UniswapLogo';
+
+// Pilot Project pilot-terrain section (WebGL + interactive map) — lazy-loaded.
+const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
+// Robinhood partner + liquidity narrative.
+const CasinoToLand = lazy(() => import('./pilot/CasinoToLand'));
+const ReFiBroken = lazy(() => import('./pilot/ReFiBroken'));
+// Multi-tenant land network + "Start your land" onboarding.
+const LandsSection = lazy(() => import('./pilot/LandsSection'));
+import { SectionBoundary } from './pilot/SectionBoundary';
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -58,12 +67,12 @@ function FlowStep({ num, title, desc, delay }: { num: string; title: string; des
         }}
       >
         {/* Large watermark number */}
-        <span className="absolute -top-4 -right-2 text-[5rem] font-display font-bold text-[var(--accent)] opacity-[0.04] leading-none select-none pointer-events-none">
+        <span className="absolute -top-4 -right-2 text-[5rem] font-display font-bold text-[var(--accent-on-bg)] opacity-[0.04] leading-none select-none pointer-events-none">
           {num}
         </span>
 
         <div className="relative z-10">
-          <span className="inline-block text-[10px] font-mono tracking-[0.3em] text-[var(--accent)] uppercase mb-3">
+          <span className="inline-block text-[10px] font-mono tracking-[0.3em] text-[var(--accent-on-bg)] uppercase mb-3">
             Step {num}
           </span>
           <h3 className="font-display text-xl text-[var(--text-primary)] mb-2 tracking-tight">{title}</h3>
@@ -90,7 +99,7 @@ function InfoCard({ num, title, desc, delay }: { num: string; title: string; des
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <span className="text-[10px] tracking-[0.2em] text-[var(--accent)] font-mono">{num}</span>
+        <span className="text-[10px] tracking-[0.2em] text-[var(--accent-on-bg)] font-mono">{num}</span>
         <h3 className="font-display text-lg text-[var(--text-primary)] mt-2 mb-2 tracking-tight">{title}</h3>
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{desc}</p>
       </div>
@@ -109,7 +118,7 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
     >
       <div className="flex items-center gap-4 mb-6">
         <div className="w-8 h-px bg-[var(--accent)]" />
-        <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">{label}</span>
+        <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">{label}</span>
       </div>
       <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] max-w-xl">
         {title}
@@ -118,10 +127,68 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
   );
 }
 
-export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
-  const { data: reserveData } = useProofOfReserve();
-  const { report: healthReport } = useProtocolHealth();
+// Hero meta strip — one quiet utility line: buy · contract, then a partner row.
+// Kept low-emphasis so the primary actions above own the hierarchy.
+function HeroMeta() {
+  const [copied, setCopied] = useState(false);
+  const addr = CONTRACTS.rootToken;
+  const hasToken = !!addr && addr !== '0x...';
+  const uniswapUrl = hasToken ? `https://app.uniswap.org/swap?outputCurrency=${addr}` : 'https://app.uniswap.org/swap';
+  const short = hasToken ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
+  const explorer = hasToken && hasExplorer() ? getExplorerAddressUrl(addr) : '';
+  const copy = () => {
+    if (!hasToken) return;
+    navigator.clipboard.writeText(addr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 1.5 }}
+      className="mt-7 flex flex-col gap-3 text-xs font-mono"
+    >
+      {/* Row 1: buy on Uniswap · contract */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 text-[var(--text-muted)]">
+        <a
+          href={uniswapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <span>Buy <span className="text-[var(--accent-on-bg)]">$R00T</span> on Uniswap</span>
+          <UniswapLogo size={16} className="text-[#FF007A]" />
+          <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+        </a>
 
+        {hasToken && (
+          <>
+            <span className="hidden sm:block w-px h-4 bg-[var(--border)]" aria-hidden />
+            <button onClick={copy} className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors" aria-label="Copy $R00T contract">
+              <span className="text-[var(--text-secondary)]">{short}</span>
+              {explorer && <a href={explorer} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-[var(--accent-on-bg)]" aria-label="View on explorer">↗</a>}
+              {copied ? (
+                <svg className="w-3 h-3 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+              )}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Row 2 (bottom): Robinhood Chain */}
+      <div className="inline-flex items-center gap-2 text-[var(--text-muted)]">
+        <span className="uppercase tracking-[0.14em] text-[10px]">Built on</span>
+        <RobinhoodMark size={15} className="text-[var(--accent-on-bg)]" />
+        <span className="font-sans font-semibold text-[var(--text-secondary)]">Robinhood Chain</span>
+      </div>
+    </motion.div>
+  );
+}
+
+export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -165,7 +232,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER
           ═══════════════════════════════════════════════════════════════════ */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[var(--bg-primary)]/70 border-b border-[var(--border)]/30">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[var(--bg-primary)]/70 border-b border-[var(--border)]/30 dark:border-transparent">
         <div className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-5 md:py-6">
           <motion.div
             initial={{ opacity: 0, x: -10 }}
@@ -173,9 +240,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             transition={{ duration: 0.5 }}
             className="flex items-center gap-3"
           >
-            <RootLogo size={34} className="text-[var(--accent)]" />
+            <RootLogo size={34} className="text-[var(--accent-on-bg)]" />
             <span className="font-display text-2xl tracking-tight">
-              <span className="text-[var(--accent)]">r<BrandedZeros />t</span>
+              <span className="text-[var(--accent-on-bg)]">r<BrandedZeros />t</span>
               <span className="text-[var(--text-primary)]">.fund</span>
             </span>
           </motion.div>
@@ -219,7 +286,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             </button>
             <button
               onClick={onEnterApp}
-              className="px-5 py-2.5 bg-[var(--accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
+              className="px-5 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
             >
               Launch App
             </button>
@@ -252,7 +319,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <span className="text-[var(--text-primary)]">Fund what heals.</span>
               <br />
-              <span className="text-[var(--accent)] text-glow">Prove it on-chain.</span>
+              <span className="text-[var(--accent-on-bg)] text-glow">Leave no trace.</span>
             </motion.h1>
 
             {/* Sub-headline */}
@@ -262,7 +329,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.2 }}
               className="text-base md:text-lg text-[var(--text-secondary)] max-w-lg leading-relaxed mb-10"
             >
-              A private launchpad where communities fund regeneration projects, and Chainlink CRE proves they delivered — from satellite imagery to carbon credits.
+              Back a real plot of land, choose what grows, and watch it come back to life. Every contribution roots in the soil it heals — independently verified. You leave no trace; the land does. Take from the casino, give it back to the land.
             </motion.p>
 
             {/* CTAs */}
@@ -274,21 +341,24 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <button
                 onClick={onEnterApp}
-                className="group relative w-full sm:w-auto px-8 py-4 bg-[var(--accent)] text-white font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(45,90,61,0.35)] dark:hover:shadow-[0_0_40px_rgba(93,168,112,0.35)] transition-all duration-300 overflow-hidden"
+                className="group relative w-full sm:w-auto px-8 py-4 bg-[var(--accent)] text-[var(--accent-ink)] font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] dark:hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  Enter Protocol
+                  Back a Plot
                   <ArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
                 </span>
               </button>
               <button
                 onClick={scrollToLifecycle}
-                className="w-full sm:w-auto px-8 py-4 bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-secondary)] font-medium text-base rounded-xl hover:border-[var(--accent)] hover:text-[var(--text-primary)] transition-all duration-300"
+                className="w-full sm:w-auto px-8 py-4 text-[var(--text-secondary)] font-medium text-base rounded-xl border border-[var(--border)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)] transition-all duration-300"
               >
                 See How It Works
               </button>
             </motion.div>
+
+            {/* Quiet meta strip: buy · contract · Robinhood */}
+            <HeroMeta />
           </motion.div>
 
           {/* Logo — right side */}
@@ -300,24 +370,24 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             <motion.div
               animate={{
                 boxShadow: [
-                  '0 0 60px 20px rgba(45, 90, 61, 0.08)',
-                  '0 0 80px 30px rgba(45, 90, 61, 0.15)',
-                  '0 0 60px 20px rgba(45, 90, 61, 0.08)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
+                  '0 0 80px 30px rgba(214, 254, 81, 0.15)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
                 ],
               }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute inset-0 rounded-full dark:shadow-none"
               style={{
-                background: 'radial-gradient(circle, rgba(45, 90, 61, 0.06) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(214, 254, 81, 0.06) 0%, transparent 70%)',
               }}
             />
             <motion.div
               className="dark:block hidden absolute inset-0 rounded-full"
               animate={{
                 boxShadow: [
-                  '0 0 60px 20px rgba(93, 168, 112, 0.06)',
-                  '0 0 80px 30px rgba(93, 168, 112, 0.12)',
-                  '0 0 60px 20px rgba(93, 168, 112, 0.06)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
+                  '0 0 80px 30px rgba(214, 254, 81, 0.12)',
+                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
                 ],
               }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -330,7 +400,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <RootLogo
                 size="clamp(260px, 36vw, 480px)"
-                className="text-[var(--accent)] relative z-10"
+                className="text-[var(--accent-on-bg)] relative z-10"
                 animated
                 textured
                 glowColor="var(--accent-glow)"
@@ -338,78 +408,38 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             </motion.div>
           </motion.div>
         </div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.5 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        >
-          <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-[0.3em] uppercase">Scroll</span>
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-px h-8 bg-gradient-to-b from-[var(--accent)]/60 to-transparent"
-          />
-        </motion.div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          METRICS
+          PROJECT 001 — pilot terrain (cinematic 3D) + interactive plot map.
+          Moved up to sit right under the hero. Fuzzed, non-cadastral geometry.
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-10 border-y border-[var(--border)]/50">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            {([
-              { label: 'Trees Planted', value: '2,550' },
-              { label: 'Hectares Restoring', value: '9' },
-              { label: 'Backing Ratio', value: reserveData ? `${(reserveData.backingRatio / 100).toFixed(0)}%` : '—', live: !!reserveData },
-              { label: 'Protocol Risk', value: healthReport ? ['NONE','LOW','MED','HIGH','CRIT'][healthReport.overallRiskLevel] : '—', live: !!healthReport, color: healthReport ? (healthReport.overallRiskLevel <= 1 ? 'var(--success)' : healthReport.overallRiskLevel === 2 ? 'var(--warning)' : 'var(--error)') : undefined },
-            ] as { label: string; value: string; live?: boolean; color?: string }[]).map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="text-center md:text-left"
-              >
-                <p className="text-3xl md:text-4xl font-display tracking-tight tabular-nums" style={{ color: stat.color || 'var(--text-primary)' }}>
-                  {stat.value}
-                </p>
-                <span className="text-[11px] tracking-[0.15em] text-[var(--text-muted)] uppercase font-mono inline-flex items-center gap-1.5">
-                  {stat.live && (
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
-                    </span>
-                  )}
-                  {stat.label}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-          {reserveData && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.35 }}
-              className="mt-6 flex items-center justify-center md:justify-start gap-2"
-            >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--success)]" />
-              </span>
-              <span className="text-xs font-mono text-[var(--text-muted)]">TVL</span>
-              <span className="text-sm font-mono font-medium" style={{ color: 'var(--accent)' }}>
-                {Number(formatEther(reserveData.totalTVL)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH
-              </span>
-            </motion.div>
-          )}
-        </div>
-      </section>
+      <SectionBoundary label="Pilot site">
+        <Suspense fallback={<div className="py-24 text-center text-xs font-mono text-[var(--text-muted)]">loading pilot site…</div>}>
+          <PilotTerrainSection onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
+
+      {/* Robinhood partner + "casino → land" liquidity narrative */}
+      {/* Why r00t — regenerative finance is broken */}
+      <SectionBoundary label="Problem">
+        <Suspense fallback={null}>
+          <ReFiBroken />
+        </Suspense>
+      </SectionBoundary>
+
+      <SectionBoundary label="Partner section">
+        <Suspense fallback={null}>
+          <CasinoToLand onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
+
+      {/* Multi-tenant land network + Start your land */}
+      <SectionBoundary label="Land network">
+        <Suspense fallback={null}>
+          <LandsSection onEnterApp={onEnterApp} />
+        </Suspense>
+      </SectionBoundary>
 
       {/* ═══════════════════════════════════════════════════════════════════
           THE LIFECYCLE — 5 steps
@@ -418,7 +448,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="The Lifecycle"
-            title={<>From launch <br className="hidden md:block" /><span className="text-[var(--accent)]">to verified impact</span></>}
+            title={<>From launch <br className="hidden md:block" /><span className="text-[var(--accent-on-bg)]">to verified impact</span></>}
           />
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -457,105 +487,13 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          THE PROBLEM
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="The Problem"
-            title={<>Why carbon markets <br className="hidden md:block" /><span className="text-[var(--accent)]">are broken</span></>}
-          />
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <InfoCard
-              num="01"
-              title="The money never reaches the ground"
-              desc="60-80% of climate finance consumed by intermediaries. A &euro;25 carbon credit delivers &euro;3-5 to the person who restored the land."
-              delay={0}
-            />
-            <InfoCard
-              num="02"
-              title="No one checks if land recovered"
-              desc="Registries rely on self-reported data. No oracle. No satellite feed. No on-chain proof."
-              delay={0.08}
-            />
-            <InfoCard
-              num="03"
-              title="Privacy vs compliance deadlock"
-              desc="Institutions need compliance, protocols offer privacy. Neither can serve both."
-              delay={0.16}
-            />
-            <InfoCard
-              num="04"
-              title="No accountability"
-              desc="Launchpads raise funds with no verification of delivery. No milestone gates. No consequences."
-              delay={0.24}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Serra da Estrela section — commented out for hackathon demo video
-      <section className="relative py-24 md:py-32 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        ... Serra da Estrela Real Project content ...
-      </section>
-      */}
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          CRE WORKFLOWS — 7 workflows
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="CRE Workflows"
-            title={<>8 Chainlink CRE Workflows<br className="hidden md:block" /><span className="text-[var(--accent)]">Independent verification</span></>}
-          />
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { num: 'W1', name: 'Confidential Funding', desc: 'ZK-shielded capital allocation with milestone-based releases', track: 'Privacy' },
-              { num: 'W2', name: 'Proof of Reserve', desc: 'On-chain reserves + carbon credit pricing as composite backing ratio', track: 'DeFi' },
-              { num: 'W3', name: 'AI Validator', desc: 'Llama 3.3 70B analyzes satellite imagery for regeneration verification', track: 'AI' },
-              { num: 'W4', name: 'Prediction Markets', desc: 'Environmental outcome markets settled by real satellite data', track: 'Markets' },
-              { num: 'W5', name: 'Health Monitor', desc: 'Real-time protocol risk scoring with automatic circuit breakers', track: 'Risk' },
-              { num: 'W6', name: 'ACE Compliance', desc: 'Anonymous sanctions screening — EU MiCA without sacrificing privacy', track: 'Privacy' },
-              { num: 'W7', name: 'Serra Estrela Feed', desc: 'Custom Chainlink data feed publishing weekly satellite NDVI recovery', track: 'Data' },
-              { num: 'W8', name: 'World ID Bridge', desc: 'Sybil-resistant governance — World ID verification on any EVM chain', track: 'Identity' },
-            ].map((w, i) => (
-              <motion.div
-                key={w.num}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.5, delay: i * 0.06 }}
-              >
-                <div
-                  className="relative p-6 rounded-xl border border-[var(--border)] overflow-hidden h-full hover:border-[var(--accent)]/30 transition-colors duration-300"
-                  style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono text-[var(--accent)] font-medium">{w.num}</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
-                      {w.track}
-                    </span>
-                  </div>
-                  <h3 className="font-display text-lg text-[var(--text-primary)] mb-2 tracking-tight">{w.name}</h3>
-                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{w.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
           VERIFICATION PIPELINE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
             label="Verification"
-            title={<>How verification <br className="hidden md:block" /><span className="text-[var(--accent)]">actually works</span></>}
+            title={<>How verification <br className="hidden md:block" /><span className="text-[var(--accent-on-bg)]">actually works</span></>}
           />
 
           {/* Pipeline steps */}
@@ -579,7 +517,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                   className="p-4 rounded-xl border border-[var(--border)] text-center h-full"
                   style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
                 >
-                  <span className="text-[10px] font-mono text-[var(--accent)] block mb-1">{p.icon}</span>
+                  <span className="text-[10px] font-mono text-[var(--accent-on-bg)] block mb-1">{p.icon}</span>
                   <span className="text-sm font-medium text-[var(--text-primary)]">{p.step}</span>
                 </div>
                 {/* Arrow connector */}
@@ -610,7 +548,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 'ISRIC SoilGrids',
                 'Global Forest Watch',
                 'Verra / Gold Standard',
-                'ICNF / APA Portugal',
+                'National forest & soil registries',
               ].map((source, i) => (
                 <motion.span
                   key={source}
@@ -618,7 +556,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.4 + i * 0.06, duration: 0.4 }}
-                  className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200"
+                  className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
                 >
                   {source}
                 </motion.span>
@@ -631,7 +569,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           SDK — OpenClaw Agent Setup
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
@@ -644,11 +582,11 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-8 h-px bg-[var(--accent)]" />
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">OpenClaw</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">OpenClaw</span>
                 </div>
                 <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] mb-5">
                   Give your agent <br className="hidden md:block" />
-                  <span className="text-[var(--accent)]">a dark pool.</span>
+                  <span className="text-[var(--accent-on-bg)]">a dark pool.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-8">
                   One command. Your OpenClaw agent reads the skill file, installs the SDK, and starts trading with full ZK privacy. Access Chainlink CRE verification data directly. Works with Claude, GPT, DeepSeek, Ollama — any model.
@@ -675,7 +613,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                     transition={{ delay: 0.2 + i * 0.08 }}
                     className="flex items-center gap-4"
                   >
-                    <span className="flex items-center justify-center w-7 h-7 rounded-full border border-[var(--accent)]/30 text-[var(--accent)] text-xs font-mono shrink-0">
+                    <span className="flex items-center justify-center w-7 h-7 rounded-full border border-[var(--accent)]/30 text-[var(--accent-on-bg)] text-xs font-mono shrink-0">
                       {step.num}
                     </span>
                     <span className="text-sm text-[var(--text-primary)]">{step.text}</span>
@@ -788,7 +726,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
             <RootLogo
               size="clamp(300px, 50vw, 600px)"
-              className="text-[var(--accent)] opacity-[0.03]"
+              className="text-[var(--accent-on-bg)] opacity-[0.03]"
             />
           </div>
 
@@ -800,7 +738,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               className="flex items-center gap-4 mb-12"
             >
               <div className="w-8 h-px bg-[var(--accent)]" />
-              <span className="text-xs tracking-[0.2em] text-[var(--accent)] uppercase font-mono">Manifesto</span>
+              <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Manifesto</span>
             </motion.div>
 
             <motion.blockquote
@@ -812,7 +750,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             >
               <p className="font-display text-[clamp(1.5rem,4vw,3.5rem)] leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
                 The money should reach the ground.{' '}
-                <span className="text-[var(--accent)]">The data should prove it did.</span>
+                <span className="text-[var(--accent-on-bg)]">The data should prove it did.</span>
               </p>
             </motion.blockquote>
 
@@ -853,7 +791,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <button
                   onClick={onOpenManifesto}
-                  className="group inline-flex items-center gap-2 px-6 py-3 border border-[var(--accent)]/40 text-[var(--accent)] font-medium text-sm rounded-xl hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 px-6 py-3 border border-[var(--accent)]/40 text-[var(--accent-on-bg)] font-medium text-sm rounded-xl hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] hover:border-[var(--accent)] transition-all duration-300"
                 >
                   Read Full Manifesto
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -867,7 +805,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           TECH STACK
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50">
+      <section className="relative py-16 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -886,7 +824,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.06, duration: 0.4 }}
-                className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200"
+                className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
               >
                 {tech}
               </motion.span>
@@ -906,20 +844,20 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <RootLogo size={56} className="text-[var(--accent)] mx-auto mb-8 opacity-40" />
+            <RootLogo size={56} className="text-[var(--accent-on-bg)] mx-auto mb-8 opacity-40" />
             <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] mb-4 leading-[1.1]">
-              Fund what heals.<br /><span className="text-[var(--accent)]">Verify on-chain.</span>
+              Fund what heals.<br /><span className="text-[var(--accent-on-bg)]">Watch it grow back.</span>
             </h2>
             <p className="text-[var(--text-secondary)] mb-8 max-w-md mx-auto">
-              27 contracts. 8 CRE workflows. 12 ZK circuits. One protocol connecting capital to land.
+              Real land. Real trees. Every contribution traceable to the soil it heals — and independently verified as it regenerates.
             </p>
             <button
               onClick={onEnterApp}
-              className="group relative px-10 py-4 bg-[var(--accent)] text-white font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(45,90,61,0.35)] dark:hover:shadow-[0_0_40px_rgba(93,168,112,0.35)] transition-all duration-300 overflow-hidden"
+              className="group relative px-10 py-4 bg-[var(--accent)] text-[var(--accent-ink)] font-medium text-base rounded-xl hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] dark:hover:shadow-[0_0_40px_rgba(214, 254, 81,0.35)] transition-all duration-300 overflow-hidden"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <span className="relative z-10 flex items-center gap-2">
-                Enter Protocol
+                Back a Plot
                 <ArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
               </span>
             </button>
@@ -930,7 +868,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="relative border-t border-[var(--border)]/50">
+      <footer className="relative border-t border-[var(--border)]/50 dark:border-transparent">
         <div className="px-6 md:px-12 lg:px-16 py-12">
           <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-10 md:gap-8">
             {/* Left column */}
@@ -941,9 +879,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 viewport={{ once: true }}
                 className="flex items-center gap-3 mb-5"
               >
-                <RootLogo size={24} className="text-[var(--accent)]" />
+                <RootLogo size={24} className="text-[var(--accent-on-bg)]" />
                 <span className="font-display text-2xl tracking-tight">
-                  <span className="text-[var(--accent)]">r<BrandedZeros />t</span>
+                  <span className="text-[var(--accent-on-bg)]">r<BrandedZeros />t</span>
                   <span className="text-[var(--text-primary)]">.fund</span>
                 </span>
               </motion.div>
@@ -954,7 +892,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 transition={{ delay: 0.1 }}
                 className="font-display text-base md:text-lg italic text-[var(--text-secondary)] leading-relaxed max-w-sm"
               >
-                "Verified by Chainlink. Rooted in the earth."
+                "Take from the casino. Give back to the land."
               </motion.p>
             </div>
 
@@ -1015,7 +953,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-[var(--border)]/50 px-6 md:px-12 lg:px-16 py-5">
+        <div className="border-t border-[var(--border)]/50 dark:border-transparent px-6 md:px-12 lg:px-16 py-5">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-[var(--text-muted)] font-mono">&copy; 2025-2026 r00t.fund</span>
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">

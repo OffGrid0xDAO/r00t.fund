@@ -4,13 +4,13 @@ pragma solidity ^0.8.24;
 import "./R00tCREReceiver.sol";
 import "../interfaces/AggregatorV3Interface.sol";
 
-/// @title SerraEstrelaNativeForest
+/// @title PilotSiteForest
 /// @author r00t.fund
-/// @notice Chainlink-compatible data feed for Serra da Estrela native forest restoration
+/// @notice Chainlink-compatible data feed for Project 001 pilot site native forest restoration
 /// @dev Custom CRE Data Feed monitoring post-2025 fire reforestation.
 ///
 ///      Real Project:
-///      - Location: 40.3228°N, 7.6114°W — Serra da Estrela Natural Park, Seia, Portugal
+///      - Location: withheld (Project 001 pilot site — coordinates in private config)
 ///      - Area: 9 hectares (90,000 m²)
 ///      - Species: Quercus robur, Q. pyrenaica, Castanea sativa, Crataegus monogyna,
 ///                 Prunus spinosa, Arbutus unedo, Fraxinus angustifolia
@@ -28,7 +28,7 @@ import "../interfaces/AggregatorV3Interface.sol";
 ///
 ///      Implements AggregatorV3Interface so any Chainlink consumer can read the
 ///      Fire Recovery Index as a standard price feed (1000 = fully recovered).
-contract SerraEstrelaNativeForest is R00tCREReceiver, AggregatorV3Interface {
+contract PilotSiteForest is R00tCREReceiver, AggregatorV3Interface {
     // ============ Structs ============
 
     /// @notice Full restoration report from CRE DON
@@ -217,7 +217,7 @@ contract SerraEstrelaNativeForest is R00tCREReceiver, AggregatorV3Interface {
     }
 
     function description() external pure override returns (string memory) {
-        return "Serra da Estrela Native Forest Restoration / Fire Recovery Index";
+        return "Pilot Site Native Forest Restoration / Fire Recovery Index";
     }
 
     function version() external pure override returns (uint256) {

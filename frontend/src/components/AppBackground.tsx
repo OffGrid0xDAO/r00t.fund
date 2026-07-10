@@ -14,29 +14,11 @@ export function AppBackground() {
         }}
       />
 
-      {/* Root network SVG - primary color (green) - flipped vertically */}
-      <div
-        className="absolute inset-0 root-layer-green"
-        style={{
-          backgroundImage: 'url(/roots.svg)',
-          backgroundPosition: 'center top',
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '100vw auto',
-          transform: 'scaleY(-1)',
-        }}
-      />
+      {/* Root network SVG — masked so it takes the exact accent (lime) color */}
+      <div className="absolute inset-0 root-layer-green" style={{ transform: 'scaleY(-1)' }} />
 
-      {/* Root network SVG - secondary color (gold) - flipped vertically */}
-      <div
-        className="absolute inset-0 root-layer-gold"
-        style={{
-          backgroundImage: 'url(/roots.svg)',
-          backgroundPosition: 'center top',
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '100vw auto',
-          transform: 'scaleY(-1)',
-        }}
-      />
+      {/* Second root layer — warm secondary tint for depth */}
+      <div className="absolute inset-0 root-layer-gold" style={{ transform: 'scaleY(-1)' }} />
 
       {/* Moving gradient overlay for subtle shimmer effect */}
       <div className="absolute inset-0 gradient-shimmer" />
@@ -51,55 +33,29 @@ export function AppBackground() {
 
       {/* CSS for subtle pulsating root animation */}
       <style>{`
+        /* roots.svg used as a mask so the fill is the EXACT accent (lime) */
         .root-layer-green {
-          opacity: 0.10;
-          filter: brightness(0) saturate(100%) invert(28%) sepia(46%) saturate(545%) hue-rotate(95deg) brightness(96%) contrast(89%);
+          background-color: var(--accent-on-bg);
+          -webkit-mask: url(/roots.svg) center top / 100vw auto no-repeat;
+          mask: url(/roots.svg) center top / 100vw auto no-repeat;
+          opacity: 0.16;
           animation: pulse-green 9s ease-in-out infinite;
         }
 
         .root-layer-gold {
-          opacity: 0;
-          filter: brightness(0) saturate(100%) invert(63%) sepia(35%) saturate(639%) hue-rotate(11deg) brightness(101%) contrast(89%);
+          background-color: var(--accent-secondary);
+          -webkit-mask: url(/roots.svg) center top / 100vw auto no-repeat;
+          mask: url(/roots.svg) center top / 100vw auto no-repeat;
+          opacity: 0.05;
           animation: pulse-gold 9s ease-in-out infinite;
         }
 
-        .dark .root-layer-green {
-          opacity: 0.08;
-          filter: brightness(0) saturate(100%) invert(53%) sepia(36%) saturate(456%) hue-rotate(95deg) brightness(97%) contrast(89%);
-        }
+        .dark .root-layer-green { opacity: 0.16; animation: pulse-green-dark 9s ease-in-out infinite; }
+        .dark .root-layer-gold  { opacity: 0.05; }
 
-        .dark .root-layer-gold {
-          filter: brightness(0) saturate(100%) invert(72%) sepia(50%) saturate(400%) hue-rotate(11deg) brightness(100%) contrast(90%);
-        }
-
-        /* Subtle breathing effect for roots */
-        @keyframes pulse-green {
-          0%, 100% { opacity: 0.10; }
-          50% { opacity: 0.14; }
-        }
-
-        @keyframes pulse-gold {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 0.04; }
-        }
-
-        .dark .root-layer-green {
-          animation: pulse-green-dark 9s ease-in-out infinite;
-        }
-
-        .dark .root-layer-gold {
-          animation: pulse-gold-dark 9s ease-in-out infinite;
-        }
-
-        @keyframes pulse-green-dark {
-          0%, 100% { opacity: 0.08; }
-          50% { opacity: 0.12; }
-        }
-
-        @keyframes pulse-gold-dark {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 0.03; }
-        }
+        @keyframes pulse-green { 0%, 100% { opacity: 0.12; } 50% { opacity: 0.18; } }
+        @keyframes pulse-gold  { 0%, 100% { opacity: 0.03; } 50% { opacity: 0.07; } }
+        @keyframes pulse-green-dark { 0%, 100% { opacity: 0.14; } 50% { opacity: 0.22; } }
 
         /* Moving gradient shimmer */
         .gradient-shimmer {
@@ -107,7 +63,7 @@ export function AppBackground() {
             120deg,
             transparent 0%,
             transparent 40%,
-            rgba(45, 90, 61, 0.04) 50%,
+            rgba(214, 254, 81, 0.05) 50%,
             transparent 60%,
             transparent 100%
           );
@@ -121,7 +77,7 @@ export function AppBackground() {
             120deg,
             transparent 0%,
             transparent 40%,
-            rgba(74, 139, 92, 0.05) 50%,
+            rgba(214, 254, 81, 0.06) 50%,
             transparent 60%,
             transparent 100%
           );

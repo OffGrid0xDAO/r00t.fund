@@ -31,7 +31,7 @@ export function StepProjectDetails({ formData, onUpdateField, errors }: StepProj
           type="text"
           value={formData.name}
           onChange={(e) => onUpdateField('name', e.target.value)}
-          placeholder="e.g., Serra da Estrela Native Forest"
+          placeholder="e.g., Native Forest Restoration"
           className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-focus)] focus:outline-none transition-colors"
         />
       </div>
@@ -46,7 +46,7 @@ export function StepProjectDetails({ formData, onUpdateField, errors }: StepProj
           type="text"
           value={formData.symbol}
           onChange={(e) => onUpdateField('symbol', e.target.value.toUpperCase())}
-          placeholder="e.g., SERRA"
+          placeholder="e.g., ROOT"
           maxLength={10}
           className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-focus)] focus:outline-none transition-colors font-mono"
         />

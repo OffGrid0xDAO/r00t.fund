@@ -88,7 +88,7 @@ export function ProjectsPanel({
 
   // CRE Workflow hooks — data feeds + protocol monitoring
   const { report, summary } = useCreDataFeeds({
-    contractAddress: CONTRACTS.serraEstrela,
+    contractAddress: CONTRACTS.pilotSite,
     enabled: liveProjects.length > 0,
   });
   const proofOfReserve = useProofOfReserve();
@@ -100,7 +100,7 @@ export function ProjectsPanel({
 
   // Aggregate CRE workflow status for UI display
   const creWorkflowStatus = useMemo<CreWorkflowStatus>(() => ({
-    serraEstrela: { active: !!report, lastUpdate: report?.timestamp ?? 0 },
+    pilotSite: { active: !!report, lastUpdate: report?.timestamp ?? 0 },
     proofOfReserve: {
       active: !!proofOfReserve.data,
       backingRatio: proofOfReserve.data?.backingRatio ?? 0,

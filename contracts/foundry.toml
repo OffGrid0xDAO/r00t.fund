@@ -2,8 +2,12 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-solc = "0.8.24"
-remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"]
+solc = "0.8.26"
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "v4-core/=lib/v4-core/src/",
+    "solmate/=lib/v4-core/lib/solmate/",
+]
 optimizer = true
 optimizer_runs = 1
 via_ir = true
@@ -20,6 +24,10 @@ ethereum = "${ETHEREUM_RPC_URL}"
 sepolia = "${SEPOLIA_RPC_URL}"
 arbitrum = "${ARBITRUM_RPC_URL}"
 tenderly-vnet = "${TENDERLY_VIRTUAL_TESTNET_RPC}"
+# Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Override with a private/
+# provider URL via env for production broadcasts; public RPC is rate-limited.
+robinhood = "${ROBINHOOD_RPC_URL:-https://rpc.mainnet.chain.robinhood.com}"
+robinhood-testnet = "${ROBINHOOD_TESTNET_RPC_URL:-https://rpc.testnet.chain.robinhood.com}"
 
 [etherscan]
 base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
@@ -27,6 +35,8 @@ base-mainnet = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/ap
 ethereum = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/api" }
 sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.etherscan.io/api" }
 arbitrum = { key = "${ARBISCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
+# Blockscout verification for Robinhood Chain (no API key required).
+robinhood = { key = "", url = "https://robinhoodchain.blockscout.com/api", chain = 4663 }
 
 [fmt]
 line_length = 100

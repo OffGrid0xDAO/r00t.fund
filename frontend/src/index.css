@@ -45,12 +45,17 @@ input:focus {
   --text-secondary: #5C5C58;
   --text-muted: #9C9C96;
 
-  --accent: #2D5A3D;
-  --accent-glow: #3A7A50;
+  /* Robinhood green — brand accent across the whole product */
+  --accent: #D6FE51;
+  --accent-glow: #C2EE33;
   --accent-secondary: #B8860B;
+  --accent-ink: #14180A;      /* text/icons that sit ON an accent fill */
+  --accent-on-bg: #5C7A00;    /* accent-colored TEXT on the light page bg (readable) */
+
+  --rh-green: #D6FE51;
 
   --border: #E5E4E0;
-  --border-focus: #2D5A3D;
+  --border-focus: #A8CC2E;
 
   --success: #2D5A3D;
   --warning: #B8860B;
@@ -88,12 +93,17 @@ input:focus {
   --text-secondary: #A8A8A4;
   --text-muted: #6C6C68;
 
-  --accent: #5DA870;
-  --accent-glow: #6EC786;
+  /* Robinhood green — pure lime sings on the dark theme */
+  --accent: #D6FE51;
+  --accent-glow: #E4FF7A;
   --accent-secondary: #D4A84B;
+  --accent-ink: #10140A;      /* near-black text on accent fills */
+  --accent-on-bg: #D6FE51;    /* lime reads fine as text on dark */
+
+  --rh-green: #D6FE51;
 
   --border: #2A2A28;
-  --border-focus: #5DA870;
+  --border-focus: #D6FE51;
 
   --success: #5DA870;
   --warning: #D4A84B;

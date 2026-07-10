@@ -9,19 +9,24 @@
  * 2. Update the fallback addresses below
  */
 
-// Network: hardcoded to Tenderly VNet for now. Change when deploying to mainnet.
-const chainId = 73571;
+// Network: Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Mainnet target for r00t.
+// Contracts are not yet deployed here — FALLBACK resolves to placeholder addresses
+// until a fresh (non-leaked) deployer broadcasts and the addresses are pasted in.
+const chainId = Number(import.meta.env.VITE_CHAIN_ID) || 4663;
 const isSepoliaTestnet = false;
-const isTenderlyVNet = true;
+const isTenderlyVNet = false;
 
 export const NETWORK = {
   chainId,
-  name: 'Tenderly VNet',
-  rpcUrl: 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1',
-  explorerUrl: '',
-  explorerName: 'Tenderly Explorer',
+  name: 'Robinhood Chain',
+  // Prefer a provider endpoint from env (VITE_RPC_URL, e.g. Alchemy); fall back
+  // to the public RH RPC. Note: VITE_ vars ship in the browser bundle — use an
+  // Alchemy key with a domain allowlist for production.
+  rpcUrl: (import.meta.env.VITE_RPC_URL as string) || 'https://rpc.mainnet.chain.robinhood.com',
+  explorerUrl: 'https://robinhoodchain.blockscout.com',
+  explorerName: 'Blockscout',
   indexerUrl: '',
-  isTestnet: true,
+  isTestnet: false,
 } as const;
 
 // Sepolia fallback addresses (fresh deploy - 2026-02-06, configurable OI limit + liquidation fix)
@@ -41,7 +46,7 @@ const SEPOLIA_CONTRACTS = {
   shortsContract: '0xE76cb3eb5253f3cFaEEab29bF44F27af9c66dF6C',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
   // CRE Workflow Contracts
-  serraEstrela: '0x...',
+  pilotSite: '0x...',
   confidentialFundingVault: '0x...',
   regenProofOfReserve: '0x...',
   aiAgentOrchestrator: '0x...',
@@ -68,7 +73,7 @@ const TENDERLY_CONTRACTS = {
   shortsContract: '0xCc67e5664a4996C13ab8499E9ABD4c57B11b0107',
   worldIdGatekeeper: '0x512d4a66760Aba053f4162205d729c8540d00145',
   // CRE Workflow Contracts
-  serraEstrela: '0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B',
+  pilotSite: '0xc7bC4a72883ECE729247104A87cAbD3C2Bd3112B',
   confidentialFundingVault: '0x6840B8F438610217265fEBF084E578537c9AA361',
   regenProofOfReserve: '0x47Cbc90f86992004c57BCC25D8c25012cFcc8E21',
   aiAgentOrchestrator: '0xE9D7284DDBF635B35e0C3bCB9d9d0F607D08F824',
@@ -95,7 +100,7 @@ const ARBITRUM_CONTRACTS = {
   shortsContract: '0x...',
   worldIdGatekeeper: '0x...',
   // CRE Workflow Contracts
-  serraEstrela: '0x...',
+  pilotSite: '0x...',
   confidentialFundingVault: '0x...',
   regenProofOfReserve: '0x...',
   aiAgentOrchestrator: '0x...',
@@ -116,6 +121,18 @@ export const CONTRACTS = {
   zkAMMRouter: FALLBACK.zkAMMRouter,
   zkAMMAdmin: FALLBACK.zkAMMAdmin,
   rootToken: FALLBACK.rootToken,
+  // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
+  parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
+  // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
+  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x...',
+  // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
+  poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
+  // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
+  stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
+  // The deployed pilot Land (steward: r00t). Pledges route here once set.
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x...',
+  // USDC used for pledges on the target chain.
+  usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
   lpPool: FALLBACK.lpPool,
   nullifierRegistry: FALLBACK.nullifierRegistry,
@@ -125,7 +142,7 @@ export const CONTRACTS = {
   poolRouter: FALLBACK.poolRouter,
   shortsContract: FALLBACK.shortsContract,
   worldIdGatekeeper: FALLBACK.worldIdGatekeeper,
-  serraEstrela: FALLBACK.serraEstrela,
+  pilotSite: FALLBACK.pilotSite,
   confidentialFundingVault: FALLBACK.confidentialFundingVault,
   regenProofOfReserve: FALLBACK.regenProofOfReserve,
   aiAgentOrchestrator: FALLBACK.aiAgentOrchestrator,
@@ -192,13 +209,16 @@ export function isContractDeployed(address: string): boolean {
 import { defineChain } from 'viem';
 
 export const CHAIN = defineChain({
-  id: 73571,
-  name: 'Tenderly VNet',
+  id: 4663,
+  name: 'Robinhood Chain',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
     default: {
       http: [NETWORK.rpcUrl],
     },
   },
-  testnet: true,
+  blockExplorers: {
+    default: { name: 'Blockscout', url: 'https://robinhoodchain.blockscout.com' },
+  },
+  testnet: false,
 });

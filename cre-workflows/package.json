@@ -10,7 +10,7 @@
     "simulate:w4": "cd workflow-4-prediction && cre workflow simulate .",
     "simulate:w5": "cd workflow-5-risk && cre workflow simulate .",
     "simulate:w6": "cd workflow-6-compliance && cre workflow simulate .",
-    "simulate:w7": "cd workflow-7-serra-estrela && cre workflow simulate .",
+    "simulate:w7": "cd workflow-7-pilot-site && cre workflow simulate .",
     "simulate:w8": "cd workflow-8-worldid && cre workflow simulate .",
     "simulate:all": "npm run simulate:w5 && npm run simulate:w2 && npm run simulate:w3 && npm run simulate:w4 && npm run simulate:w1 && npm run simulate:w6 && npm run simulate:w7 && npm run simulate:w8",
     "deploy:w1": "cd workflow-1-privacy && cre workflow deploy",
@@ -19,7 +19,7 @@
     "deploy:w4": "cd workflow-4-prediction && cre workflow deploy",
     "deploy:w5": "cd workflow-5-risk && cre workflow deploy",
     "deploy:w6": "cd workflow-6-compliance && cre workflow deploy",
-    "deploy:w7": "cd workflow-7-serra-estrela && cre workflow deploy",
+    "deploy:w7": "cd workflow-7-pilot-site && cre workflow deploy",
     "deploy:w8": "cd workflow-8-worldid && cre workflow deploy",
     "install:all": "for d in workflow-*/; do (cd $d && bun install); done"
   }

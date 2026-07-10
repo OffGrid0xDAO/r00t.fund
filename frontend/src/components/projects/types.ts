@@ -206,7 +206,7 @@ export interface VaultStats {
 
 // Aggregated CRE workflow status for a project/protocol
 export interface CreWorkflowStatus {
-  serraEstrela: { active: boolean; lastUpdate: number };
+  pilotSite: { active: boolean; lastUpdate: number };
   proofOfReserve: { active: boolean; backingRatio: number; tvl: bigint };
   aiOrchestrator: { active: boolean; riskLevel: number; safeToTrade: boolean };
   predictionMarket: { active: boolean; openMarkets: number };

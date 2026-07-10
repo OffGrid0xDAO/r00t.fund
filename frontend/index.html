@@ -4,11 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Dark is the baseline on entry — apply before first paint to avoid a light flash -->
+    <script>
+      (function () {
+        try { if (localStorage.getItem('theme') !== 'light') document.documentElement.classList.add('dark'); }
+        catch (e) { document.documentElement.classList.add('dark'); }
+      })();
+    </script>
+
     <!-- Primary Meta Tags -->
     <title>r00t.fund — Private Launchpad for Regenerative Projects</title>
     <meta name="title" content="r00t.fund — Private Launchpad for Regenerative Projects" />
     <meta name="description" content="Fund what heals. Prove it on-chain. r00t.fund is a private launchpad where communities fund regeneration projects with ZK privacy, verified by Chainlink CRE satellite data." />
-    <meta name="keywords" content="r00t.fund, regenerative finance, ReFi, carbon credits, ZK privacy, Chainlink CRE, dark pool, private launchpad, satellite verification, DeFi, web3, reforestation, Serra da Estrela, zero-knowledge proofs" />
+    <meta name="keywords" content="r00t.fund, regenerative finance, ReFi, carbon credits, ZK privacy, Chainlink CRE, dark pool, private launchpad, satellite verification, DeFi, web3, reforestation, zero-knowledge proofs" />
     <meta name="author" content="r00t.fund" />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#2d5a3d" />

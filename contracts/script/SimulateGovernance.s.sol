@@ -172,26 +172,26 @@ contract SimulateGovernanceScript is Script {
         console.log("  Vote verifier: test (accepts all proofs)");
 
         // ==========================================
-        // Proposal 1: Serra da Estrela 9ha Regeneration
+        // Proposal 1: Project 001 pilot site 9ha Regeneration
         // ==========================================
         console.log("");
-        console.log("--- Proposal: Serra da Estrela 9ha Regeneration ---");
+        console.log("--- Proposal: Project 001 pilot site 9ha Regeneration ---");
         console.log("  Regenerating 9 hectares of burned native forest");
-        console.log("  Serra da Estrela Natural Park, Portugal");
+        console.log("  the pilot site, Portugal");
         console.log("  2550 native trees (oak, chestnut, birch)");
         console.log("  NDVI satellite monitoring via Chainlink CRE");
 
         uint256[8] memory dummyProof;
-        uint256 nullifier1 = uint256(keccak256(abi.encodePacked("serra_estrela_pledge", block.timestamp))) % SNARK_SCALAR_FIELD;
-        uint256 binding1 = uint256(keccak256(abi.encodePacked("serra_estrela_bind", block.timestamp))) % SNARK_SCALAR_FIELD;
+        uint256 nullifier1 = uint256(keccak256(abi.encodePacked("pilot_site_pledge", block.timestamp))) % SNARK_SCALAR_FIELD;
+        uint256 binding1 = uint256(keccak256(abi.encodePacked("pilot_site_bind", block.timestamp))) % SNARK_SCALAR_FIELD;
 
         uint256 pid1 = launchpad.createProposal(
             ILaunchpadGovernance.ProposalParams({
-                name: "Serra da Estrela Native Forest",
-                symbol: "SERRA",
+                name: "Pilot Site Native Forest",
+                symbol: "PILOT",
                 metadataHash: keccak256(abi.encodePacked(
-                    "ipfs://QmSerraEstrela9haRegeneration|",
-                    "Regenerating 9 hectares of burned native forest in Serra da Estrela Natural Park, Portugal. ",
+                    "ipfs://QmPilotSite9haRegeneration|",
+                    "Regenerating 9 hectares of burned native forest in the pilot site, Portugal. ",
                     "2550 native trees planted. NDVI satellite monitoring via Chainlink CRE. ",
                     "Carbon credits via Verra VCS. Fire recovery index tracked on-chain."
                 )),
@@ -207,7 +207,7 @@ contract SimulateGovernanceScript is Script {
         );
         txCount++;
         console.log("  CREATED: Proposal", pid1);
-        console.log("    Token: SERRA (1,000,000 supply)");
+        console.log("    Token: PILOT (1,000,000 supply)");
         console.log("    Pledge: 100 R00T");
         console.log("    Fee: 1% | Deployer: 3%");
 
@@ -281,24 +281,24 @@ contract SimulateGovernanceScript is Script {
         console.log("");
         console.log("--- Voting ---");
 
-        // Serra da Estrela: 1.3M FOR / 200K AGAINST → PASSES
+        // Project 001 pilot site: 1.3M FOR / 200K AGAINST → PASSES
         {
             uint256 vn = uint256(keccak256(abi.encodePacked("v_p1_for_1", block.timestamp))) % SNARK_SCALAR_FIELD;
             launchpad.votePrivate(pid1, dummyProof, currentRoot, vn, 800_000 * 1e18, true);
             txCount++;
-            console.log("  Serra: 800,000 FOR");
+            console.log("  Pilot: 800,000 FOR");
         }
         {
             uint256 vn = uint256(keccak256(abi.encodePacked("v_p1_for_2", block.timestamp))) % SNARK_SCALAR_FIELD;
             launchpad.votePrivate(pid1, dummyProof, currentRoot, vn, 500_000 * 1e18, true);
             txCount++;
-            console.log("  Serra: 500,000 FOR");
+            console.log("  Pilot: 500,000 FOR");
         }
         {
             uint256 vn = uint256(keccak256(abi.encodePacked("v_p1_no_1", block.timestamp))) % SNARK_SCALAR_FIELD;
             launchpad.votePrivate(pid1, dummyProof, currentRoot, vn, 200_000 * 1e18, false);
             txCount++;
-            console.log("  Serra: 200,000 AGAINST");
+            console.log("  Pilot: 200,000 AGAINST");
         }
 
         // Douro Valley: 1.3M FOR / 400K AGAINST → PASSES
@@ -342,7 +342,7 @@ contract SimulateGovernanceScript is Script {
         console.log("  Step 2 Complete:", txCount, "transactions");
         console.log("==========================================================");
         console.log("");
-        console.log("  Proposal", pid1, ": Serra da Estrela  -- 1.3M FOR / 200K AGAINST (PASSES)");
+        console.log("  Proposal", pid1, ": Project 001 pilot site  -- 1.3M FOR / 200K AGAINST (PASSES)");
         console.log("  Proposal", pid2, ": Douro Valley      -- 1.3M FOR / 400K AGAINST (PASSES)");
         console.log("  Proposal", pid3, ": Algarve Coastal   -- 300K FOR / 100K AGAINST (FAILS)");
         console.log("");
@@ -369,12 +369,12 @@ contract SimulateGovernanceScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Execute Proposal 0 (Serra da Estrela)
+        // Execute Proposal 0 (Project 001 pilot site)
         console.log("");
-        console.log("--- Executing Proposal 0: Serra da Estrela ---");
+        console.log("--- Executing Proposal 0: Project 001 pilot site ---");
         try launchpad.executeProposal(0) {
             txCount++;
-            console.log("  EXECUTED: SERRA token deployed");
+            console.log("  EXECUTED: PILOT token deployed");
         } catch {
             console.log("  SKIP: already executed or failed");
         }

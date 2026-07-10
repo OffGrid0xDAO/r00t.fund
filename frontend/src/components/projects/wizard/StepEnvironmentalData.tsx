@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlowButton } from '../../ui/GlowButton';
 import type { WizardFormData, SpeciesEntry } from '../types';
-import { SERRA_DA_ESTRELA_SPECIES } from '../constants';
+import { PILOT_SITE_SPECIES } from '../constants';
 
 interface StepEnvironmentalDataProps {
   formData: WizardFormData;
@@ -111,11 +111,11 @@ export function StepEnvironmentalData({
           </p>
           <div className="flex gap-2">
             <GlowButton
-              onClick={() => onSetSpecies(SERRA_DA_ESTRELA_SPECIES)}
+              onClick={() => onSetSpecies(PILOT_SITE_SPECIES)}
               variant="ghost"
               size="sm"
             >
-              serra_preset()
+              pilot_preset()
             </GlowButton>
             <GlowButton
               onClick={() => onAddSpecies({ name: '', count: 0, co2RateKgYear: 0, survivalRate: 0 })}

@@ -177,14 +177,14 @@ export function LiveProjectCard({
         <div className="mt-3 pt-3 border-t border-[var(--border)]">
           <p className="text-[9px] font-mono text-[var(--text-muted)] mb-2 uppercase">cre workflow status</p>
           <div className="flex flex-wrap gap-1.5">
-            {/* W7: Serra Estrela Data Feed */}
+            {/* W7: Pilot Site Data Feed */}
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
               style={{
-                background: creWorkflowStatus.serraEstrela.active
+                background: creWorkflowStatus.pilotSite.active
                   ? 'color-mix(in srgb, var(--success) 15%, transparent)'
                   : 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
-                color: creWorkflowStatus.serraEstrela.active ? 'var(--success)' : 'var(--text-muted)',
+                color: creWorkflowStatus.pilotSite.active ? 'var(--success)' : 'var(--text-muted)',
               }}
             >
               <span className="w-1 h-1 rounded-full" style={{ background: 'currentColor' }} />

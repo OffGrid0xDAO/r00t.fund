@@ -87,20 +87,20 @@ export function RootLogo({
   // SVG defs for textured variant: gradient + organic grain + inner light
   const TextureDefs = () => (
     <defs>
-      {/* Main gradient — deep forest to bright leaf */}
+      {/* Main gradient — the darker "Grow it back" green, even tone, no dark tail */}
       <linearGradient id={`${uid}-grad`} x1="0" y1="0" x2="0.3" y2="1">
-        <stop offset="0%" stopColor="var(--accent-glow)" stopOpacity="1" />
-        <stop offset="35%" stopColor="var(--accent)" stopOpacity="1" />
-        <stop offset="70%" stopColor="var(--accent)" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#1a3a26" stopOpacity="1" />
+        <stop offset="0%" stopColor="#86A82E" stopOpacity="1" />
+        <stop offset="40%" stopColor="#6E9418" stopOpacity="1" />
+        <stop offset="75%" stopColor="var(--accent-on-bg)" stopOpacity="1" />
+        <stop offset="100%" stopColor="#516A00" stopOpacity="1" />
       </linearGradient>
 
-      {/* Dark-mode gradient — brighter range */}
+      {/* Dark-mode gradient — same lime family, luminous base */}
       <linearGradient id={`${uid}-grad-dark`} x1="0.1" y1="0" x2="0.2" y2="1">
-        <stop offset="0%" stopColor="#8EEAA0" stopOpacity="1" />
-        <stop offset="30%" stopColor="var(--accent-glow)" stopOpacity="1" />
-        <stop offset="65%" stopColor="var(--accent)" stopOpacity="1" />
-        <stop offset="100%" stopColor="#2D5A3D" stopOpacity="1" />
+        <stop offset="0%" stopColor="#F1FFB0" stopOpacity="1" />
+        <stop offset="35%" stopColor="var(--accent-glow)" stopOpacity="1" />
+        <stop offset="70%" stopColor="var(--accent)" stopOpacity="1" />
+        <stop offset="100%" stopColor="#B8E63C" stopOpacity="1" />
       </linearGradient>
 
       {/* Organic noise texture */}

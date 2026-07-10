@@ -805,7 +805,7 @@ export function OHLCVChart({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}
           onClick={() => setViewOffset(0)}
-          className="absolute bottom-8 right-2 px-2 py-1 text-[9px] font-mono bg-[var(--accent)] text-white rounded hover:bg-[var(--accent-hover)] transition-colors"
+          className="absolute bottom-8 right-2 px-2 py-1 text-[9px] font-mono bg-[var(--accent)] text-[var(--accent-ink)] rounded hover:bg-[var(--accent-hover)] transition-colors"
         >
           LIVE →
         </motion.button>

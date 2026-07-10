@@ -1,8 +1,8 @@
 /**
- * SerraEstrelaNativeForest ABI — Custom Data Feed for real reforestation project
- * Serra da Estrela Natural Park, Portugal — 9ha native forest restoration
+ * PilotSiteForest ABI — Custom Data Feed for real reforestation project
+ * the pilot site, Portugal — 9ha native forest restoration
  */
-export const SerraEstrelaNativeForestABI = [
+export const PilotSiteForestABI = [
   // CRE DON callback
   {
     type: "function",

@@ -1671,7 +1671,7 @@ export function PortfolioPanel({
                             #{c.leafIndex}
                           </span>
                           {isSelected && (
-                            <span className="text-[10px] w-5 h-5 flex items-center justify-center rounded-full bg-[var(--accent)] text-white font-bold">
+                            <span className="text-[10px] w-5 h-5 flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] font-bold">
                               {selectionIndex + 1}
                             </span>
                           )}

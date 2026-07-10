@@ -12,14 +12,24 @@ import { usePrivateWallet } from './hooks/usePrivateWallet';
 import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
 import { CONTRACTS, TOKEN, NETWORK } from './config';
+import { fetchParcelTokens } from './components/pilot/parcelTokens';
+
+// Deterministic synthetic address for a parcel token until its real pool exists
+// post-TGE. Valid 0x + 40-hex so viem reads fail gracefully (try/catch in SwapPanel).
+function parcelTokenAddress(ticker: string): string {
+  const hex = Array.from(ticker.toLowerCase())
+    .map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+  return ('0x' + hex.padEnd(40, '0')).slice(0, 42);
+}
 
 // Lazy load heavy components for better initial load
 const PortfolioPanel = lazy(() => import('./components/PortfolioPanel').then(m => ({ default: m.PortfolioPanel })));
-const ProjectsPanel = lazy(() => import('./components/ProjectsPanel').then(m => ({ default: m.ProjectsPanel })));
+const LandsPanel = lazy(() => import('./components/pilot/LandsPanel').then(m => ({ default: m.LandsPanel })));
 const PriceChart = lazy(() => import('./components/PriceChart').then(m => ({ default: m.PriceChart })));
 const ManifestoPage = lazy(() => import('./components/ManifestoPage').then(m => ({ default: m.ManifestoPage })));
 const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default: m.DocsPage })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
+const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
 import { ChartModal } from './components/ChartModal';
 
 // Loading fallback — content-aware skeleton with shimmer sweep
@@ -66,7 +76,7 @@ function PanelSkeleton({ variant = 'default' }: { variant?: 'swap' | 'chart' | '
   );
 }
 
-type Tab = '_swap' | '_portfolio' | '_projects';
+type Tab = '_swap' | '_portfolio' | '_projects' | '_land';
 
 const DEMO_TOKENS: TokenOption[] = [
   { address: CONTRACTS.zkAMM, name: TOKEN.name, symbol: TOKEN.symbol, isRoot: true },
@@ -82,9 +92,9 @@ function AnimatedLogo({ onClick }: { onClick: () => void }) {
       whileTap={{ scale: 0.98 }}
     >
       <div className="relative flex items-center gap-2.5">
-        <RootLogo size={30} className="text-[var(--accent)]" />
+        <RootLogo size={30} className="text-[var(--accent-on-bg)]" />
         <div className="flex items-baseline">
-          <span className="text-3xl tracking-tight text-[var(--accent)] font-display">
+          <span className="text-3xl tracking-tight text-[var(--accent-on-bg)] font-display">
             r<BrandedZeros />t
           </span>
           <span className="text-3xl text-[var(--text-primary)] font-display">
@@ -132,7 +142,7 @@ function NavPill({
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={`relative px-5 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 flex items-center gap-2 ${activeTab === tab.id
-            ? 'text-white'
+            ? 'text-[var(--accent-ink)]'
             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           whileTap={{ scale: 0.97 }}
@@ -271,8 +281,8 @@ function App() {
   }, []);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') === 'dark' ||
-        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      // Dark is the baseline on entry — only light if the visitor picked it before.
+      return localStorage.getItem('theme') !== 'light';
     }
     return true;
   });
@@ -292,15 +302,6 @@ function App() {
   const handleEnterApp = useCallback(() => {
     localStorage.setItem('hasVisited', 'true');
     setShowLanding(false);
-  }, []);
-
-  const handleTradeProject = useCallback((ammAddress: string, name: string, symbol: string) => {
-    setAvailableTokens(prev => {
-      if (prev.find(t => t.address === ammAddress)) return prev;
-      return [...prev, { address: ammAddress, name, symbol, isRoot: false }];
-    });
-    setSelectedToken(ammAddress);
-    setActiveTab('_swap');
   }, []);
 
   const handleLiveTokensDiscovered = useCallback((tokens: { address: string; name: string; symbol: string }[]) => {
@@ -343,6 +344,29 @@ function App() {
     })();
   }, [publicClient, handleLiveTokensDiscovered]);
 
+  // Add live (tradable) parcel tokens to the swap token list. Pledging/launching
+  // parcels are NOT tradable yet, so they're excluded here (see LandsPanel).
+  useEffect(() => {
+    let cancelled = false;
+    fetchParcelTokens().then(tokens => {
+      if (cancelled) return;
+      const live = tokens.filter(t => t.tradable).map(t => ({
+        address: parcelTokenAddress(t.ticker),
+        name: `${t.emoji} ${t.name}`,
+        symbol: t.ticker,
+        isRoot: false,
+      }));
+      if (live.length) {
+        setAvailableTokens(prev => {
+          const seen = new Set(prev.map(t => t.address));
+          const add = live.filter(t => !seen.has(t.address));
+          return add.length ? [...prev, ...add] : prev;
+        });
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
   const expectedChainId = NETWORK.chainId;
   const isWrongNetwork = isConnected && chainId !== expectedChainId;
@@ -374,8 +398,13 @@ function App() {
     },
     {
       id: '_projects',
-      label: '_projects',
-      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+      label: '_tokens',
+      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    },
+    {
+      id: '_land',
+      label: '_land',
+      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
     },
   ];
 
@@ -424,7 +453,7 @@ function App() {
               onClick={() => setShowDocs(true)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
+              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent-on-bg)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
               style={{ background: 'var(--bg-elevated)' }}
             >
               docs
@@ -435,7 +464,7 @@ function App() {
               onClick={() => setShowManifesto(true)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
+              className="px-3 py-2 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent-on-bg)] hover:border-[var(--accent)] transition-colors font-mono text-xs"
               style={{ background: 'var(--bg-elevated)' }}
             >
               manifesto
@@ -515,7 +544,7 @@ function App() {
                   >
                     Fund what heals.
                     <br />
-                    <span className="text-[var(--accent)]">Leave no trace.</span>
+                    <span className="text-[var(--accent-on-bg)]">Leave no trace.</span>
                   </motion.h1>
 
                   <motion.p
@@ -540,7 +569,7 @@ function App() {
                   className="text-xs font-mono text-[var(--text-muted)] mb-4 hover-glitch cursor-default"
                   onClick={() => setHeroCollapsed(false)}
                 >
-                  <span className="text-[var(--accent)] opacity-60">// </span>
+                  <span className="text-[var(--accent-on-bg)] opacity-60">// </span>
                   private launchpad for regenerative projects
                 </motion.p>
               )}
@@ -626,7 +655,7 @@ function App() {
                             <motion.button
                               onClick={() => setSwapMode('trade')}
                               className={`relative px-5 py-2 rounded-md text-sm font-medium transition-colors ${
-                                swapMode === 'trade' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                swapMode === 'trade' ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                               }`}
                               whileTap={{ scale: 0.97 }}
                             >
@@ -722,18 +751,22 @@ function App() {
                     )}
                     {activeTab === '_projects' && (
                       <Suspense fallback={<PanelSkeleton />}>
-                        <ProjectsPanel
-                          launchpadAddress={CONTRACTS.launchpad}
-                          hiddenPoolAddress={CONTRACTS.tokenPool}
-                          viewingKey={session.viewingKey}
-                          hiddenBalance={balance}
-                          commitments={commitments}
-                          fetchAllOnChainCommitments={fetchAllOnChainCommitments}
-                          onTradeProject={handleTradeProject}
-                          onLiveTokensDiscovered={handleLiveTokensDiscovered}
-                          worldIdGatekeeperAddress={CONTRACTS.worldIdGatekeeper}
-                        />
+                        <LandsPanel onOpenMap={() => setActiveTab('_land')} />
                       </Suspense>
+                    )}
+                    {activeTab === '_land' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · Land Map</span>
+                          <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
+                        </div>
+                        <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <PlotMapTopo />
+                          </Suspense>
+                        </div>
+                        <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">Fuzzed, non-cadastral geometry — indicative zones, not a legal subdivision. Patronage only — no revenue share.</p>
+                      </div>
                     )}
                   </motion.div>
                 </AnimatePresence>
@@ -752,7 +785,7 @@ function App() {
                 >
                   <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
                   <span className="font-mono text-xs">
-                    <span className="text-[var(--accent)]">ACTIVE</span>
+                    <span className="text-[var(--accent-on-bg)]">ACTIVE</span>
                     <span className="opacity-40 mx-2">·</span>
                     <span>ZK proofs + Chainlink CRE</span>
                   </span>
@@ -773,10 +806,10 @@ function App() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <span
-              className="flex items-center gap-2 text-lg text-[var(--accent)] cursor-pointer hover:opacity-70 transition-opacity font-display"
+              className="flex items-center gap-2 text-lg text-[var(--accent-on-bg)] cursor-pointer hover:opacity-70 transition-opacity font-display"
               onClick={() => setShowLanding(true)}
             >
-              <RootLogo size={22} className="text-[var(--accent)]" />
+              <RootLogo size={22} className="text-[var(--accent-on-bg)]" />
               r<BrandedZeros />t<span className="text-[var(--text-primary)]">.fund</span>
             </span>
             <span className="text-[var(--border)] opacity-50">|</span>

@@ -11,7 +11,7 @@
   <path d="M12,0 H928 Q940,0 940,12 V60 H0 V12 Q0,0 12,0Z" fill="#375BD2"/>
   <g transform="translate(24,14)"><polygon points="16,0 29,7.5 29,24.5 16,32 3,24.5 3,7.5" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><polygon points="16,9 22,12.5 22,19.5 16,23 10,19.5 10,12.5" fill="#fff"/></g>
   <text x="64" y="25" fill="#A5B4FC" font-size="10" font-weight="700" letter-spacing="2">CHAINLINK CRE</text>
-  <text x="64" y="46" fill="#fff" font-size="17" font-weight="700">Workflow 7 — Serra da Estrela Data Feed</text>
+  <text x="64" y="46" fill="#fff" font-size="17" font-weight="700">Workflow 7 — Project 001 pilot site Data Feed</text>
 
   <!-- STEP 1: Cron Trigger -->
   <rect x="50" y="90" width="180" height="50" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="2" filter="url(#s)"/>
@@ -44,6 +44,6 @@
   <text x="140" y="383" text-anchor="middle" font-size="10" fill="#78716C">receiveDataFeed()</text>
   <line x1="230" y1="370" x2="593" y2="370" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#aG)"/>
   <rect x="600" y="345" width="290" height="50" rx="10" fill="#F0FDF4" stroke="#059669" stroke-width="1.5" stroke-dasharray="6,4" filter="url(#s)"/>
-  <text x="745" y="367" text-anchor="middle" font-size="12" font-weight="600" fill="#065F46">SerraEstrelaNativeForest</text>
+  <text x="745" y="367" text-anchor="middle" font-size="12" font-weight="600" fill="#065F46">PilotSiteForest</text>
   <text x="745" y="383" text-anchor="middle" font-size="10" fill="#78716C">ethereum-sepolia</text>
 </svg>
