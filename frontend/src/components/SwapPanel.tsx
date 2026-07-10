@@ -73,7 +73,7 @@ const SlippageSettings = ({
           whileTap={{ scale: 0.95 }}
           onClick={() => onChange(preset)}
           className={`flex-1 py-2 px-3 rounded-md font-mono text-xs transition-colors ${value === preset
-            ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
             : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
         >
@@ -989,7 +989,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
               whileTap={{ scale: 0.9 }}
               onClick={() => setShowSlippageSettings(!showSlippageSettings)}
               className={`p-1.5 rounded transition-colors ${showSlippageSettings
-                ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               title="Slippage Settings"
@@ -1034,7 +1034,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
 
             {/* Slippage indicator badge */}
             {slippageTolerance !== DEFAULT_SLIPPAGE && (
-              <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-mono bg-[var(--accent)] text-[var(--bg-primary)] rounded-full">
+              <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-mono bg-[var(--accent)] text-[var(--accent-ink)] rounded-full">
                 {slippageTolerance / 100}%
               </span>
             )}

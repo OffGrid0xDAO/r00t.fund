@@ -719,7 +719,7 @@ export function ShortsPanel() {
                 onClick={() => setSlippageBps(bps)}
                 className={`px-2 py-1 rounded text-xs font-mono transition-colors ${
                   slippageBps === bps
-                    ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
                     : 'bg-[var(--bg-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >

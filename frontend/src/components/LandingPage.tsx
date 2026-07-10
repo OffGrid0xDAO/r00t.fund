@@ -329,7 +329,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.2 }}
               className="text-base md:text-lg text-[var(--text-secondary)] max-w-lg leading-relaxed mb-10"
             >
-              Back a real plot of land, choose what grows, and watch it come back to life. Every contribution roots in the soil it heals — independently verified. You leave no trace; the land does. Take from the casino, give it back to the land.
+              Back a real plot of land — an <span className="text-[var(--accent-on-bg)] font-medium">RWA</span> you watch come back to life. Choose what grows; every contribution roots in the soil it heals, independently verified. <span className="text-[var(--accent-on-bg)] font-medium">ReFi</span> with no middlemen — you leave no trace, the land does. Take from the casino, give it back to the land.
             </motion.p>
 
             {/* CTAs */}

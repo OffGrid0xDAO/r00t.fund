@@ -152,7 +152,7 @@ export function PlotDetailPanel({
                     key={cid}
                     onClick={() => onChooseCrop(cid)}
                     title={crop.note}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${active ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${active ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`}
                     style={active ? { background: color } : { background: 'var(--bg-elevated)' }}
                   >
                     <span>{crop.emoji}</span>{crop.label}
@@ -180,7 +180,7 @@ export function PlotDetailPanel({
           {asset === 'ETH' ? (
             <div className="flex gap-2 mb-2">
               {ETH_PRESETS.map((v) => (
-                <button key={v} onClick={() => setEthAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${ethAmount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={ethAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{v} Ξ</button>
+                <button key={v} onClick={() => setEthAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${ethAmount === v ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={ethAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{v} Ξ</button>
               ))}
               <input
                 type="number" min={0} step={0.01} value={ethAmount}
@@ -191,7 +191,7 @@ export function PlotDetailPanel({
           ) : (
             <div className="flex gap-2 mb-2">
               {USDC_PRESETS.map((v) => (
-                <button key={v} onClick={() => setUsdcAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${usdcAmount === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={usdcAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
+                <button key={v} onClick={() => setUsdcAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${usdcAmount === v ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={usdcAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
               ))}
               <input
                 type="number" min={1} value={usdcAmount}
