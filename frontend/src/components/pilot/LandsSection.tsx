@@ -18,7 +18,7 @@ const STATUS_STYLE: Record<LandStatus, { label: string; color: string }> = {
 export function LandsSection({ onEnterApp }: { onEnterApp?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="relative py-16 md:py-24 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
+    <section id="land-network" className="relative py-16 md:py-24 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-end justify-between gap-6 mb-10 flex-wrap">
           <div>

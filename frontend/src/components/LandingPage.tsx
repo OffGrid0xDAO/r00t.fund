@@ -316,9 +316,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.0 }}
               className="font-display text-[clamp(2.5rem,6vw,5.5rem)] leading-[0.95] tracking-[-0.03em] mb-6"
             >
-              <span className="text-[var(--text-primary)]">Fund a plot.</span>
+              <span className="text-[var(--text-primary)]">Fund what heals.</span>
               <br />
-              <span className="text-[var(--accent-on-bg)] text-glow">Grow it back.</span>
+              <span className="text-[var(--accent-on-bg)] text-glow">Leave no trace.</span>
             </motion.h1>
 
             {/* Sub-headline */}
@@ -328,7 +328,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               transition={{ duration: 0.8, delay: 1.2 }}
               className="text-base md:text-lg text-[var(--text-secondary)] max-w-lg leading-relaxed mb-10"
             >
-              Back a plot of real land, choose what grows on it, and watch it come back to life — every contribution traceable to the soil it heals, independently verified. Take from the casino, give back to the land.
+              Back a real plot of land, choose what grows, and watch it come back to life. Every contribution roots in the soil it heals — independently verified. You leave no trace; the land does. Take from the casino, give it back to the land.
             </motion.p>
 
             {/* CTAs */}
