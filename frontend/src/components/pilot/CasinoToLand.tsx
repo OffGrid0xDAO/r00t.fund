@@ -36,9 +36,8 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
               {/* copy */}
               <div>
-                <h2 className="font-display text-3xl md:text-5xl tracking-[-0.02em] leading-[1.05] mb-5 text-[var(--text-primary)]">
-                  The extractive engine of the memecoin casino, <br className="hidden md:block" />
-                  <span style={{ color: GREEN }}>pointed at the ground.</span>
+                <h2 className="font-display text-2xl md:text-4xl tracking-[-0.02em] leading-[1.08] mb-5 text-[var(--text-primary)]">
+                  The extractive engine of the memecoin casino, <span style={{ color: GREEN }}>pointed at the ground.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-5">
                   Same fair-launch mechanics, same speculative velocity that mints tokens by the
@@ -54,7 +53,7 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
                 </div>
 
                 <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border mb-6" style={{ borderColor: `color-mix(in srgb, ${GREEN} 45%, var(--border))`, background: `color-mix(in srgb, ${GREEN} 7%, var(--bg-elevated))` }}>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-muted)]">Launched on</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-secondary)]">Launched on</span>
                   <span className="inline-flex items-center gap-2" style={{ color: GREEN }}>
                     <RobinhoodMark size={20} />
                     <span className="font-display text-lg tracking-tight">Robinhood Chain</span>
@@ -80,7 +79,7 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
                   <Step n={1} emoji="🌱" title="Back a parcel" desc="Pledge into a plot you like. Each parcel is a real field with its own culture — oak, chestnut, carrot, cactus." />
                   <Step n={2} emoji="💧" title="It funds the land" desc="100% of what you pledge goes to the land treasury — real regeneration capital. It's never used as trading liquidity." />
                   <Step n={3} emoji="🪙" title="You mint its token" desc="The parcel's culture coin ($OAK, $CARROT…) is minted straight to you, on the spot. Earlier backers get more." />
-                  <Step n={4} emoji="📈" title="It trades, the land proves it" desc="The coin trades against $R00T while satellites verify the field coming back to life. Value roots instead of draining." />
+                  <Step n={4} emoji="📈" title="It trades, the land pays it forward" desc="The coin trades against $R00T while satellites verify the field regrowing — drawing down carbon and minting real credits. A living asset, not a rug." />
                 </div>
 
                 <div className="mt-5 pt-4 border-t border-[var(--border)] dark:border-white/10">
