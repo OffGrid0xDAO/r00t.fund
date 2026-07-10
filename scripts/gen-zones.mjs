@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * gen-zones.mjs — organic investment parcels ("polígonos de investimento") for
- * the Project 001 land map. Divides the land into HORIZONTAL bands of varied
- * height with wavy, terrain-nudged dividers, splits some bands left/right for
- * size variety, then Chaikin-smooths the outlines so parcels read as organic
- * fields — not a grid.
+ * the Pilot Project land map. Divides the land by REAL ELEVATION into bands that
+ * follow the contour lines (varied sizes via uneven quantile weights), splits
+ * some bands with a wavy line for more parcels + variety, carves a water corridor
+ * along the river, then Laplacian-smooths the shared vertex graph so parcels are
+ * organic and gapless.
  *
  * Reads frontend/public/terrain/{heightmap,river}.json → writes zones.json:
  *   [{ id, name, type, elev:[lo,hi], poly:[[nx,ny],...] }]
@@ -68,41 +69,49 @@ const cy = (j) => by0 + ((j + 0.5) / CN) * bh;
 const toNorm = (p) => [bx0 + (p[0] / CN) * bw, by0 + (p[1] / CN) * bh];
 
 const RIVER_BUFFER = 0.009;
-const yLo = ymin, yH = ymax - ymin;
 
-// ── horizontal bands of VARIED height ──
-const NB = 8;
-const wts = Array.from({ length: NB }, () => 0.45 + rand() * 1.7);   // some big, some small
-const tot = wts.reduce((a, b) => a + b, 0);
-const yEdges = [0]; { let acc = 0; for (const w of wts) { acc += w / tot; yEdges.push(acc); } }
-// wavy divider k as a function of nx (organic, 2 octaves), seeded per edge
-const waves = yEdges.map((_, k) => ({ a1: 0.004 + rand() * 0.004, f1: 1.1 + rand() * 1.8, p1: rand() * 6.28, a2: 0.0015 + rand() * 0.002, f2: 2.5 + rand() * 2.0, p2: rand() * 6.28 }));
-function edgeY(k, nx) {
-  const u = (nx - xmin) / (xmax - xmin);
-  const w = waves[k];
-  return yLo + yEdges[k] * yH + w.a1 * Math.sin(u * 6.28 * w.f1 + w.p1) + w.a2 * Math.sin(u * 6.28 * w.f2 + w.p2);
+// ── ELEVATION bands (follow the contour lines) of VARIED size ──
+// sample the dry land's elevations, then band by quantiles with uneven weights
+// so bands follow the real relief and some are bigger than others.
+const dryElev = [];
+for (let j = 0; j < CN; j++) for (let i = 0; i < CN; i++) {
+  const nx = cx(i), ny = cy(j);
+  if (!inPoly(nx, ny, boundary)) continue;
+  if (distToRiver(nx, ny) < RIVER_BUFFER) continue;
+  dryElev.push(elevAt(nx, ny));
 }
-// some bands split left/right with a wavy vertical divider (size variety)
-const splitBands = new Set();
-for (let k = 0; k < NB; k++) if (rand() < 0.45) splitBands.add(k);
-const splitX = Array.from({ length: NB }, () => ({ x: xmin + (0.32 + rand() * 0.36) * (xmax - xmin), a: 0.006 + rand() * 0.01, f: 0.8 + rand() * 1.4, p: rand() * 6.28 }));
-function xDivAt(k, ny) {
-  const v = (ny - ymin) / (ymax - ymin);
-  const s = splitX[k];
-  return s.x + s.a * Math.sin(v * 6.28 * s.f + s.p);
-}
+dryElev.sort((a, b) => a - b);
+const NB = 7;
+const wts = Array.from({ length: NB }, () => 0.5 + rand() * 1.7);   // some bands bigger
+const totW = wts.reduce((a, b) => a + b, 0);
+const qEdges = [0]; { let acc = 0; for (const w of wts) { acc += w / totW; qEdges.push(acc); } }
+const qAt = (t) => dryElev.length ? dryElev[Math.max(0, Math.min(dryElev.length - 1, Math.round(t * (dryElev.length - 1))))] : t;
+const thresholds = qEdges.map(qAt);   // elevation thresholds (contour-following)
 
-// label each cell → region key
+// band a cell by which elevation slab it sits in
 function bandOf(nx, ny) {
-  let b = 0;
-  for (let k = 1; k < NB; k++) if (ny > edgeY(k, nx)) b = k;
-  return b;
+  const e = elevAt(nx, ny);
+  for (let k = NB - 1; k >= 1; k--) if (e >= thresholds[k]) return k;
+  return 0;
+}
+// split ~half the bands with a wavy line (arbitrary angle) → more parcels + variety
+const splitBands = new Set();
+for (let k = 0; k < NB; k++) if (rand() < 0.5) splitBands.add(k);
+const splitLine = Array.from({ length: NB }, () => {
+  const ang = rand() * Math.PI;
+  const c = ((xmin + xmax) / 2) * Math.cos(ang) + ((ymin + ymax) / 2) * Math.sin(ang) + (rand() - 0.5) * 0.05;
+  return { cx: Math.cos(ang), cy: Math.sin(ang), c, a: 0.008 + rand() * 0.012, f: 1 + rand() * 2, p: rand() * 6.28 };
+});
+function sideOf(k, nx, ny) {
+  const s = splitLine[k];
+  const wob = s.a * Math.sin((nx + ny) * 6.28 * s.f + s.p);
+  return (nx * s.cx + ny * s.cy) < (s.c + wob) ? 'A' : 'B';
 }
 function regionKey(nx, ny) {
   if (!inPoly(nx, ny, boundary)) return null;
   if (distToRiver(nx, ny) < RIVER_BUFFER) return 'W';
   const b = bandOf(nx, ny);
-  if (splitBands.has(b)) return `b${b}${nx < xDivAt(b, ny) ? 'L' : 'R'}`;
+  if (splitBands.has(b)) return `b${b}${sideOf(b, nx, ny)}`;
   return `b${b}`;
 }
 const keys = new Array(CN * CN);
