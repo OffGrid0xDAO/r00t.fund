@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 /**
- * apply-kml-boundary.mjs — swap the pilot land's border for the real parcel shape,
- * de-georeferenced.
+ * apply-kml-boundary.mjs — place the real parcel border at its TRUE position on
+ * the DEM so the contours/relief match, then de-georeference for the client.
  *
- * Reads the real KML from the .gitignore'd secret/kml/parcel.kml, converts lng/lat
- * to local metres, normalizes to [0,1] PRESERVING ASPECT (so the shape is true),
- * strips all coordinates, lightly simplifies + jitters, and writes the result as
- * `propertyBoundary` into frontend/public/terrain/heightmap.json (recomputing the
- * property mask). Then re-run gen-zones.mjs to re-parcel the new shape.
+ * The KML (secret/kml/parcel.kml, WGS84) is projected to the DEM's CRS
+ * (EPSG:3763 / Portugal TM06) and normalized against the DEM's real extent — so
+ * the border lands exactly where it sits on the terrain (verified: it matches the
+ * DEM's own property outline). Then coordinates are stripped and only the
+ * normalized, coordinate-free boundary + mask are written to the public terrain.
  *
- * Firewall: the raw KML never leaves secret/. Only the normalized (coordinate-free)
- * boundary is committed — no lat/lng, no cadastral identifier.
+ * Firewall: raw KML + real extent live in secret/ ; nothing georeferenced is
+ * committed. Run fuzz-terrain.mjs first (real contours/river), then this, then
+ * gen-zones.mjs.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -18,63 +19,59 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const KML = resolve(ROOT, 'secret/kml/parcel.kml');
-const HEIGHTMAP = resolve(ROOT, 'frontend/public/terrain/heightmap.json');
-const RIVER = resolve(ROOT, 'frontend/public/terrain/river.json');
+const SECRET_HM = resolve(ROOT, 'secret/terrain/heightmap.json');   // has the real extent
+const PUBLIC_HM = resolve(ROOT, 'frontend/public/terrain/heightmap.json');
 
-// ── parse the KML coordinate ring ──
+// ── parse KML ring (WGS84 lng,lat) ──
 const kml = readFileSync(KML, 'utf8');
-const block = kml.match(/<coordinates>([\s\S]*?)<\/coordinates>/i);
-if (!block) { console.error('no <coordinates> in KML'); process.exit(1); }
-let ring = block[1].trim().split(/\s+/).map(s => {
-  const [lng, lat] = s.split(',').map(Number);
-  return [lng, lat];
-}).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
-if (ring.length >= 2 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ring.pop();
+const ring = kml.match(/<coordinates>([\s\S]*?)<\/coordinates>/i)[1].trim().split(/\s+/)
+  .map(s => s.split(',').map(Number)).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+if (ring.length >= 2 && ring[0][0] === ring.at(-1)[0] && ring[0][1] === ring.at(-1)[1]) ring.pop();
 
-// ── lng/lat → local metres ──
-const latMean = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-const mPerLat = 110540, mPerLng = 111320 * Math.cos(latMean * Math.PI / 180);
-const metric = ring.map(([lng, lat]) => [lng * mPerLng, lat * mPerLat]);
+// ── WGS84 → EPSG:3763 (ETRS89 / PT-TM06), GRS80, Snyder TM forward ──
+const a = 6378137, f = 1 / 298.257222101, e2 = f * (2 - f), ep2 = e2 / (1 - e2);
+const lat0 = 39.66825833333333 * Math.PI / 180, lon0 = -8.133108333333333 * Math.PI / 180, k0 = 1;
+const M = (phi) => a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 ** 3 / 256) * phi
+  - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * phi)
+  + (15 * e2 * e2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * phi)
+  - (35 * e2 ** 3 / 3072) * Math.sin(6 * phi));
+function toTM(lng, lat) {
+  const p = lat * Math.PI / 180, l = lng * Math.PI / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2), T = Math.tan(p) ** 2, C = ep2 * Math.cos(p) ** 2, A = (l - lon0) * Math.cos(p);
+  const E = k0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A ** 5 / 120);
+  const Nn = k0 * (M(p) - M(lat0) + N * Math.tan(p) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A ** 4 / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A ** 6 / 720));
+  return [E, Nn];
+}
 
-// area (hectares) for reference — a measurement, not a coordinate
-const areaM2 = Math.abs(metric.reduce((a, _, i) => {
-  const [x0, y0] = metric[i], [x1, y1] = metric[(i + 1) % metric.length];
-  return a + (x0 * y1 - x1 * y0);
-}, 0)) / 2;
+// ── normalize against the DEM's real extent → boundary aligned to the relief ──
+const coords = JSON.parse(readFileSync(SECRET_HM, 'utf8')).coordinates;
+const { minX, maxX, minY, maxY } = coords;
+const en = ring.map(([lng, lat]) => toTM(lng, lat));
 
-// ── normalize to [0,1], preserve aspect, centre, flip Y (north up) ──
-const xs = metric.map(p => p[0]), ys = metric.map(p => p[1]);
-const mx0 = Math.min(...xs), mx1 = Math.max(...xs), my0 = Math.min(...ys), my1 = Math.max(...ys);
-const w = mx1 - mx0, h = my1 - my0;
-const scale = 0.9 / Math.max(w, h);
-const offX = 0.5 - (w * scale) / 2, offY = 0.5 - (h * scale) / 2;
+// tiny deterministic jitter (sub-visual — keeps alignment, breaks survey-exact vertices)
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const rand = rng(0x1660); const jit = () => (rand() - 0.5) * 0.0016;
 
-// deterministic tiny jitter (mulberry32) — breaks vertex-exact match to the survey
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const rand = rng(0x1660);
-const jit = () => (rand() - 0.5) * 0.003;
-
-let boundary = metric.map(([mx, my]) => [
-  Math.min(0.99, Math.max(0.01, offX + (mx - mx0) * scale + jit())),
-  Math.min(0.99, Math.max(0.01, 1 - (offY + (my - my0) * scale) + jit())),
+let boundary = en.map(([E, N]) => [
+  Math.min(0.999, Math.max(0.001, (E - minX) / (maxX - minX) + jit())),
+  Math.min(0.999, Math.max(0.001, (N - minY) / (maxY - minY) + jit())),  // no flip — matches DEM orientation
 ]);
 
-// light Douglas–Peucker to drop redundant vertices
+// light Douglas–Peucker on the open chain (re-closes at render via 'Z')
 function simplify(poly, eps) {
   if (poly.length < 5) return poly;
   const dp = (pts) => {
-    let dmax = 0, idx = 0; const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
+    let dmax = 0, idx = 0; const [ax, ay] = pts[0], [bx, by] = pts.at(-1);
     for (let i = 1; i < pts.length - 1; i++) { const [x, y] = pts[i]; const d = Math.abs((by - ay) * x - (bx - ax) * y + bx * ay - by * ax) / (Math.hypot(bx - ax, by - ay) || 1e-9); if (d > dmax) { dmax = d; idx = i; } }
     if (dmax > eps) return [...dp(pts.slice(0, idx + 1)).slice(0, -1), ...dp(pts.slice(idx))];
-    return [pts[0], pts[pts.length - 1]];
+    return [pts[0], pts.at(-1)];
   };
-  // DP on the open chain (the polygon re-closes at render time via 'Z')
   return dp(poly);
 }
-boundary = simplify(boundary, 0.0015).map(p => [Math.round(p[0] * 1e4) / 1e4, Math.round(p[1] * 1e4) / 1e4]);
+boundary = simplify(boundary, 0.0012).map(p => [Math.round(p[0] * 1e4) / 1e4, Math.round(p[1] * 1e4) / 1e4]);
 
-// ── write into the (fuzzed) heightmap: replace boundary + recompute mask ──
-const hm = JSON.parse(readFileSync(HEIGHTMAP, 'utf8'));
+// ── write into the fuzzed public heightmap: boundary + recomputed mask ──
+const hm = JSON.parse(readFileSync(PUBLIC_HM, 'utf8'));
 const R = hm.resolution;
 function inPoly(nx, ny, poly) {
   let inside = false;
@@ -88,34 +85,9 @@ const mask = new Array(R * R);
 for (let j = 0; j < R; j++) for (let i = 0; i < R; i++) mask[j * R + i] = inPoly(i / (R - 1), j / (R - 1), boundary) ? 1 : 0;
 hm.propertyBoundary = boundary;
 hm.propertyMask = mask;
-writeFileSync(HEIGHTMAP, JSON.stringify(hm));
+writeFileSync(PUBLIC_HM, JSON.stringify(hm));
 
-// ── river: trace the LEFT (west) silhouette of the parcel so it hugs that edge ──
-function leftRiver(poly) {
-  const yv = poly.map(p => p[1]); const ymin = Math.min(...yv), ymax = Math.max(...yv);
-  const N = 60, pts = [];
-  for (let k = 0; k <= N; k++) {
-    const y = ymin + (k / N) * (ymax - ymin);
-    let minx = Infinity;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [xi, yi] = poly[i], [xj, yj] = poly[j];
-      if ((yi > y) !== (yj > y)) { const x = ((xj - xi) * (y - yi)) / (yj - yi) + xi; if (x < minx) minx = x; }
-    }
-    if (minx !== Infinity) pts.push([Math.max(0.004, minx - 0.006), Math.round(y * 1e4) / 1e4]);
-  }
-  // Chaikin smooth (open chain)
-  let p = pts;
-  for (let it = 0; it < 2; it++) {
-    const q = [p[0]];
-    for (let i = 0; i < p.length - 1; i++) { const a = p[i], b = p[i + 1]; q.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]); }
-    q.push(p[p.length - 1]); p = q;
-  }
-  return p.map(([x, y]) => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4]);
-}
-const centerline = leftRiver(boundary);
-writeFileSync(RIVER, JSON.stringify({ type: 'LineString', points: centerline, centerline }));
-
-console.log('applied real parcel boundary (de-georeferenced) to frontend/public/terrain/heightmap.json');
-console.log(`  vertices: ${boundary.length}  ·  parcel area ~${(areaM2 / 10000).toFixed(2)} ha`);
-console.log(`  river: ${centerline.length}-pt left-edge watercourse`);
-console.log('  next: node scripts/gen-zones.mjs   (re-parcel the new shape)');
+const bx = boundary.map(p => p[0]), by = boundary.map(p => p[1]);
+console.log('parcel border georeferenced onto the DEM, then de-georeferenced for the client.');
+console.log(`  boundary bbox nx ${Math.min(...bx).toFixed(3)}–${Math.max(...bx).toFixed(3)} · ny ${Math.min(...by).toFixed(3)}–${Math.max(...by).toFixed(3)}  (${boundary.length} verts)`);
+console.log('  → contours/river now align. next: node scripts/gen-zones.mjs');
