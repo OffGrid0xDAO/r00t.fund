@@ -45,7 +45,7 @@ contract ZkAMMRouter is ReentrancyGuard {
     uint256 public constant LP_ADD_PROTOCOL_FEE_BPS = 10;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-    uint256 public constant POOL_REGISTRATION_COOLDOWN = 1 minutes; // TESTNET: Changed from 24 hours for testing
+    uint256 public POOL_REGISTRATION_COOLDOWN = 1 minutes; // mutable — raise toward 24h for mainnet via setPoolRegistrationCooldown
 
     // ============ Immutables ============
 
@@ -715,6 +715,12 @@ contract ZkAMMRouter is ReentrancyGuard {
 
     /// @notice Sweep any ETH accidentally sent to this contract to treasury
     /// @dev SECURITY FIX: Prevents ETH from being permanently stuck in router
+    /// @notice Adjust the pool-registration cooldown (bounded 1 min .. 30 days).
+    function setPoolRegistrationCooldown(uint256 v) external onlyOwner {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        POOL_REGISTRATION_COOLDOWN = v;
+    }
+
     function sweepETH() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
         if (balance == 0) revert NothingToSweep();

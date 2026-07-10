@@ -12,8 +12,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 contract ZkAMMAdmin is ReentrancyGuard {
     // ============ Constants ============
 
-    uint256 public constant ADMIN_TIMELOCK = 1 minutes; // TESTNET: Changed from 48 hours for testing
-    uint256 public constant EMERGENCY_APPROVAL_EXPIRY = 1 minutes; // TESTNET: Changed from 24 hours for testing
+    uint256 public ADMIN_TIMELOCK = 1 minutes; // mutable — raise toward 48h for mainnet via setAdminTimelock
+    uint256 public EMERGENCY_APPROVAL_EXPIRY = 1 minutes; // mutable — raise toward 24h for mainnet via setEmergencyApprovalExpiry
 
     // ============ Immutables ============
 
@@ -232,6 +232,16 @@ contract ZkAMMAdmin is ReentrancyGuard {
     function lockVerifiers() external onlyOwner {
         verifiersLocked = true;
         emit VerifiersPermanentlyLocked();
+    }
+
+    /// @notice Adjust timelock durations (bounded 1 min .. 30 days). Ship short, harden later.
+    function setAdminTimelock(uint256 v) external onlyOwner {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        ADMIN_TIMELOCK = v;
+    }
+    function setEmergencyApprovalExpiry(uint256 v) external onlyOwner {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        EMERGENCY_APPROVAL_EXPIRY = v;
     }
 
     /// @notice Propose a verifier change (subject to timelock)

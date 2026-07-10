@@ -27,8 +27,8 @@ contract ZkAMMPair is ReentrancyGuard {
     /// @notice BN254 scalar field size for SNARK commitments
     uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
-    /// @notice LP lock period to prevent flash LP attacks (TESTNET: 1 minute)
-    uint256 public constant LP_LOCK_PERIOD = 1 minutes; // TESTNET: Changed from 24 hours for testing
+    /// @notice LP lock period to prevent flash LP attacks. Mutable — raise toward 24h for mainnet.
+    uint256 public LP_LOCK_PERIOD = 1 minutes;
 
     /// @notice Scaling factor for fee per share calculations (1e18)
     uint256 public constant FEE_PRECISION = 1e18;
@@ -720,6 +720,12 @@ contract ZkAMMPair is ReentrancyGuard {
     }
 
     /// @notice Authorize a caller in tokenPool (for project pools)
+    /// @notice Adjust the LP lock period (bounded 1 min .. 30 days). Ship short, harden later.
+    function setLpLockPeriod(uint256 v) external onlyAdmin {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        LP_LOCK_PERIOD = v;
+    }
+
     function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {
         tokenPool.setAuthorizedCaller(caller, authorized);
     }
