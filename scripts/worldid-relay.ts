@@ -96,7 +96,8 @@ const WorldIDGatekeeperABI = [
 
 // ============ Config ============
 
-const PRIVATE_KEY = (process.env.PRIVATE_KEY || '0xd9c12a02a85cda4fd98fedcb3cfda4dc60c7d8be08919f7f268de31415e59996') as Hex;
+const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
+if (!PRIVATE_KEY) throw new Error('PRIVATE_KEY env var is required (no hardcoded fallback)');
 const RPC_URL = process.env.RPC_URL || 'https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1';
 const GATEKEEPER = (process.env.GATEKEEPER || '0x512d4a66760Aba053f4162205d729c8540d00145') as Address;
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL || '10') * 1000; // seconds → ms
