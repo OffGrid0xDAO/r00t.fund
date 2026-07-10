@@ -18,6 +18,35 @@ import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { MachinesPanel } from './MachinesPanel';
 
+// ── game helpers: scatter crops inside a parcel so the field visibly fills ──
+function mulberry(seed: number) {
+  return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function pointInPoly(nx: number, ny: number, poly: number[][]) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if (((yi > ny) !== (yj > ny)) && (nx < ((xj - xi) * (ny - yi)) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function seedFromId(id: string) { let h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619); return h >>> 0; }
+// jittered interior sample points, up to `max`, biased away from the border
+function sampleField(poly: number[][], max: number, seed: number): [number, number][] {
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const rnd = mulberry(seed);
+  const pts: [number, number][] = [];
+  let tries = 0;
+  while (pts.length < max && tries < max * 60) {
+    tries++;
+    const nx = xmin + rnd() * (xmax - xmin), ny = ymin + rnd() * (ymax - ymin);
+    if (pointInPoly(nx, ny, poly)) pts.push([nx, ny]);
+  }
+  return pts;
+}
+const REVIVAL_LEVELS = ['Barren', 'Sprouting', 'Greening', 'Flourishing', 'Thriving', 'Revived'];
+
 export function PlotMapTopo({ className = '' }: { className?: string }) {
   const [boundary, setBoundary] = useState<number[][] | null>(null);
   const [contours, setContours] = useState<{ l: string; p: number[][] }[]>([]);
@@ -113,6 +142,21 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
 
   const polyPath = (poly: number[][]) => poly.map((pt, i) => `${i === 0 ? 'M' : 'L'}${view.project(pt[0], pt[1]).map(n => n.toFixed(1)).join(' ')}`).join(' ') + ' Z';
 
+  // crop scatter per parcel (deterministic; slots fill as funding grows)
+  const cropField = useMemo(() => {
+    const out: Record<string, { pts: [number, number][]; max: number }> = {};
+    for (const p of plots) {
+      if (!p.poly) continue;
+      const max = Math.max(3, Math.min(18, Math.round((p.areaHa ?? 0.5) * 7)));
+      out[p.id] = { pts: sampleField(p.poly, max, seedFromId(p.id)), max };
+    }
+    return out;
+  }, [plots]);
+
+  // overall land revival (parcels + infra funded / goal)
+  const revivalPct = Math.min(100, Math.round((totals.funded / Math.max(1, totals.target)) * 100));
+  const revivalLevel = Math.min(REVIVAL_LEVELS.length - 1, Math.floor(revivalPct / 20));
+
   const selected = plots.find(p => p.id === selectedId) || null;
   const hovered = plots.find(p => p.id === hoveredId) || null;
   const toPct = (sx: number, sy: number) => ({ left: `${(sx / 1000) * 100}%`, top: `${(sy / view.H) * 100}%` });
@@ -166,14 +210,25 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                     strokeOpacity={funded ? 1 : p.status === 'seeking' ? 0.45 : 0.8}
                     strokeDasharray={funded ? undefined : '5 4'}
                     strokeLinejoin="round" />
-              {/* culture glyph — instant visual ID of what grows here */}
-              <text x={cx} y={cy - (showName ? 12 : 6)} textAnchor="middle" fontSize={showName ? 15 : 12}>{p.emoji}</text>
-              {/* ticker + funding % + hot flag */}
-              <text x={cx} y={cy + (showName ? 6 : 8)} textAnchor="middle" className="font-mono" fontSize={11} fontWeight={700} fill={color} style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 3, strokeLinejoin: 'round' }}>
-                {p.status === 'verified' ? '✅ ' : ''}${p.ticker ?? tickerFromName(p.name)} · {pct(p.fundedEur, p.targetEur)}%{isHot ? ' 🔥' : ''}
+              {/* crops fill the field as it funds — the game layer */}
+              {(() => {
+                const field = cropField[p.id];
+                if (!field) return null;
+                const frac = Math.min(1, p.fundedEur / Math.max(1, p.targetEur));
+                const grown = Math.max(1, Math.round(field.max * frac));
+                const sizeByStatus = p.status === 'verified' ? 15 : p.status === 'planted' ? 13 : p.status === 'funded' ? 12 : p.status === 'greening' ? 11 : 10;
+                return field.pts.slice(0, grown).map((pt, k) => {
+                  const [sx, sy] = view.project(pt[0], pt[1]);
+                  return <text key={k} x={sx} y={sy} textAnchor="middle" fontSize={sizeByStatus} opacity={0.9} style={{ pointerEvents: 'none' }}>{p.emoji}</text>;
+                });
+              })()}
+              {/* label pill: $TICKER · % (+🔥) */}
+              <rect x={cx - 30} y={cy - 8} width={60} height={16} rx={8} fill="var(--bg-primary)" opacity={0.72} />
+              <text x={cx} y={cy + 3.5} textAnchor="middle" className="font-mono" fontSize={10} fontWeight={700} fill={color}>
+                {p.status === 'verified' ? '✅' : ''}${p.ticker ?? tickerFromName(p.name)} {pct(p.fundedEur, p.targetEur)}%{isHot ? '🔥' : ''}
               </text>
               {showName && (
-                <text x={cx} y={cy + 18} textAnchor="middle" className="font-mono" fontSize={7.5} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
+                <text x={cx} y={cy + 17} textAnchor="middle" className="font-mono" fontSize={7.5} fill="var(--text-muted)" style={{ paintOrder: 'stroke', stroke: 'var(--bg-primary)', strokeWidth: 2.5, strokeLinejoin: 'round' }}>
                   {p.name} · {areaTxt}
                 </text>
               )}
@@ -247,14 +302,20 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
         ))}
       </div>
 
-      {/* totals HUD */}
-      <div className="absolute left-3 bottom-3 z-20 flex items-center gap-3 rounded-xl border border-[var(--border)] px-3.5 py-2.5 backdrop-blur-md" style={{ background: 'color-mix(in srgb, var(--bg-elevated) 88%, transparent)' }}>
-        <div>
-          <p className="font-display text-base text-[var(--text-primary)] leading-none">{usd(totals.funded)}</p>
-          <p className="text-[9px] font-mono text-[var(--text-muted)] mt-0.5">of {usd(totals.target)} · {totals.backers} backers · {totals.verified}/{totals.plots} verified</p>
+      {/* land-revival HUD — game meter */}
+      <div className="absolute left-3 bottom-3 z-20 rounded-xl border border-[var(--border)] px-3.5 py-2.5 backdrop-blur-md w-[260px]" style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)' }}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[var(--text-muted)]">🌱 Land revival</span>
+          <span className="text-[10px] font-mono font-semibold text-[var(--accent-on-bg)]">LVL {revivalLevel + 1} · {REVIVAL_LEVELS[revivalLevel]}</span>
         </div>
-        <div className="w-px h-8 bg-[var(--border)]" />
-        <button onClick={() => setShowMachines(true)} className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors flex items-center gap-1.5">🚜 Machines & infra</button>
+        <div className="h-2 rounded-full overflow-hidden mb-1.5" style={{ background: 'var(--border)' }}>
+          <motion.div className="h-full rounded-full" style={{ background: 'linear-gradient(90deg, var(--accent-on-bg), var(--accent))' }} animate={{ width: `${revivalPct}%` }} transition={{ duration: 0.6 }} />
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-mono text-[var(--text-secondary)]"><span className="font-semibold text-[var(--text-primary)]">{usd(totals.funded)}</span> / {usd(totals.target)}</p>
+          <button onClick={() => setShowMachines(true)} className="text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors">🚜 Machines</button>
+        </div>
+        <p className="text-[9px] font-mono text-[var(--text-muted)] mt-1">{totals.backers} backers · {totals.verified}/{totals.plots} verified · {revivalPct}% revived</p>
       </div>
 
       {/* live pledge feed — momentum FOMO */}
