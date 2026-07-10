@@ -757,7 +757,7 @@ function App() {
                     {activeTab === '_land' && (
                       <div className="space-y-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · Land Map</span>
+                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · Land Map</span>
                           <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
                         </div>
                         <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>

@@ -1,5 +1,5 @@
 /**
- * PilotTerrainSection — the "Project 001" cinematic terrain intro on the landing.
+ * PilotTerrainSection — the "Pilot Project" cinematic terrain intro on the landing.
  *
  * A clean 3D contour-relief render of the pilot site (PilotTerrain), matching the
  * source intro animation. Content lives over the blank left area; hovering the
@@ -52,10 +52,10 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
               <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }}>
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-8 h-px bg-[var(--accent)]" />
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · The Pilot Site</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · the first land</span>
                 </div>
                 <h2 className="font-display text-3xl md:text-4xl lg:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.05] mb-4">
-                  9 hectares of burned hillside, <span className="text-[var(--accent-on-bg)]">mapped plot by plot.</span>
+                  9.9 hectares of burned hillside, <span className="text-[var(--accent-on-bg)]">mapped plot by plot.</span>
                 </h2>
                 <p className="text-sm md:text-base text-[var(--text-secondary)] leading-relaxed max-w-md mb-6">
                   The real terrain — every contour, swale and watercourse. Back a zone, choose what grows,
@@ -109,7 +109,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
                   className="pointer-events-none absolute right-6 md:right-[16%] top-1/2 -translate-y-1/2 z-20 rounded-xl border border-[var(--accent)]/40 px-4 py-3 backdrop-blur-md"
                   style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)', boxShadow: 'var(--shadow-lg)' }}
                 >
-                  <p className="font-display text-sm text-[var(--text-primary)] flex items-center gap-2">🌱 Project 001 — the pilot site</p>
+                  <p className="font-display text-sm text-[var(--text-primary)] flex items-center gap-2">🌱 Pilot Project — the first land</p>
                   <p className="text-[11px] font-mono text-[var(--accent-on-bg)] mt-0.5">click to open the plot map →</p>
                 </motion.div>
               )}
@@ -140,7 +140,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Project 001 · Land Map</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · Land Map</span>
                   <span className="text-[10px] font-mono text-[var(--text-muted)] hidden sm:inline">top-down · fund a plot or infrastructure</span>
                 </div>
                 <button onClick={() => setShowMap(false)} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]" aria-label="Close">

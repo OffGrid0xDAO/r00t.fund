@@ -1,5 +1,5 @@
 /**
- * Patronage funding interface + verification adapter for Project 001.
+ * Patronage funding interface + verification adapter for Pilot Project.
  *
  * Two integration points live behind interfaces so the UI never talks to a chain
  * directly:

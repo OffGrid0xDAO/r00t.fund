@@ -3,7 +3,7 @@
  * topography + boundary; the pipeline (fuzz-terrain.mjs + gen-zones.mjs, run
  * server-side on ingest) de-georeferences it and auto-divides it into parcels.
  * Their parcels' tokens pair with $R00T. Real geodata never leaves their private
- * store — only fuzzed terrain is published (same firewall as Project 001).
+ * store — only fuzzed terrain is published (same firewall as Pilot Project).
  */
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';

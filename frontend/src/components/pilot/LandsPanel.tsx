@@ -31,7 +31,7 @@ export function LandsPanel({ onOpenMap }: { onOpenMap?: () => void }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Lands · Parcel tokens</span>
-          <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">{land?.name ?? 'Project 001'} · {liveCount} live · pair with ${BASE_TOKEN}</p>
+          <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">{land?.name ?? 'Pilot Project'} · {liveCount} live · pair with ${BASE_TOKEN}</p>
         </div>
         {onOpenMap && (
           <button onClick={onOpenMap} className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--accent-on-bg)] transition-colors inline-flex items-center gap-1.5">🗺️ Open land map</button>

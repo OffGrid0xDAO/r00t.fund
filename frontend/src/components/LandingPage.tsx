@@ -7,7 +7,7 @@ import { CONTRACTS, getExplorerAddressUrl, hasExplorer } from '../config';
 import { RobinhoodMark } from './pilot/RobinhoodWordmark';
 import { UniswapLogo } from './pilot/UniswapLogo';
 
-// Project 001 pilot-terrain section (WebGL + interactive map) — lazy-loaded.
+// Pilot Project pilot-terrain section (WebGL + interactive map) — lazy-loaded.
 const PilotTerrainSection = lazy(() => import('./pilot/PilotTerrainSection'));
 // Robinhood partner + liquidity narrative.
 const CasinoToLand = lazy(() => import('./pilot/CasinoToLand'));

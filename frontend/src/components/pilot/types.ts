@@ -1,5 +1,5 @@
 /**
- * Project 001 pilot-map data model.
+ * Pilot Project pilot-map data model.
  *
  * IMPORTANT — legal shape: backer rewards here are PATRONAGE ONLY (produce,
  * stays, naming, choose-what-grows, a certificate NFT). Nothing in this model

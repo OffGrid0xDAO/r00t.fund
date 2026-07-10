@@ -1,5 +1,5 @@
 /**
- * Seed data for the Project 001 pilot map.
+ * Seed data for the Pilot Project pilot map.
  *
  * Plot x/y are TERRAIN-NORMALIZED coordinates ([0,1] over the fuzzed heightmap)
  * placed inside the de-georeferenced land border; r is a normalized radius.
@@ -38,7 +38,7 @@ const CULTURE_ORDER = ['oak', 'chestnut', 'carrot', 'turnip', 'vine', 'potato', 
 // Total capital to fully revive the pilot land (parcels + infrastructure).
 export const REVIVE_GOAL = 333_000;
 // Total pilot land area (hectares) — parcels share it by polygon area.
-export const LAND_HECTARES = 9;
+export const LAND_HECTARES = 9.89;
 
 // seeking → greening → funded → planted → verified
 export const SEED_PLOTS: Plot[] = [

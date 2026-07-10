@@ -1,5 +1,5 @@
 /**
- * usePilotState — client-side state for the Project 001 pilot map.
+ * usePilotState — client-side state for the Pilot Project pilot map.
  *
  * Holds plots + communal machines and drives the lifecycle
  *   seeking → greening → funded → planted → verified

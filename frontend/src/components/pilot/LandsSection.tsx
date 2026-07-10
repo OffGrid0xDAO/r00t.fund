@@ -1,5 +1,5 @@
 /**
- * LandsSection — the multi-tenant network. Project 001 is the template; other
+ * LandsSection — the multi-tenant network. Pilot Project is the template; other
  * stewards onboard their land the same way. Shows the land registry + the
  * "Start your land" onboarding. Every land's parcel tokens pair with $R00T.
  */
@@ -27,7 +27,7 @@ export function LandsSection({ onEnterApp }: { onEnterApp?: () => void }) {
               <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">The land network</span>
             </div>
             <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.05] max-w-xl">
-              Project 001 is the template. <span className="text-[var(--accent-on-bg)]">Bring your own land.</span>
+              Pilot Project is the template. <span className="text-[var(--accent-on-bg)]">Bring your own land.</span>
             </h2>
             <p className="mt-4 text-base text-[var(--text-secondary)] max-w-lg leading-relaxed">
               Any steward can onboard their terrain — submit a topography + boundary, and the pipeline fuzzes it

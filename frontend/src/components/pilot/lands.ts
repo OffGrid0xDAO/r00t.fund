@@ -1,5 +1,5 @@
 /**
- * Land registry — r00t is multi-tenant: Project 001 is the template, other land
+ * Land registry — r00t is multi-tenant: Pilot Project is the template, other land
  * stewards onboard their own land the same way (submit topography + boundary,
  * the pipeline fuzzes + auto-parcels it). Every land's parcel tokens pair with
  * $R00T as the universal base currency, so each new land compounds $R00T demand.
@@ -15,7 +15,7 @@ export interface Land {
   hectares: number;
   parcels: number;
   raisedR00T: number;
-  // terrain asset base path (fuzzed, de-georeferenced); Project 001 = /terrain
+  // terrain asset base path (fuzzed, de-georeferenced); Pilot Project = /terrain
   terrainPath: string;
 }
 
@@ -25,7 +25,7 @@ export const BASE_TOKEN = 'R00T';
 export const LANDS: Land[] = [
   {
     id: 'project-001',
-    name: 'Project 001 — the pilot site',
+    name: 'Pilot Project — the first land',
     steward: 'r00t core',
     region: 'Southern Europe · uplands',
     status: 'live',

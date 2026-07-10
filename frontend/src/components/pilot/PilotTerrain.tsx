@@ -1,5 +1,5 @@
 /**
- * PilotTerrain — contour-relief render of the Project 001 pilot site.
+ * PilotTerrain — contour-relief render of the Pilot Project pilot site.
  *
  * Ported from the landing-repo terrain animation and rebuilt in the r00t design
  * system: the crystal/cream palette is replaced with r00t tokens read from CSS
