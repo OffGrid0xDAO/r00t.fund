@@ -127,6 +127,23 @@ interface IPledgeVerifier {
     ) external view returns (bool);
 }
 
+/// @title IDepositVerifier
+/// @notice Interface for the deposit-binding circuit verifier (CRITICAL-1 fix)
+/// @dev Proves a note's public `amount` equals the amount baked into its public
+///      `commitment` (commitment == Poseidon(nullifier, secret, amount)). The zkAMM
+///      verifies this before inserting a commitment so a note's value can never
+///      exceed the R00T actually deposited / the curve's tokensOut.
+/// Public signals: [binding, amount, commitment]  (Circom output first)
+/// - binding:    Poseidon(amount, commitment) — anti-malleability binding output
+/// - amount:     R00T deposited (contract-enforced == transferred / tokensOut)
+/// - commitment: the note being inserted into the merkle tree
+interface IDepositVerifier {
+    function verifyProof(
+        uint256[8] calldata proof,
+        uint256[3] calldata pubSignals
+    ) external view returns (bool);
+}
+
 /// @title IMergeVerifier
 /// @notice Interface for privacy-preserving commitment consolidation circuit verifier
 /// @dev Proves ownership of 2 commitments and merges them into a single output commitment
