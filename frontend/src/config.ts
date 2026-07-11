@@ -133,6 +133,10 @@ export const CONTRACTS = {
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
   // The deployed pilot Land (steward: r00t). Pledges route here once set.
   pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x...',
+  // Anonymous plot-funding pledge vault (Phase C). Shields R00T then records a
+  // private pledge bound to a parcelId; claimed later to an unlinked wallet.
+  // Set VITE_PLEDGE_VAULT after Phase C deploys (also wire indexer PONDER_PLEDGE_ADDRESS).
+  pledgeVault: (import.meta.env.VITE_PLEDGE_VAULT as string) || '0x...',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
@@ -186,6 +190,14 @@ export const EVENTS = {
 
   // NewCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes encryptedNote)
   newCommitment: '0xe5b9fcee308349a880a3033e7bf8f0d7192658e7dbdaf7481ecc63f3d7addf03',
+
+  // PledgeCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes32 parcelId, bytes note)
+  // keccak256('PledgeCommitment(uint256,uint256,bytes32,bytes)')
+  pledgeCommitment: '0x73154c9e0472b2b606af43e4badf42bab6a2552312d42059470f2826d79a1758',
+
+  // PledgeClaimed(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 amount)
+  // keccak256('PledgeClaimed(uint256,address,bytes32,uint256)')
+  pledgeClaimed: '0xe9dea2c523da175940ce3f05ffd847b0b4b06cf2a12f488f5847e53600b412d0',
 } as const;
 
 // Helper functions

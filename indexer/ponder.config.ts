@@ -31,6 +31,14 @@ const ROBINHOOD_ZKAMM_ADDRESS = "0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0"; //
 const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511"; // ZkAMM Pair
 const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.chain.robinhood.com";
 
+// Pledge vault (anonymous plot funding, Phase C). Address + start block are set
+// after Phase C deploys — wire via PONDER_PLEDGE_ADDRESS / PONDER_PLEDGE_START_BLOCK
+// (or paste below). The contract only registers when a real (non-placeholder)
+// address is provided, so the indexer boots today against the frozen ABIs.
+const PLEDGE_ADDRESS = process.env.PONDER_PLEDGE_ADDRESS || ""; // e.g. 0x… after Phase C
+const PLEDGE_START_BLOCK = Number(process.env.PONDER_PLEDGE_START_BLOCK || ROBINHOOD_FIRST_BLOCK);
+const PLEDGE_ENABLED = /^0x[0-9a-fA-F]{40}$/.test(PLEDGE_ADDRESS);
+
 // ABI for Pair events (NewCommitment AND NewLPCommitment come from Pair, NOT TokenPool/LPPool)
 // The Pair calls tokenPool.insert() which emits LeafInserted, then Pair emits NewCommitment
 // The Pair also emits NewLPCommitment when LP positions are created
@@ -89,6 +97,32 @@ const PairAbi = [
     inputs: [
       { type: "uint256", indexed: false, name: "ethIn" },
       { type: "uint256", indexed: false, name: "tokensOut" },
+    ],
+  },
+] as const;
+
+// Pledge vault events (Phase C) — frozen in docs/REMEDIATION_PLAN.md:
+//   PledgeCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes32 parcelId, bytes note)
+//   PledgeClaimed(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 amount)
+const PledgeAbi = [
+  {
+    type: "event",
+    name: "PledgeCommitment",
+    inputs: [
+      { type: "uint256", indexed: true, name: "commitment" },
+      { type: "uint256", indexed: true, name: "leafIndex" },
+      { type: "bytes32", indexed: false, name: "parcelId" },
+      { type: "bytes", indexed: false, name: "note" },
+    ],
+  },
+  {
+    type: "event",
+    name: "PledgeClaimed",
+    inputs: [
+      { type: "uint256", indexed: true, name: "nullifierHash" },
+      { type: "address", indexed: true, name: "recipient" },
+      { type: "bytes32", indexed: false, name: "parcelId" },
+      { type: "uint256", indexed: false, name: "amount" },
     ],
   },
 ] as const;
@@ -158,6 +192,16 @@ export default createConfig({
         abi: PairAbi,
         address: NETWORK === "tenderly" ? TENDERLY_ZKAMM_PAIR_ADDRESS : NETWORK === "robinhood" ? ROBINHOOD_ZKAMM_PAIR_ADDRESS : SEPOLIA_ZKAMM_PAIR_ADDRESS,
         startBlock: NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : NETWORK === "robinhood" ? ROBINHOOD_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
+      },
+    }),
+    // PledgeVault — anonymous plot funding (Phase C). Only registered once a real
+    // address is wired (PONDER_PLEDGE_ADDRESS), so a placeholder never breaks boot.
+    ...(NETWORK === "robinhood" && PLEDGE_ENABLED && {
+      PledgeVault: {
+        network: "robinhood",
+        abi: PledgeAbi,
+        address: PLEDGE_ADDRESS as `0x${string}`,
+        startBlock: PLEDGE_START_BLOCK,
       },
     }),
   },

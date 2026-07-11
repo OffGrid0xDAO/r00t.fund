@@ -33,4 +33,39 @@ Fund-privately + Portfolio claim-to-wallet work end-to-end against C's contracts
 indexer serves pledge commitments/nullifiers. Branch `feat/phase-d-frontend-pledge`.
 
 ## Status
-- [ ] indexer handlers  [ ] fund-privately UI  [ ] portfolio claim UI  [ ] artifacts  [ ] wired+tested
+- [x] indexer handlers  [x] fund-privately UI  [x] portfolio claim UI  [x] artifacts  [ ] wired+tested
+
+### Progress (scaffold complete — 2026-07-11, branch `feat/phase-d-frontend-pledge`)
+- **Indexer** (`indexer/`): `PledgeCommitment` + `PledgeClaimed` handlers added
+  (`src/index.ts`), gated behind `PONDER_PLEDGE_ADDRESS` so the indexer still boots
+  with no vault wired. New tables `pledge_commitments` / `pledge_nullifiers` /
+  `pledge_claims` (`ponder.schema.ts`); the pledge merkle tree is maintained in the
+  shared `merkleTreeState` keyed by the vault address via a new `updateCommitmentTree`
+  helper (same depth-24 Poseidon logic as zkAMM `NewCommitment`). Contract registered
+  in `ponder.config.ts` (`PledgeVault`, robinhood-only, `PLEDGE_ENABLED` guard).
+  `ponder codegen` clean.
+- **SDK** (`sdk/`): `proveClaim` + `ClaimProofInputs` + claim-artifact loading
+  (`loadCircuitArtifactsFromUrls` → `claim/claim_js/claim.wasm`, `claim/claim_final.zkey`),
+  matching the committed `circuits/claim.circom` (public
+  `[merkleRoot,nullifierHash,parcelId,amount,recipient]`, output `recipientBinding`).
+  `npm run build` + `typecheck` clean.
+- **Fund-privately UI**: `FundPrivatelyPanel.tsx` (pilot map) — shields R00T via
+  `usePrivateWallet` + spend-proof, then `pledgePrivate(...)` to the vault, stores the
+  encrypted pledge note client-side (`usePledge`). Reached from a new "Fund privately"
+  button on `PlotDetailPanel`. Shows the "deposit wallet is NOT linked to claims" note.
+- **Portfolio claim UI**: new `_pledges` tab (`components/portfolio/PrivatePledges.tsx`)
+  lists pending/claimable/claimed pledges; "Claim to wallet…" builds a claim proof
+  (`useZkProver.generateClaimProof`) and calls `claim(proof, pubSignals, recipient)`.
+- **Artifacts**: `circuits/build/claim` copied to `frontend/public/circuits/claim/`
+  (`*.wasm`/`*.zkey` gitignored on disk, same as the `pledge/` sibling).
+- **Config**: `CONTRACTS.pledgeVault` (`VITE_PLEDGE_VAULT`) + `EVENTS.pledgeCommitment`
+  / `EVENTS.pledgeClaimed` topics. UI is gated behind `pledge.isReady` (a configured
+  vault) so nothing runs against a `0x…` placeholder.
+- Frontend `tsc --noEmit` clean.
+
+### Remaining (after Phase C deploy)
+1. Set `VITE_PLEDGE_VAULT` (frontend/src/config.ts) + `PONDER_PLEDGE_ADDRESS` /
+   `PONDER_PLEDGE_START_BLOCK` (indexer) to the deployed vault.
+2. Confirm Phase C's `pledgePrivate` arg tuple matches `frontend/src/abis/pledge.ts`
+   (`PLEDGE_VAULT_ABI`); adjust if the vault's signature differs.
+3. Run indexer with `PONDER_NETWORK=robinhood` and test fund→claim end-to-end.

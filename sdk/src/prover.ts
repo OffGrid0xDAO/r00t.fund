@@ -1,5 +1,5 @@
 import * as snarkjs from 'snarkjs';
-import type { ProofResult, SellProofInputs, TransferProofInputs, WithdrawProofInputs, VoteProofInputs, PledgeProofInputs, SwapProofInputs, MergeProofInputs, Groth16Proof } from './types';
+import type { ProofResult, SellProofInputs, TransferProofInputs, WithdrawProofInputs, VoteProofInputs, PledgeProofInputs, ClaimProofInputs, SwapProofInputs, MergeProofInputs, Groth16Proof } from './types';
 
 /**
  * ZK Proof Generator
@@ -21,6 +21,8 @@ export class Prover {
   private voteZkey?: string | Uint8Array;
   private pledgeWasm?: string | Uint8Array;
   private pledgeZkey?: string | Uint8Array;
+  private claimWasm?: string | Uint8Array;
+  private claimZkey?: string | Uint8Array;
   private swapWasm?: string | Uint8Array;
   private swapZkey?: string | Uint8Array;
   private addLiquidityWasm?: string | Uint8Array;
@@ -43,6 +45,8 @@ export class Prover {
     voteZkey?: string | Uint8Array;
     pledgeWasm?: string | Uint8Array;
     pledgeZkey?: string | Uint8Array;
+    claimWasm?: string | Uint8Array;
+    claimZkey?: string | Uint8Array;
     swapWasm?: string | Uint8Array;
     swapZkey?: string | Uint8Array;
     addLiquidityWasm?: string | Uint8Array;
@@ -64,6 +68,8 @@ export class Prover {
     this.voteZkey = config.voteZkey;
     this.pledgeWasm = config.pledgeWasm;
     this.pledgeZkey = config.pledgeZkey;
+    this.claimWasm = config.claimWasm;
+    this.claimZkey = config.claimZkey;
     this.swapWasm = config.swapWasm;
     this.swapZkey = config.swapZkey;
     this.addLiquidityWasm = config.addLiquidityWasm;
@@ -245,6 +251,45 @@ export class Prover {
       circuitInputs,
       this.pledgeWasm,
       this.pledgeZkey
+    );
+
+    return {
+      proof: proof as unknown as Groth16Proof,
+      publicSignals,
+    };
+  }
+
+  /**
+   * Generate proof for anonymous pledge claim-to-wallet (Phase D).
+   * Proves ownership of a pledge commitment in the pledge tree and authorizes a
+   * payout to `recipient`, bound to `parcelId`. Matches circuits/claim.circom:
+   *   public [merkleRoot, nullifierHash, parcelId, amount, recipient]
+   *   output recipientBinding
+   */
+  async proveClaim(inputs: ClaimProofInputs): Promise<ProofResult> {
+    if (!this.claimWasm || !this.claimZkey) {
+      throw new Error('Claim circuit not loaded');
+    }
+
+    const circuitInputs = {
+      // Public inputs
+      merkleRoot: inputs.merkleRoot.toString(),
+      nullifierHash: inputs.nullifierHash.toString(),
+      parcelId: inputs.parcelId.toString(),
+      amount: inputs.amount.toString(),
+      recipient: BigInt(inputs.recipient).toString(),
+
+      // Private inputs
+      nullifier: inputs.nullifier.toString(),
+      secret: inputs.secret.toString(),
+      pathElements: inputs.pathElements.map((e) => e.toString()),
+      pathIndices: inputs.pathIndices,
+    };
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      circuitInputs,
+      this.claimWasm,
+      this.claimZkey
     );
 
     return {
@@ -585,6 +630,8 @@ export async function loadCircuitArtifactsFromUrls(baseUrl: string): Promise<{
   voteZkey: Uint8Array;
   pledgeWasm: Uint8Array;
   pledgeZkey: Uint8Array;
+  claimWasm: Uint8Array;
+  claimZkey: Uint8Array;
   mergeWasm: Uint8Array;
   mergeZkey: Uint8Array;
 }> {
@@ -606,6 +653,7 @@ export async function loadCircuitArtifactsFromUrls(baseUrl: string): Promise<{
     claimFeesWasm, claimFeesZkey,
     voteWasm, voteZkey,
     pledgeWasm, pledgeZkey,
+    claimWasm, claimZkey,
     mergeWasm, mergeZkey
   ] = await Promise.all([
     fetchArtifact(`${baseUrl}/sell/sell_js/sell.wasm`),
@@ -624,6 +672,8 @@ export async function loadCircuitArtifactsFromUrls(baseUrl: string): Promise<{
     fetchArtifact(`${baseUrl}/vote/vote_final.zkey`),
     fetchArtifact(`${baseUrl}/pledge/pledge_js/pledge.wasm`),
     fetchArtifact(`${baseUrl}/pledge/pledge_final.zkey`),
+    fetchArtifact(`${baseUrl}/claim/claim_js/claim.wasm`),
+    fetchArtifact(`${baseUrl}/claim/claim_final.zkey`),
     fetchArtifact(`${baseUrl}/merge/merge.wasm`),
     fetchArtifact(`${baseUrl}/merge/merge_final.zkey`),
   ]);
@@ -637,6 +687,7 @@ export async function loadCircuitArtifactsFromUrls(baseUrl: string): Promise<{
     claimFeesWasm, claimFeesZkey,
     voteWasm, voteZkey,
     pledgeWasm, pledgeZkey,
+    claimWasm, claimZkey,
     mergeWasm, mergeZkey
   };
 }

@@ -128,6 +128,54 @@ export const lpFeeClaims = onchainTable("lp_fee_claims", (t) => ({
   address: t.text().notNull(), // contract address
 }));
 
+// ============ Pledge (anonymous plot funding) Tables ============
+// Phase C emits PledgeCommitment / PledgeClaimed from the pledge vault. The
+// commitment tree is maintained in `merkleTreeState` keyed by the pledge vault
+// address (same handler shape as zkAMM NewCommitment), so the frontend can build
+// claim proofs with the existing MERKLE_TREE_STATE_QUERY.
+
+// Pledge commitments - private plot pledges, one leaf per shielded pledge
+export const pledgeCommitments = onchainTable(
+  "pledge_commitments",
+  (t) => ({
+    id: t.text().primaryKey(),
+    commitment: t.text().notNull(),
+    leafIndex: t.bigint().notNull(),
+    parcelId: t.text().notNull(), // bytes32 parcel the pledge is bound to
+    note: t.text().notNull(), // encrypted pledge note (client-decryptable)
+    blockNumber: t.bigint().notNull(),
+    timestamp: t.bigint().notNull(),
+    transactionHash: t.text().notNull(),
+    address: t.text().notNull(), // pledge vault contract address
+  }),
+  (table) => ({
+    parcelIdx: index("pledge_commitments_parcel_idx").on(table.parcelId),
+    addressIdx: index("pledge_commitments_address_idx").on(table.address),
+  })
+);
+
+// Pledge nullifiers - spent pledge nullifiers (a pledge that has been claimed)
+export const pledgeNullifiers = onchainTable("pledge_nullifiers", (t) => ({
+  id: t.text().primaryKey(), // nullifierHash
+  transactionHash: t.text().notNull(),
+  blockNumber: t.bigint().notNull(),
+  timestamp: t.bigint().notNull(),
+  address: t.text().notNull(), // pledge vault contract address
+}));
+
+// Pledge claims - a pledge claimed out to a recipient wallet
+export const pledgeClaims = onchainTable("pledge_claims", (t) => ({
+  id: t.text().primaryKey(),
+  nullifierHash: t.text().notNull(),
+  recipient: t.text().notNull(),
+  parcelId: t.text().notNull(),
+  amount: t.text().notNull(),
+  blockNumber: t.bigint().notNull(),
+  timestamp: t.bigint().notNull(),
+  transactionHash: t.text().notNull(),
+  address: t.text().notNull(), // pledge vault contract address
+}));
+
 // LP nullifiers - tracks spent LP nullifiers
 export const lpNullifiers = onchainTable("lp_nullifiers", (t) => ({
   id: t.text().primaryKey(), // nullifierHash

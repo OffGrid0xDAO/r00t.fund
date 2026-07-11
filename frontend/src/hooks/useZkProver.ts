@@ -229,6 +229,32 @@ interface PledgeProofResult {
   publicInputsBinding: bigint;
 }
 
+// Claim proof params for anonymous pledge claim-to-wallet (Phase D).
+// Proves ownership of a pledge commitment in the pledge tree and authorizes a
+// payout to `recipient`, bound to `parcelId`, without linking the deposit wallet.
+interface ClaimProofParams {
+  commitment: {
+    nullifier: bigint;
+    secret: bigint;
+    amount: bigint;
+    leafIndex: number;
+  };
+  parcelId: string;   // bytes32
+  recipient: string;  // payout wallet (unlinked from the pledge deposit)
+  allCommitments: { commitment: bigint; leafIndex: number }[];
+  treeState?: TreeState;
+}
+
+interface ClaimProofResult {
+  proof: bigint[];
+  // Raw circuit public signals for the on-chain claim(proof, pubSignals, recipient) call.
+  pubSignals: bigint[];
+  merkleRoot: bigint;
+  nullifierHash: bigint;
+  amount: bigint;
+  recipient: string;
+}
+
 // Merge proof params for privacy-preserving commitment consolidation
 interface MergeProofParams {
   commitment1: {
@@ -1003,6 +1029,76 @@ export function useZkProver() {
   );
 
   /**
+   * Generate claim proof for anonymous pledge claim-to-wallet (Phase D).
+   *
+   * Builds the pledge merkle tree, proves membership of the pledge commitment,
+   * and produces the public signals for claim(proof, pubSignals, recipient).
+   *
+   * NOTE (Phase C handoff): this calls proverRef.proveClaim, which lands in the
+   * SDK together with the claim circuit + frontend/public/circuits/claim/
+   * artifacts. Until then the Portfolio "Claim to wallet" action is gated behind
+   * a configured pledge vault, so this path is inert.
+   */
+  const generateClaimProof = useCallback(
+    async (params: ClaimProofParams): Promise<ClaimProofResult> => {
+      if (!proverRef.current) throw new Error('Prover not ready');
+
+      const { commitment, parcelId, recipient, allCommitments, treeState } = params;
+
+      if (allCommitments.length === 0) {
+        throw new Error('Pledge tree is empty. Please wait for the indexer to sync.');
+      }
+      if (commitment.leafIndex >= allCommitments.length) {
+        throw new Error(`Pledge leaf index ${commitment.leafIndex} is out of bounds (tree has ${allCommitments.length} leaves).`);
+      }
+
+      // Verify commitment integrity (derived vs on-chain).
+      const calculated = hashCommitment(commitment.nullifier, commitment.secret, commitment.amount);
+      const onChain = allCommitments.find(c => c.leafIndex === commitment.leafIndex);
+      if (onChain && calculated !== onChain.commitment) {
+        throw new Error(`Pledge commitment integrity check failed at index ${commitment.leafIndex}.`);
+      }
+
+      // Build merkle tree (fast path from indexer state when available).
+      const tree = new MerkleTree(24);
+      if (treeState) {
+        const leaves = allCommitments.map(c => c.commitment);
+        tree.loadState(leaves, treeState.filledSubtrees, treeState.root);
+      } else {
+        for (const c of allCommitments) tree.insertAt(c.leafIndex, c.commitment);
+      }
+
+      const merkleProof = tree.getProof(commitment.leafIndex);
+      const nullifierHash = hashNullifier(commitment.nullifier, commitment.leafIndex);
+
+      const proofResult = await (proverRef.current as any).proveClaim({
+        merkleRoot: merkleProof.root,
+        nullifierHash,
+        amount: commitment.amount,
+        parcelId: BigInt(parcelId),
+        recipient,
+        nullifier: commitment.nullifier,
+        secret: commitment.secret,
+        pathElements: merkleProof.pathElements,
+        pathIndices: merkleProof.pathIndices,
+      });
+
+      const proof = Prover.formatProofForSolidity(proofResult.proof);
+      const pubSignals = (proofResult.publicSignals as string[]).map((s) => BigInt(s));
+
+      return {
+        proof,
+        pubSignals,
+        merkleRoot: merkleProof.root,
+        nullifierHash,
+        amount: commitment.amount,
+        recipient,
+      };
+    },
+    []
+  );
+
+  /**
    * Generate merge proof for privacy-preserving commitment consolidation
    * Combines two commitments into a single output commitment
    */
@@ -1144,6 +1240,7 @@ export function useZkProver() {
     generateClaimFeesProof,
     generateVoteProof,
     generatePledgeProof,
+    generateClaimProof,
     generateMergeProof,
   };
 }

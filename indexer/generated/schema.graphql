@@ -39,6 +39,12 @@ type Query {
   lpWithdrawalss(where: lpWithdrawalsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): lpWithdrawalsPage!
   lpFeeClaims(id: String!): lpFeeClaims
   lpFeeClaimss(where: lpFeeClaimsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): lpFeeClaimsPage!
+  pledgeCommitments(id: String!): pledgeCommitments
+  pledgeCommitmentss(where: pledgeCommitmentsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): pledgeCommitmentsPage!
+  pledgeNullifiers(id: String!): pledgeNullifiers
+  pledgeNullifierss(where: pledgeNullifiersFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): pledgeNullifiersPage!
+  pledgeClaims(id: String!): pledgeClaims
+  pledgeClaimss(where: pledgeClaimsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): pledgeClaimsPage!
   lpNullifiers(id: String!): lpNullifiers
   lpNullifierss(where: lpNullifiersFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): lpNullifiersPage!
   lpStats(id: String!): lpStats
@@ -971,6 +977,287 @@ input lpFeeClaimsFilter {
   recipient_ends_with: String
   recipient_not_starts_with: String
   recipient_not_ends_with: String
+  amount: String
+  amount_not: String
+  amount_in: [String]
+  amount_not_in: [String]
+  amount_contains: String
+  amount_not_contains: String
+  amount_starts_with: String
+  amount_ends_with: String
+  amount_not_starts_with: String
+  amount_not_ends_with: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
+  address: String
+  address_not: String
+  address_in: [String]
+  address_not_in: [String]
+  address_contains: String
+  address_not_contains: String
+  address_starts_with: String
+  address_ends_with: String
+  address_not_starts_with: String
+  address_not_ends_with: String
+}
+
+type pledgeCommitments {
+  id: String!
+  commitment: String!
+  leafIndex: BigInt!
+  parcelId: String!
+  note: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+  address: String!
+}
+
+type pledgeCommitmentsPage {
+  items: [pledgeCommitments!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input pledgeCommitmentsFilter {
+  AND: [pledgeCommitmentsFilter]
+  OR: [pledgeCommitmentsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  commitment: String
+  commitment_not: String
+  commitment_in: [String]
+  commitment_not_in: [String]
+  commitment_contains: String
+  commitment_not_contains: String
+  commitment_starts_with: String
+  commitment_ends_with: String
+  commitment_not_starts_with: String
+  commitment_not_ends_with: String
+  leafIndex: BigInt
+  leafIndex_not: BigInt
+  leafIndex_in: [BigInt]
+  leafIndex_not_in: [BigInt]
+  leafIndex_gt: BigInt
+  leafIndex_lt: BigInt
+  leafIndex_gte: BigInt
+  leafIndex_lte: BigInt
+  parcelId: String
+  parcelId_not: String
+  parcelId_in: [String]
+  parcelId_not_in: [String]
+  parcelId_contains: String
+  parcelId_not_contains: String
+  parcelId_starts_with: String
+  parcelId_ends_with: String
+  parcelId_not_starts_with: String
+  parcelId_not_ends_with: String
+  note: String
+  note_not: String
+  note_in: [String]
+  note_not_in: [String]
+  note_contains: String
+  note_not_contains: String
+  note_starts_with: String
+  note_ends_with: String
+  note_not_starts_with: String
+  note_not_ends_with: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
+  address: String
+  address_not: String
+  address_in: [String]
+  address_not_in: [String]
+  address_contains: String
+  address_not_contains: String
+  address_starts_with: String
+  address_ends_with: String
+  address_not_starts_with: String
+  address_not_ends_with: String
+}
+
+type pledgeNullifiers {
+  id: String!
+  transactionHash: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  address: String!
+}
+
+type pledgeNullifiersPage {
+  items: [pledgeNullifiers!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input pledgeNullifiersFilter {
+  AND: [pledgeNullifiersFilter]
+  OR: [pledgeNullifiersFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  address: String
+  address_not: String
+  address_in: [String]
+  address_not_in: [String]
+  address_contains: String
+  address_not_contains: String
+  address_starts_with: String
+  address_ends_with: String
+  address_not_starts_with: String
+  address_not_ends_with: String
+}
+
+type pledgeClaims {
+  id: String!
+  nullifierHash: String!
+  recipient: String!
+  parcelId: String!
+  amount: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+  address: String!
+}
+
+type pledgeClaimsPage {
+  items: [pledgeClaims!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input pledgeClaimsFilter {
+  AND: [pledgeClaimsFilter]
+  OR: [pledgeClaimsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  nullifierHash: String
+  nullifierHash_not: String
+  nullifierHash_in: [String]
+  nullifierHash_not_in: [String]
+  nullifierHash_contains: String
+  nullifierHash_not_contains: String
+  nullifierHash_starts_with: String
+  nullifierHash_ends_with: String
+  nullifierHash_not_starts_with: String
+  nullifierHash_not_ends_with: String
+  recipient: String
+  recipient_not: String
+  recipient_in: [String]
+  recipient_not_in: [String]
+  recipient_contains: String
+  recipient_not_contains: String
+  recipient_starts_with: String
+  recipient_ends_with: String
+  recipient_not_starts_with: String
+  recipient_not_ends_with: String
+  parcelId: String
+  parcelId_not: String
+  parcelId_in: [String]
+  parcelId_not_in: [String]
+  parcelId_contains: String
+  parcelId_not_contains: String
+  parcelId_starts_with: String
+  parcelId_ends_with: String
+  parcelId_not_starts_with: String
+  parcelId_not_ends_with: String
   amount: String
   amount_not: String
   amount_in: [String]

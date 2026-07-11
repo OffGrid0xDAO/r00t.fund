@@ -1,7 +1,12 @@
 import { ponder } from "@/generated";
 import { formatEther, formatUnits } from "viem";
 import { buildPoseidon } from "circomlibjs";
-import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats } from "../ponder.schema";
+import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats, pledgeCommitments, pledgeNullifiers, pledgeClaims } from "../ponder.schema";
+
+// Pledge vault indexing only registers when a real address is wired (matches the
+// PLEDGE_ENABLED guard in ponder.config.ts). Registering ponder.on() handlers for
+// an unconfigured contract makes Ponder throw, so both sides gate on this flag.
+const PLEDGE_ENABLED = /^0x[0-9a-fA-F]{40}$/.test(process.env.PONDER_PLEDGE_ADDRESS || "");
 
 // Pair address holds reserves (ethReserve, tokenReserve, getTokenPrice)
 // Trade events come from Router, but reserves live on Pair
@@ -134,25 +139,19 @@ async function updatePoolState(context: any, _eventAddress: string, blockNumber:
   }
 }
 
-// Reusable handler for NewCommitment events (from Pair or Router)
-async function handleNewCommitment({ event, context }: any) {
+// Insert a commitment leaf into the merkle tree state for `contractAddress`.
+// Shared by the zkAMM NewCommitment handler and the pledge PledgeCommitment
+// handler — both maintain a depth-24 Poseidon tree keyed by contract address so
+// the frontend can build proofs with the same MERKLE_TREE_STATE_QUERY.
+async function updateCommitmentTree(
+  db: any,
+  contractAddress: string,
+  commitment: bigint | string,
+  leafIndex: bigint | number,
+  blockNumber: bigint,
+  timestamp: bigint,
+) {
   await initPoseidon();
-  const { db } = context;
-  const { commitment, leafIndex, encryptedNote } = event.args;
-  const contractAddress = event.log.address.toLowerCase();
-
-  console.log(`[Ponder] Processing NewCommitment for ${contractAddress} at block ${event.block.number}`);
-
-  await db.insert(commitments).values({
-    id: event.log.id,
-    commitment: commitment.toString(),
-    leafIndex,
-    encryptedNote,
-    blockNumber: event.block.number,
-    timestamp: event.block.timestamp,
-    transactionHash: event.transaction.hash,
-    address: contractAddress,
-  });
 
   const existingState = await db.find(merkleTreeState, { id: contractAddress });
 
@@ -192,8 +191,8 @@ async function handleNewCommitment({ event, context }: any) {
   await db.insert(merkleRoots).values({
     id: newRoot.toString(),
     leafIndex: BigInt(newNextIndex - 1),
-    blockNumber: event.block.number,
-    timestamp: event.block.timestamp,
+    blockNumber,
+    timestamp,
   });
 
   if (existingState) {
@@ -202,7 +201,7 @@ async function handleNewCommitment({ event, context }: any) {
       currentRoot: newRoot.toString(),
       filledSubtrees: JSON.stringify(newFilledSubtrees.map(s => s.toString())),
       leaves: JSON.stringify(leaves),
-      updatedAt: event.block.timestamp,
+      updatedAt: timestamp,
     });
   } else {
     await db.insert(merkleTreeState).values({
@@ -211,7 +210,85 @@ async function handleNewCommitment({ event, context }: any) {
       currentRoot: newRoot.toString(),
       filledSubtrees: JSON.stringify(newFilledSubtrees.map(s => s.toString())),
       leaves: JSON.stringify(leaves),
-      updatedAt: event.block.timestamp,
+      updatedAt: timestamp,
+    });
+  }
+}
+
+// Reusable handler for NewCommitment events (from Pair or Router)
+async function handleNewCommitment({ event, context }: any) {
+  await initPoseidon();
+  const { db } = context;
+  const { commitment, leafIndex, encryptedNote } = event.args;
+  const contractAddress = event.log.address.toLowerCase();
+
+  console.log(`[Ponder] Processing NewCommitment for ${contractAddress} at block ${event.block.number}`);
+
+  await db.insert(commitments).values({
+    id: event.log.id,
+    commitment: commitment.toString(),
+    leafIndex,
+    encryptedNote,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+    address: contractAddress,
+  });
+
+  await updateCommitmentTree(db, contractAddress, commitment, leafIndex, event.block.number, event.block.timestamp);
+}
+
+// Pledge vault (anonymous plot funding, Phase C) — maintains its own commitment
+// tree keyed by the pledge vault address, plus a parcel-scoped commitment list and
+// a spent-nullifier set so the Portfolio can show claimable pledges.
+async function handlePledgeCommitment({ event, context }: any) {
+  const { db } = context;
+  const { commitment, leafIndex, parcelId, note } = event.args;
+  const contractAddress = event.log.address.toLowerCase();
+
+  console.log(`[Ponder] Processing PledgeCommitment for parcel ${parcelId} at block ${event.block.number}`);
+
+  await db.insert(pledgeCommitments).values({
+    id: event.log.id,
+    commitment: commitment.toString(),
+    leafIndex,
+    parcelId,
+    note: note || "0x",
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+    address: contractAddress,
+  });
+
+  await updateCommitmentTree(db, contractAddress, commitment, leafIndex, event.block.number, event.block.timestamp);
+}
+
+async function handlePledgeClaimed({ event, context }: any) {
+  const { db } = context;
+  const { nullifierHash, recipient, parcelId, amount } = event.args;
+  const contractAddress = event.log.address.toLowerCase();
+
+  await db.insert(pledgeClaims).values({
+    id: event.log.id,
+    nullifierHash: nullifierHash.toString(),
+    recipient,
+    parcelId,
+    amount: amount.toString(),
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+    address: contractAddress,
+  });
+
+  // Mark the pledge nullifier spent so the client can filter claimed pledges.
+  const existingNullifier = await db.find(pledgeNullifiers, { id: nullifierHash.toString() });
+  if (!existingNullifier) {
+    await db.insert(pledgeNullifiers).values({
+      id: nullifierHash.toString(),
+      transactionHash: event.transaction.hash,
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      address: contractAddress,
     });
   }
 }
@@ -536,3 +613,10 @@ ponder.on("ZkAMMPair:LPNullifierSpent", async ({ event, context }) => {
     address: event.log.address.toLowerCase(),
   });
 });
+
+// Pledge vault handlers — only registered when the pledge address is wired
+// (Phase C). Registering handlers for an unconfigured contract makes Ponder throw.
+if (PLEDGE_ENABLED) {
+  ponder.on("PledgeVault:PledgeCommitment", handlePledgeCommitment);
+  ponder.on("PledgeVault:PledgeClaimed", handlePledgeClaimed);
+}
