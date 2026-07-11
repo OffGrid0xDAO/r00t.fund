@@ -970,7 +970,7 @@ export function LiquidityPanel({
             args: {
               commitment: BigInt(position.commitment),
             },
-            fromBlock: 7131193n, // Robinhood Chain (4663) DEX deploy block
+            fromBlock: 7139981n, // Robinhood Chain (4663) DEX deploy block
             toBlock: 'latest',
           });
 

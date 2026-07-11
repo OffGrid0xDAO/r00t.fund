@@ -86,14 +86,14 @@ const TENDERLY_CONTRACTS = {
 
 // Robinhood Chain (4663) mainnet addresses — deployed 2026-07-11
 const ARBITRUM_CONTRACTS = {
-  zkAMM: '0x88bA7Fc1f28cc6A0F18bDd472c43b7C6B05a3c08',       // ZkAMMPair (private DEX)
-  zkAMMPair: '0x88bA7Fc1f28cc6A0F18bDd472c43b7C6B05a3c08',
-  zkAMMRouter: '0x3d2dB66FE7Ba8dD959ae696ec29494CB1bE0217B',
-  zkAMMAdmin: '0xb3f508Bf809d48C9575aB9A2a1c7B2c445E84D8F',
+  zkAMM: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',       // ZkAMMPair (private DEX)
+  zkAMMPair: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',
+  zkAMMRouter: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
+  zkAMMAdmin: '0x2fF206f68c68b49eBfE5D1c39B26281669bcB851',
   rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T
   tokenPool: '0x...',
   lpPool: '0x...',
-  nullifierRegistry: '0x18F8567ebbaF3678595Bcd3E88e7AB5cF226edaB',
+  nullifierRegistry: '0x39E35022a8591ad836472Fe234b0FEa8e505D9DD',
   launchpad: '0x...',
   tokenFactory: '0x...',
   poolFactory: '0x...',

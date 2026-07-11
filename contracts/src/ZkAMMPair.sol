@@ -753,6 +753,31 @@ contract ZkAMMPair is ReentrancyGuard {
         emit TokensRescued(to, amount);
     }
 
+    /// @notice Owner sets BOTH reserves in one call — re-liquify at any depth without redeploy.
+    ///         Send ETH (msg.value) to raise ethReserve; approve R00T to raise tokenReserve;
+    ///         decreases refund the owner. To change liquidity WITHOUT moving price, pass
+    ///         equal-ratio deltas (only safe when there are no in-flight trades).
+    event ReservesSet(uint256 ethReserve, uint256 tokenReserve);
+    function setReserves(uint256 newEth, uint256 newTokens) external payable onlyAdminOwner nonReentrant {
+        // ── ETH side ──
+        if (newEth > ethReserve) {
+            require(msg.value == newEth - ethReserve, "eth delta");
+        } else {
+            require(msg.value == 0, "no eth expected");
+            uint256 out = ethReserve - newEth;
+            if (out > 0) { (bool ok, ) = payable(msg.sender).call{value: out}(""); require(ok, "eth send"); }
+        }
+        ethReserve = newEth;
+        // ── ROOT side (owner must approve R00T to the pair for increases) ──
+        if (newTokens > tokenReserve) {
+            rootToken.safeTransferFrom(msg.sender, address(this), newTokens - tokenReserve);
+        } else if (newTokens < tokenReserve) {
+            rootToken.safeTransfer(msg.sender, tokenReserve - newTokens);
+        }
+        tokenReserve = newTokens;
+        emit ReservesSet(newEth, newTokens);
+    }
+
     function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {
         tokenPool.setAuthorizedCaller(caller, authorized);
     }
