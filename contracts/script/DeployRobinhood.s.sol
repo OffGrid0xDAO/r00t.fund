@@ -14,6 +14,7 @@ import {RealRemoveLiquidityVerifier} from "../src/verifiers/RealRemoveLiquidityV
 import {RealClaimLPFeesVerifier} from "../src/verifiers/RealClaimLPFeesVerifier.sol";
 import {RealSwapVerifier} from "../src/verifiers/RealSwapVerifier.sol";
 import {RealMergeVerifier} from "../src/verifiers/RealMergeVerifier.sol";
+import {RealDepositVerifier} from "../src/verifiers/RealDepositVerifier.sol";
 
 /// @notice Deploys the $R00T confidential-transfer private DEX to Robinhood Chain,
 ///         wired to an existing $R00T (ROOT_TOKEN). Resolves the Pair<->Admin
@@ -34,6 +35,11 @@ contract DeployRobinhood is Script {
         address s1 = vm.envOr("EMERGENCY_SIGNER_1", address(uint160(deployer) ^ uint160(1)));
         address s2 = vm.envOr("EMERGENCY_SIGNER_2", address(uint160(deployer) ^ uint160(2)));
 
+        // Swap fee to restore after bootstrap. Default 3% total, preserving the canonical
+        // 3:7 protocol:LP split (90 + 210 = 300 bps). Override via env for a different rate.
+        uint256 protocolBps = vm.envOr("PROTOCOL_FEE_BPS", uint256(90));
+        uint256 lpBps = vm.envOr("LP_FEE_BPS", uint256(210));
+
         vm.startBroadcast(pk);
 
         // 1) verifiers (each consumes one deployer nonce)
@@ -45,6 +51,10 @@ contract DeployRobinhood is Script {
         address claimV = address(new RealClaimLPFeesVerifier());
         address swapV = address(new RealSwapVerifier());
         address mergeV = address(new RealMergeVerifier());
+        // PHASE B (CRITICAL-1): deposit value-binding verifier. Wired below via
+        // setVerifierInitial("deposit", ...); the Router requires a deposit proof in
+        // depositPublic + buyPrivate so a note can never claim more R00T than was deposited.
+        address depositV = address(new RealDepositVerifier());
 
         // 2) predict the Pair address: Admin deploys at nonce `n`, Pair right after at `n+1`.
         //    (Pair's internal Poseidon/TokenPool CREATEs use the Pair's nonce, not the deployer's.)
@@ -68,9 +78,19 @@ contract DeployRobinhood is Script {
         admin.setVerifierInitial("claimLPFees", claimV);
         admin.setVerifierInitial("swap", swapV);
         admin.setVerifierInitial("merge", mergeV);
+        admin.setVerifierInitial("deposit", depositV); // PHASE B: CRITICAL-1 deposit-binding
 
-        // 7) global nullifier registry (double-spend guard)
+        // 7) global nullifier registry (double-spend guard, SHARED with the pledge rail).
+        //    Governance authorizes pools. If the deployer is governance we authorize the
+        //    Router now; otherwise the real governance must call setPoolAuthorization(router,true).
         NullifierRegistry nreg = new NullifierRegistry(gov);
+        router.setNullifierRegistry(address(nreg));
+        if (gov == deployer) {
+            nreg.setPoolAuthorization(address(router), true);
+        }
+
+        // 8) restore the trading fee (bootstrapLiquidity doesn't touch it; deployer is owner).
+        router.setFees(protocolBps, lpBps);
 
         vm.stopBroadcast();
 
@@ -80,8 +100,13 @@ contract DeployRobinhood is Script {
         console.log("  ZkAMMAdmin       :", address(admin));
         console.log("  ZkAMMRouter      :", address(router));
         console.log("  NullifierRegistry:", address(nreg));
+        console.log("  depositVerifier  :", depositV);
         console.log("  transferVerifier :", transferV);
         console.log("  withdrawVerifier :", withdrawV);
         console.log("  mergeVerifier    :", mergeV);
+        console.log("  fee (protocol/lp bps):", protocolBps, lpBps);
+        if (gov != deployer) {
+            console.log("  ACTION REQUIRED: governance must NullifierRegistry.setPoolAuthorization(router, true)");
+        }
     }
 }

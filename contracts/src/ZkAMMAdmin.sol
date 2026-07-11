@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./interfaces/IZkAMMPair.sol";
-import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier} from "./interfaces/IVerifier.sol";
+import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier, IDepositVerifier} from "./interfaces/IVerifier.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title ZkAMMAdmin
@@ -33,6 +33,10 @@ contract ZkAMMAdmin is ReentrancyGuard {
     IClaimLPFeesVerifier public claimLPFeesVerifier;
     ISwapVerifier public swapVerifier;
     IMergeVerifier public mergeVerifier;
+    /// @notice CRITICAL-1 fix: proves a note's value == the R00T actually deposited / bought.
+    ///         Wired post-deploy via setVerifierInitial("deposit", ...); the Router requires
+    ///         a deposit proof against this verifier in depositPublic + buyPrivate.
+    IDepositVerifier public depositVerifier;
     bool public verifiersLocked;
 
     // ============ Admin State ============
@@ -291,6 +295,9 @@ contract ZkAMMAdmin is ReentrancyGuard {
         } else if (typeHash == keccak256("merge")) {
             oldVerifier = address(mergeVerifier);
             mergeVerifier = IMergeVerifier(_newVerifier);
+        } else if (typeHash == keccak256("deposit")) {
+            oldVerifier = address(depositVerifier);
+            depositVerifier = IDepositVerifier(_newVerifier);
         } else {
             revert("Invalid verifier type");
         }
@@ -345,6 +352,9 @@ contract ZkAMMAdmin is ReentrancyGuard {
         } else if (typeHash == keccak256("merge")) {
             if (address(mergeVerifier) != address(0)) revert("Verifier already set - use proposeVerifierChange()");
             mergeVerifier = IMergeVerifier(_newVerifier);
+        } else if (typeHash == keccak256("deposit")) {
+            if (address(depositVerifier) != address(0)) revert("Verifier already set - use proposeVerifierChange()");
+            depositVerifier = IDepositVerifier(_newVerifier);
         } else {
             revert("Invalid verifier type");
         }

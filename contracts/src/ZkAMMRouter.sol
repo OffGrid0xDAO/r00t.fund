@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "./interfaces/IZkAMMPair.sol";
 import "./interfaces/IZkProjectPool.sol";
-import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier} from "./interfaces/IVerifier.sol";
+import {ISellVerifier, ITransferVerifier, IWithdrawVerifier, IAddLiquidityVerifier, IRemoveLiquidityVerifier, IClaimLPFeesVerifier, ISwapVerifier, IMergeVerifier, IDepositVerifier} from "./interfaces/IVerifier.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @notice Interface for Railgun proxy
@@ -14,6 +14,15 @@ interface IRailgunProxy {
         bytes encryptedRandom;
     }
     function shield(ShieldRequest[] calldata shieldRequests) external payable;
+}
+
+/// @notice Interface for the shared global nullifier registry (CRITICAL-2 fix).
+/// @dev ONE registry is shared by the zkAMM (this Router) and the pledge rail (Phase C)
+///      so a shielded R00T note can never be spent twice across domains (e.g. sold on
+///      the DEX AND pledged to a plot). The Router must be an authorized pool.
+interface INullifierRegistry {
+    function isSpent(uint256 nullifierHash) external view returns (bool);
+    function checkAndMark(uint256 nullifierHash) external returns (bool wasSpent);
 }
 
 /// @notice Interface for Admin contract
@@ -30,6 +39,7 @@ interface IZkAMMAdmin {
     function claimLPFeesVerifier() external view returns (IClaimLPFeesVerifier);
     function swapVerifier() external view returns (ISwapVerifier);
     function mergeVerifier() external view returns (IMergeVerifier);
+    function depositVerifier() external view returns (IDepositVerifier);
 }
 
 /// @title ZkAMMRouter
@@ -53,6 +63,17 @@ contract ZkAMMRouter is ReentrancyGuard {
 
     IZkAMMPair public immutable pair;
     IZkAMMAdmin public immutable admin;
+
+    // ============ Shared Nullifier Registry (CRITICAL-2) ============
+
+    /// @notice The ONE global nullifier registry shared with the pledge rail (Phase C).
+    /// @dev Set once post-deploy by the owner (governance must also authorize this Router
+    ///      as a pool in the registry). ALL note-spending ops (sell, sell-to-railgun,
+    ///      transfer, merge, withdraw, atomic-swap) check + mark nullifiers here — never in
+    ///      a Router/Pair-local mapping — so a note can't be double-spent across the DEX and
+    ///      the pledge/claim flow. LP and fee-claim nullifiers are a separate domain and stay
+    ///      in the Pair.
+    INullifierRegistry public nullifierRegistry;
 
     // ============ Project Pool Registry ============
 
@@ -104,6 +125,8 @@ contract ZkAMMRouter is ReentrancyGuard {
     error ClaimNullifierAlreadySpent();
     error PoolCooldownNotMet();
     error NothingToSweep();
+    error NullifierRegistryNotSet();
+    error NullifierRegistryAlreadySet();
 
     // ============ Modifiers ============
 
@@ -130,38 +153,108 @@ contract ZkAMMRouter is ReentrancyGuard {
         admin = IZkAMMAdmin(_admin);
     }
 
+    // ============ Nullifier Registry Wiring ============
+
+    event NullifierRegistrySet(address indexed registry);
+
+    /// @notice Wire the shared nullifier registry (one-time, owner-only).
+    /// @dev Must be paired with the registry's governance authorizing THIS Router as a pool
+    ///      (NullifierRegistry.setPoolAuthorization). Immutable-once so a later owner can't
+    ///      silently swap in a fresh (empty) registry and re-enable double-spends.
+    function setNullifierRegistry(address _registry) external onlyOwner {
+        if (_registry == address(0)) revert ZeroAddress();
+        if (address(nullifierRegistry) != address(0)) revert NullifierRegistryAlreadySet();
+        nullifierRegistry = INullifierRegistry(_registry);
+        emit NullifierRegistrySet(_registry);
+    }
+
+    /// @notice Fail-fast, read-only check that a note nullifier is unspent in the shared registry.
+    /// @dev Used before expensive proof verification for a clean revert; the authoritative
+    ///      spend happens in _spendNullifier (checkAndMark) after verification (CEI).
+    function _requireNullifierUnspent(uint256 nullifierHash) internal view {
+        INullifierRegistry reg = nullifierRegistry;
+        if (address(reg) == address(0)) revert NullifierRegistryNotSet();
+        if (reg.isSpent(nullifierHash)) revert NullifierAlreadySpent();
+    }
+
+    /// @notice Authoritatively mark a note nullifier spent in the SHARED registry.
+    /// @dev checkAndMark reverts if already spent (race-safe / atomic). This is the single
+    ///      choke point for all zkAMM note spends — there is no Pair-local bypass path.
+    function _spendNullifier(uint256 nullifierHash) internal {
+        INullifierRegistry reg = nullifierRegistry;
+        if (address(reg) == address(0)) revert NullifierRegistryNotSet();
+        reg.checkAndMark(nullifierHash);
+    }
+
     // ============ Buy Functions ============
 
+    /// @notice Buy R00T into a fresh shielded note, binding the note's value to the tokens
+    ///         actually delivered by the curve (CRITICAL-1 fix, buy path).
+    /// @dev DESIGN CHOICE — EXACT-OUT (pattern (a) in PHASE_B / AUDIT_ZK):
+    ///      The buy path can't bind a proof to a contract-computed `tokensOut` if that value
+    ///      is only known at execution. So the caller commits to an EXACT `tokensOut`, builds
+    ///      the note `newCommitment = Poseidon(nullifier, secret, tokensOut)`, and proves the
+    ///      deposit binding for it. The contract then computes the ETH required to deliver
+    ///      EXACTLY `tokensOut` off the current curve (reverse AMM + fees), pulls that from
+    ///      msg.value, and REFUNDS the remainder. `msg.value` is the max-in / slippage bound:
+    ///      if the curve moved and the buy would cost more than sent, it reverts. This makes
+    ///      the note's internal amount provably equal to the tokens the pool released — a note
+    ///      can never claim more R00T than was bought. (Commit→settle (b) was rejected: it needs
+    ///      a two-tx quote lock and extra trust in the quote block; exact-out is atomic + simpler.)
+    /// @param newCommitment Poseidon(nullifier, secret, tokensOut) — the note being inserted
+    /// @param tokensOut EXACT R00T to buy; MUST equal the amount bound inside `newCommitment`
+    /// @param binding Deposit-proof binding output = Poseidon(tokensOut, newCommitment)
+    /// @param depositProof Groth16 proof for the deposit-binding circuit
+    /// @param deadline Transaction deadline
+    /// @param encryptedNote Encrypted note for recovery (nullifier, secret, tokensOut)
     function buyPrivate(
         uint256 newCommitment,
-        uint256 minTokensOut,
+        uint256 tokensOut,
+        uint256 binding,
+        uint256[8] calldata depositProof,
         uint256 deadline,
         bytes calldata encryptedNote
     ) external payable nonReentrant notExpired(deadline) {
-        if (newCommitment == 0) revert ZeroAmount();
-        if (newCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (newCommitment == 0 || tokensOut == 0) revert ZeroAmount();
+        if (newCommitment >= SNARK_SCALAR_FIELD || binding >= SNARK_SCALAR_FIELD) revert InvalidProof();
         if (msg.value == 0) revert NoETH();
 
-        bytes32 commitmentBinding = keccak256(abi.encodePacked(newCommitment, msg.sender, msg.value));
-        pair.useCommitmentBinding(commitmentBinding);
+        // Front-running / duplicate-insert guard: this exact note (bound to msg.sender) can
+        // only be consumed once. Only the note owner can produce a valid deposit proof for
+        // `newCommitment`, so an observer cannot insert it; this just blocks replay/grief.
+        pair.useCommitmentBinding(keccak256(abi.encodePacked(newCommitment, msg.sender)));
 
-        uint256 protocolFee = (msg.value * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
-        uint256 lpFee = (msg.value * LP_FEE_BPS) / FEE_DENOMINATOR;
-        uint256 amountAfterFees = msg.value - protocolFee - lpFee;
-
+        // Reverse AMM: ETH required to release EXACTLY `tokensOut`, then fees on the raw ETH.
         (uint256 ethReserve, uint256 tokenReserve) = pair.getReserves();
-        uint256 tokensOut = _getAmountOutRaw(amountAfterFees, ethReserve, tokenReserve);
-        if (tokensOut < minTokensOut) revert SlippageExceeded();
+        if (tokensOut >= tokenReserve) revert InsufficientLiquidity();
+        uint256 ethInRaw = (ethReserve * tokensOut) / (tokenReserve - tokensOut) + 1; // round up, favor pool
+        uint256 protocolFee = (ethInRaw * PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 lpFee = (ethInRaw * LP_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 ethRequired = ethInRaw + protocolFee + lpFee;
+        // msg.value is the max-in / slippage bound for an exact-out buy.
+        if (msg.value < ethRequired) revert SlippageExceeded();
 
-        pair.updateReserves(amountAfterFees, tokensOut, true);
+        // CRITICAL-1: bind the note's value to the tokens the curve is about to release.
+        IDepositVerifier dv = admin.depositVerifier();
+        if (address(dv) == address(0)) revert InvalidProof();
+        uint256[3] memory pub = [binding, tokensOut, newCommitment];
+        if (!dv.verifyProof(depositProof, pub)) revert InvalidProof();
+
+        // Effects (CEI): only the raw ETH enters the curve; fees are tracked separately.
+        pair.updateReserves(ethInRaw, tokensOut, true);
         pair.addProtocolFees(protocolFee);
         pair.distributeLPFees(lpFee);
         pair.insertCommitment(newCommitment, encryptedNote);
 
-        (bool success, ) = address(pair).call{value: msg.value}("");
+        // Move the ETH actually used to the pair, then refund any excess to the buyer.
+        (bool success, ) = address(pair).call{value: ethRequired}("");
         if (!success) revert TransferFailed();
+        if (msg.value > ethRequired) {
+            (bool refunded, ) = payable(msg.sender).call{value: msg.value - ethRequired}("");
+            if (!refunded) revert TransferFailed();
+        }
 
-        emit TokensPurchased(msg.value, tokensOut, protocolFee, lpFee);
+        emit TokensPurchased(ethRequired, tokensOut, protocolFee, lpFee);
     }
 
     // ============ Sell Functions ============
@@ -183,7 +276,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         if (merkleRoot >= SNARK_SCALAR_FIELD || nullifierHash >= SNARK_SCALAR_FIELD || changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
         if (publicInputsBinding >= SNARK_SCALAR_FIELD) revert InvalidProof();
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-        if (pair.isNullifierSpent(nullifierHash)) revert NullifierAlreadySpent();
+        _requireNullifierUnspent(nullifierHash);
 
         // CRITICAL FIX: pubSignals order must match circuit output order
         // Circuit outputs: [publicInputsBinding, merkleRoot, nullifierHash, tokenAmount, minEthOut, recipient, relayer, fee, changeCommitment]
@@ -201,7 +294,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         if (fee > ethAfterFees) revert ExcessiveFee();
         if (ethAfterFees - fee < minEthOut) revert SlippageExceeded();
 
-        pair.markNullifierSpent(nullifierHash);
+        _spendNullifier(nullifierHash);
         // SECURITY FIX (Vuln 11): Only decrement ethReserve by ethAfterFees (amount leaving pool)
         // Protocol/LP fees stay in the pool and are tracked separately
         pair.updateReserves(ethAfterFees, tokenAmount, false);
@@ -239,7 +332,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         address railgunProxyAddr = admin.railgunProxy();
         if (railgunProxyAddr == address(0)) revert RailgunNotConfigured();
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-        if (pair.isNullifierSpent(nullifierHash)) revert NullifierAlreadySpent();
+        _requireNullifierUnspent(nullifierHash);
 
         // CRITICAL FIX: pubSignals order must match circuit output order
         // Circuit outputs: [publicInputsBinding, merkleRoot, nullifierHash, tokenAmount, minEthOut, recipient(0), relayer(0), fee(0), changeCommitment]
@@ -255,7 +348,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         uint256 ethAfterFees = ethOutRaw - protocolFee - lpFee;
         if (ethAfterFees < minEthOut) revert SlippageExceeded();
 
-        pair.markNullifierSpent(nullifierHash);
+        _spendNullifier(nullifierHash);
         // SECURITY FIX (Vuln 11): Only decrement ethReserve by ethAfterFees
         pair.updateReserves(ethAfterFees, tokenAmount, false);
         pair.addProtocolFees(protocolFee);
@@ -298,12 +391,12 @@ contract ZkAMMRouter is ReentrancyGuard {
     ) external nonReentrant notExpired(deadline) {
         if (merkleRoot >= SNARK_SCALAR_FIELD || nullifierHash >= SNARK_SCALAR_FIELD || recipientCommitment >= SNARK_SCALAR_FIELD || changeCommitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-        if (pair.isNullifierSpent(nullifierHash)) revert NullifierAlreadySpent();
+        _requireNullifierUnspent(nullifierHash);
 
         uint256[4] memory pubSignals = [merkleRoot, nullifierHash, recipientCommitment, changeCommitment];
         if (!admin.transferVerifier().verifyProof(proof, pubSignals)) revert InvalidProof();
 
-        pair.markNullifierSpent(nullifierHash);
+        _spendNullifier(nullifierHash);
         pair.insertCommitment(recipientCommitment, recipientNote);
 
         if (changeCommitment != 0) {
@@ -348,9 +441,9 @@ contract ZkAMMRouter is ReentrancyGuard {
         // Verify merkle root is known
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
 
-        // Check neither nullifier has been spent
-        if (pair.isNullifierSpent(nullifierHash1)) revert NullifierAlreadySpent();
-        if (pair.isNullifierSpent(nullifierHash2)) revert NullifierAlreadySpent();
+        // Check neither nullifier has been spent (shared registry — CRITICAL-2)
+        _requireNullifierUnspent(nullifierHash1);
+        _requireNullifierUnspent(nullifierHash2);
 
         // Get the merge verifier
         IMergeVerifier verifier = admin.mergeVerifier();
@@ -361,9 +454,9 @@ contract ZkAMMRouter is ReentrancyGuard {
         uint256[5] memory pubSignals = [merkleRoot, nullifierHash1, nullifierHash2, outputCommitment, publicInputsBinding];
         if (!verifier.verifyProof(proof, pubSignals)) revert InvalidProof();
 
-        // Mark both nullifiers as spent
-        pair.markNullifierSpent(nullifierHash1);
-        pair.markNullifierSpent(nullifierHash2);
+        // Mark both nullifiers as spent (shared registry — CRITICAL-2)
+        _spendNullifier(nullifierHash1);
+        _spendNullifier(nullifierHash2);
 
         // Insert the new merged commitment
         pair.insertCommitment(outputCommitment, encryptedNote);
@@ -384,7 +477,7 @@ contract ZkAMMRouter is ReentrancyGuard {
     ) external nonReentrant notExpired(deadline) {
         if (merkleRoot >= SNARK_SCALAR_FIELD || nullifierHash >= SNARK_SCALAR_FIELD) revert InvalidProof();
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-        if (pair.isNullifierSpent(nullifierHash)) revert NullifierAlreadySpent();
+        _requireNullifierUnspent(nullifierHash);
         if (recipient == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -393,7 +486,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         uint256[5] memory pubSignals = [recipientBinding, merkleRoot, nullifierHash, amount, uint256(uint160(recipient))];
         if (!admin.withdrawVerifier().verifyProof(proof, pubSignals)) revert InvalidProof();
 
-        pair.markNullifierSpent(nullifierHash);
+        _spendNullifier(nullifierHash);
         pair.withdrawROOT(recipient, amount);
 
         emit PublicWithdrawal(nullifierHash, recipient, amount);
@@ -410,10 +503,18 @@ contract ZkAMMRouter is ReentrancyGuard {
     /// @param commitment The commitment hash (created client-side with nullifier, secret, amount)
     /// @param depositorBinding Hash binding commitment to depositor for front-running protection
     /// @param encryptedNote Encrypted note for commitment recovery (contains nullifier, secret, amount)
+    /// @param amount Amount of ROOT tokens to deposit (contract pulls EXACTLY this)
+    /// @param commitment The note commitment = Poseidon(nullifier, secret, amount)
+    /// @param depositorBinding keccak256(commitment, msg.sender, amount) — front-running guard
+    /// @param binding Deposit-proof binding output = Poseidon(amount, commitment)
+    /// @param depositProof Groth16 proof for the deposit-binding circuit
+    /// @param encryptedNote Encrypted note for recovery (nullifier, secret, amount)
     function depositPublic(
         uint256 amount,
         uint256 commitment,
         bytes32 depositorBinding,
+        uint256 binding,
+        uint256[8] calldata depositProof,
         bytes calldata encryptedNote
     ) external nonReentrant {
         // Input validation
@@ -423,6 +524,16 @@ contract ZkAMMRouter is ReentrancyGuard {
         // Commitments >= SNARK_SCALAR_FIELD cannot be spent via ZK proofs
         // This prevents users from accidentally locking their tokens forever
         if (commitment >= SNARK_SCALAR_FIELD) revert InvalidProof();
+        if (binding >= SNARK_SCALAR_FIELD) revert InvalidProof();
+
+        // CRITICAL-1: prove the note's baked-in amount == the R00T actually being deposited.
+        // Without this a depositor could insert Poseidon(n, s, 10_000_000e18) while pulling 1
+        // R00T, then withdraw 10M and drain the shielded pool. `amount` here is exactly what the
+        // pair pulls via safeTransferFrom below, so binding amount==deposit closes the forgery.
+        IDepositVerifier dv = admin.depositVerifier();
+        if (address(dv) == address(0)) revert InvalidProof();
+        uint256[3] memory pub = [binding, amount, commitment];
+        if (!dv.verifyProof(depositProof, pub)) revert InvalidProof();
 
         // Call pair's depositPublic - it will verify depositorBinding and transfer tokens
         uint256 leafIndex = pair.depositPublic(
@@ -460,7 +571,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         if (tokenAmount == 0) revert ZeroAmount();
         if (userLpShares == 0) revert InvalidLPShares();
         if (!pair.isKnownRoot(merkleRoot)) revert UnknownMerkleRoot();
-        if (pair.isNullifierSpent(nullifierHash)) revert NullifierAlreadySpent();
+        _requireNullifierUnspent(nullifierHash);
 
         uint256 protocolFee = (msg.value * LP_ADD_PROTOCOL_FEE_BPS) / FEE_DENOMINATOR;
         uint256 ethAfterFee = msg.value - protocolFee;
@@ -500,7 +611,7 @@ contract ZkAMMRouter is ReentrancyGuard {
 
         (, , , bool isWithdrawn, ) = pair.getLPCommitmentInfo(lpCommitment);
 
-        pair.markNullifierSpent(nullifierHash);
+        _spendNullifier(nullifierHash);
         pair.addProtocolFees(protocolFee);
         pair.updateReserves(ethAfterFee, 0, true);    // ETH goes into pool
         pair.updateReserves(0, tokenAmount, false);   // Tokens go into pool (from user's commitment)
@@ -814,7 +925,7 @@ contract ZkAMMRouter is ReentrancyGuard {
         pair.updateReserves(ethAfterFees, r00tAmount, true);
         pair.addProtocolFees(protocolFee);
         pair.distributeLPFees(lpFee);
-        pair.markNullifierSpent(r00tNullifier);
+        _spendNullifier(r00tNullifier);
 
         (bool success, ) = address(pair).call{value: msg.value}("");
         if (!success) revert TransferFailed();

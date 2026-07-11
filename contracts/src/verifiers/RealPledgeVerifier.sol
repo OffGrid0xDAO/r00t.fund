@@ -15,10 +15,10 @@ contract RealPledgeVerifier is IPledgeVerifier {
 
     /// @notice Verifies a pledge proof
     /// @param proof The proof array [a[0], a[1], b[0][0], b[0][1], b[1][0], b[1][1], c[0], c[1]]
-    /// @param pubSignals [publicInputsBinding, merkleRoot, nullifierHash, pledgeAmount, creator] (Circom output first)
+    /// @param pubSignals [pledgeCommitment, publicInputsBinding, merkleRoot, nullifierHash, pledgeAmount, parcelId, creator] (Circom outputs first)
     function verifyProof(
         uint256[8] calldata proof,
-        uint256[5] calldata pubSignals
+        uint256[7] calldata pubSignals
     ) external view override returns (bool) {
         // Unpack proof into snarkjs format
         uint[2] memory pA = [proof[0], proof[1]];
