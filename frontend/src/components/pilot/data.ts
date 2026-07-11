@@ -16,21 +16,21 @@ export const CROPS: Crop[] = [
   { id: 'turnip', label: 'Turnip', ticker: 'TURNIP', emoji: '🥬', note: 'Hardy winter root, breaks compacted burned soil' },
   { id: 'potato', label: 'Potato', ticker: 'SPUD', emoji: '🥔', note: 'Pioneer tuber — feeds the crew while the canopy grows' },
   { id: 'bean', label: 'Bean & pea', ticker: 'BEAN', emoji: '🫘', note: 'Nitrogen fixers — rebuild the burned soil for free' },
-  { id: 'squash', label: 'Squash', ticker: 'SQUASH', emoji: '🎃', note: 'Ground-cover sprawl, holds moisture and shades the soil' },
-  { id: 'fig', label: 'Fig & almond', ticker: 'FIG', emoji: '🪺', note: 'Fast pioneer fruit, early yield while the canopy grows' },
-  { id: 'vine', label: 'Vine & berry', ticker: 'VINE', emoji: '🍇', note: 'Ground & climbing layer, holds moisture' },
+  { id: 'squash', label: 'Pumpkin & squash', ticker: 'PUMP', emoji: '🎃', note: 'Ground-cover sprawl, holds moisture and shades the soil' },
+  { id: 'fig', label: 'Fig & almond', ticker: 'FIG', emoji: '🫒', note: 'Fast pioneer fruit, early yield while the canopy grows' },
+  { id: 'vine', label: 'Vine & berry', ticker: 'BERRY', emoji: '🫐', note: 'Ground & climbing layer, holds moisture' },
   { id: 'herb', label: 'Aromatic herbs', ticker: 'HERB', emoji: '🌿', note: 'Rosemary, thyme, lavender — pollinators + fire-wise cover' },
-  { id: 'wachuma', label: 'Wachuma cactus', ticker: 'WACHUMA', emoji: '🌵', note: 'Ornamental columnar cactus line — drought-proof living fence, legal as ornamental' },
+  { id: 'wachuma', label: 'Cactus', ticker: 'CACTUS', emoji: '🌵', note: 'Ornamental columnar cactus line — drought-proof living fence, legal as ornamental' },
 ];
 
 // Non-crop parcel identities (water / structure zones) — still tokenised.
 const WATER_TOKENS = [
-  { ticker: 'SWALE', name: 'Spring Swale', emoji: '💧' },
-  { ticker: 'POND', name: 'Catchment Pond', emoji: '🌊' },
+  { ticker: 'DRIP', name: 'Spring Swale', emoji: '💧' },
+  { ticker: 'POND', name: 'Catchment Pond', emoji: '🐸' },
 ];
 const STRUCTURE_TOKENS = [
-  { ticker: 'STONE', name: 'Upper Terrace & Access', emoji: '⛰️' },
-  { ticker: 'BARN', name: 'Tool Barn & Track', emoji: '🏚️' },
+  { ticker: 'ROCK', name: 'Upper Terrace & Access', emoji: '🪨' },
+  { ticker: 'HAY', name: 'Tool Barn & Track', emoji: '🌾' },
 ];
 // order syntropic parcels cycle through their crop cultures
 const CULTURE_ORDER = ['oak', 'chestnut', 'carrot', 'turnip', 'vine', 'potato', 'bean', 'herb', 'squash', 'fig'];

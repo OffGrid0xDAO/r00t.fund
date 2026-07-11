@@ -21,7 +21,7 @@ contract NullifierRegistry {
 
     /// @notice Timelock duration for governance changes (TESTNET: 1 minute)
     /// @dev SECURITY FIX (Audit Vuln 4): Prevents instant governance takeover if owner is compromised
-    uint256 public constant GOVERNANCE_TIMELOCK = 1 minutes; // TESTNET: Changed from 48 hours for testing
+    uint256 public GOVERNANCE_TIMELOCK = 1 minutes; // mutable — raise toward 48h for mainnet via setGovernanceTimelock
     // ============ State Variables ============
 
     /// @notice Mapping of spent nullifier hashes
@@ -51,7 +51,7 @@ contract NullifierRegistry {
 
     /// @notice Cooldown period before newly authorized pools can mark nullifiers (TESTNET: 1 minute)
     /// @dev SECURITY FIX (Audit Vuln 5): Prevents instant griefing if governance is compromised
-    uint256 public constant POOL_AUTHORIZATION_COOLDOWN = 1 minutes; // TESTNET: Changed from 24 hours for testing
+    uint256 public POOL_AUTHORIZATION_COOLDOWN = 1 minutes; // mutable — raise toward 24h for mainnet via setPoolAuthorizationCooldown
 
     /// @notice Contract owner (can authorize new pools)
     address public owner;
@@ -240,6 +240,17 @@ contract NullifierRegistry {
             }
             emit PoolAuthorized(pools[i], authorized);
         }
+    }
+
+    /// @notice Adjust timelock/cooldown durations (bounded 1 min .. 30 days).
+    /// @dev Lets us ship short and harden toward 48h/24h post-launch without a redeploy.
+    function setGovernanceTimelock(uint256 v) external onlyOwner {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        GOVERNANCE_TIMELOCK = v;
+    }
+    function setPoolAuthorizationCooldown(uint256 v) external onlyOwner {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        POOL_AUTHORIZATION_COOLDOWN = v;
     }
 
     /// @notice Propose a new owner address (starts timelock)

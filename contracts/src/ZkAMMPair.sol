@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface IAdminOwner { function owner() external view returns (address); }
+
 /// @title ZkAMMPair
 /// @author r00t.fund
 /// @notice Core state and low-level operations for ZkAMM (like UniswapV2Pair)
@@ -27,8 +29,8 @@ contract ZkAMMPair is ReentrancyGuard {
     /// @notice BN254 scalar field size for SNARK commitments
     uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
-    /// @notice LP lock period to prevent flash LP attacks (TESTNET: 1 minute)
-    uint256 public constant LP_LOCK_PERIOD = 1 minutes; // TESTNET: Changed from 24 hours for testing
+    /// @notice LP lock period to prevent flash LP attacks. Mutable — raise toward 24h for mainnet.
+    uint256 public LP_LOCK_PERIOD = 1 minutes;
 
     /// @notice Scaling factor for fee per share calculations (1e18)
     uint256 public constant FEE_PRECISION = 1e18;
@@ -720,6 +722,62 @@ contract ZkAMMPair is ReentrancyGuard {
     }
 
     /// @notice Authorize a caller in tokenPool (for project pools)
+    /// @notice Adjust the LP lock period (bounded 1 min .. 30 days). Ship short, harden later.
+    function setLpLockPeriod(uint256 v) external onlyAdmin {
+        require(v >= 1 minutes && v <= 30 days, "range");
+        LP_LOCK_PERIOD = v;
+    }
+
+    // ── owner rescue: ETH (and ROOT) can never be permanently stuck in the AMM ──
+    modifier onlyAdminOwner() {
+        require(msg.sender == IAdminOwner(admin).owner(), "not admin owner");
+        _;
+    }
+    event ETHRescued(address indexed to, uint256 amount);
+    event TokensRescued(address indexed to, uint256 amount);
+
+    /// @notice Owner withdraws ETH from the AMM reserve. Always available.
+    function rescueETH(address to, uint256 amount) external onlyAdminOwner nonReentrant {
+        require(to != address(0), "zero to");
+        require(amount <= ethReserve, "exceeds reserve");
+        ethReserve -= amount;
+        (bool ok, ) = payable(to).call{value: amount}("");
+        require(ok, "eth send failed");
+        emit ETHRescued(to, amount);
+    }
+
+    /// @notice Owner withdraws ROOT tokens from the pair (e.g. unused reserve backing).
+    function rescueTokens(address to, uint256 amount) external onlyAdminOwner nonReentrant {
+        require(to != address(0), "zero to");
+        rootToken.safeTransfer(to, amount);
+        emit TokensRescued(to, amount);
+    }
+
+    /// @notice Owner sets BOTH reserves in one call — re-liquify at any depth without redeploy.
+    ///         Send ETH (msg.value) to raise ethReserve; approve R00T to raise tokenReserve;
+    ///         decreases refund the owner. To change liquidity WITHOUT moving price, pass
+    ///         equal-ratio deltas (only safe when there are no in-flight trades).
+    event ReservesSet(uint256 ethReserve, uint256 tokenReserve);
+    function setReserves(uint256 newEth, uint256 newTokens) external payable onlyAdminOwner nonReentrant {
+        // ── ETH side ──
+        if (newEth > ethReserve) {
+            require(msg.value == newEth - ethReserve, "eth delta");
+        } else {
+            require(msg.value == 0, "no eth expected");
+            uint256 out = ethReserve - newEth;
+            if (out > 0) { (bool ok, ) = payable(msg.sender).call{value: out}(""); require(ok, "eth send"); }
+        }
+        ethReserve = newEth;
+        // ── ROOT side (owner must approve R00T to the pair for increases) ──
+        if (newTokens > tokenReserve) {
+            rootToken.safeTransferFrom(msg.sender, address(this), newTokens - tokenReserve);
+        } else if (newTokens < tokenReserve) {
+            rootToken.safeTransfer(msg.sender, tokenReserve - newTokens);
+        }
+        tokenReserve = newTokens;
+        emit ReservesSet(newEth, newTokens);
+    }
+
     function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {
         tokenPool.setAuthorizedCaller(caller, authorized);
     }

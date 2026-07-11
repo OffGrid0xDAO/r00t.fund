@@ -25,7 +25,8 @@ export const NETWORK = {
   rpcUrl: (import.meta.env.VITE_RPC_URL as string) || 'https://rpc.mainnet.chain.robinhood.com',
   explorerUrl: 'https://robinhoodchain.blockscout.com',
   explorerName: 'Blockscout',
-  indexerUrl: '',
+  // Ponder indexer (finds commitments + builds merkle proofs). Run `PONDER_NETWORK=robinhood`.
+  indexerUrl: (import.meta.env.VITE_INDEXER_URL as string) || 'http://localhost:42069',
   isTestnet: false,
 } as const;
 
@@ -83,16 +84,16 @@ const TENDERLY_CONTRACTS = {
   compliantPrivateVault: '0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49',
 } as const;
 
-// Arbitrum mainnet fallback addresses (update when deployed)
+// Robinhood Chain (4663) mainnet addresses — deployed 2026-07-11
 const ARBITRUM_CONTRACTS = {
-  zkAMM: '0xc7E7fD3bC101621F588a3A47cf03343BFAC05451',
-  zkAMMPair: '0x...',
-  zkAMMRouter: '0x...',
-  zkAMMAdmin: '0x...',
-  rootToken: '0x...',
+  zkAMM: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',       // ZkAMMPair (private DEX)
+  zkAMMPair: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',
+  zkAMMRouter: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
+  zkAMMAdmin: '0x2fF206f68c68b49eBfE5D1c39B26281669bcB851',
+  rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T
   tokenPool: '0x...',
   lpPool: '0x...',
-  nullifierRegistry: '0x...',
+  nullifierRegistry: '0x39E35022a8591ad836472Fe234b0FEa8e505D9DD',
   launchpad: '0x...',
   tokenFactory: '0x...',
   poolFactory: '0x...',
@@ -124,7 +125,8 @@ export const CONTRACTS = {
   // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
   parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
   // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
-  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x...',
+  // Robinhood Chain (4663) deploy 2026-07-11.
+  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x849F8d78A1D8EA9cDa277Fb1f410E55272bD241D',
   // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
   poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).

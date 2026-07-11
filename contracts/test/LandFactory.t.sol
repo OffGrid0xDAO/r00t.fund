@@ -92,7 +92,7 @@ contract LandFactoryTest is Test {
         assertGt(root.balanceOf(address(manager)), 0, "pool holds R00T");
     }
 
-    function test_pledge_mintsParcelToken_atLivePoolPrice() public {
+    function test_pledge_mintsParcelToken_atOtcRate() public {
         (Land land, ParcelToken oak) = _createValidatedLandWithParcel();
         vm.prank(steward);
         land.seedParcelLiquidity(PARCEL, SQRT_1_1, 40_000e18, 40_000e18);
@@ -100,11 +100,12 @@ contract LandFactoryTest is Test {
         usdc.mint(backer, 100e6);
         vm.startPrank(backer);
         usdc.approve(address(land), 100e6);
-        land.pledgeUSDC(PARCEL, 100e6); // $100 → 1000 R00T @ $0.10 → 1000 OAK @ price 1
+        // $100 → 1000 R00T @ $0.10 → 1000 OAK @ mintRate 1e18
+        land.pledgeUSDC(PARCEL, 100e6, 1000e18, block.timestamp);
         vm.stopPrank();
 
         assertEq(usdc.balanceOf(treasury), 100e6, "100% to treasury");
-        assertApproxEqRel(oak.balanceOf(backer), 1000e18, 1e15, "minted at pool price (~1000 OAK)");
+        assertEq(oak.balanceOf(backer), 1000e18, "minted at OTC rate (1000 OAK)");
     }
 
     function test_pledge_beforeSeed_reverts() public {
@@ -113,7 +114,7 @@ contract LandFactoryTest is Test {
         vm.startPrank(backer);
         usdc.approve(address(land), 100e6);
         vm.expectRevert(Land.NotSeeded.selector);
-        land.pledgeUSDC(PARCEL, 100e6);
+        land.pledgeUSDC(PARCEL, 100e6, 0, block.timestamp);
         vm.stopPrank();
     }
 

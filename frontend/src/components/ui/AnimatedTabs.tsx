@@ -123,7 +123,7 @@ export function AnimatedTabs({
               ${fullWidth ? 'flex-1' : ''}
               ${
                 activeTab === getTabKey(tab)
-                  ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-glow-sm'
+                  ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-glow-sm'
                   : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }
             `}

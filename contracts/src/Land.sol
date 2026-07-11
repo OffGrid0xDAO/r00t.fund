@@ -52,7 +52,8 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     address public treasury;          // receives pledges (regeneration capital)
     address public protocolTreasury;  // receives the protocol's 30% of pool fees
     uint256 public ethPriceE6;        // USD/ETH, 6dp (Chainlink feed or owner-set)
-    uint256 public rootPriceE6;       // USD/$R00T, 6dp (owner-set until a R00T base pool/feed exists)
+    uint256 public rootPriceE6;       // USD/$R00T, 6dp (steward-set OTC price)
+    uint256 public mintRateE18 = 1e18; // parcel tokens minted per 1 R00T-equivalent (18dp). Steward-set OTC rate.
     uint256 public bonusBps = 15000;  // early-bird multiplier — applies to reward POINTS only, never token mint
     uint256 public round;
 
@@ -114,6 +115,8 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     error NotValidated();
     error NotPoolManager();
     error ZeroAmount();
+    error Expired();
+    error Slippage();
     error EthTransferFailed();
     error Exists();
     error NotSeeded();
@@ -204,28 +207,41 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
         emit PoolSeeded(parcelId, sqrtPriceX96, rootUsed, parcelMinted, liquidity);
     }
 
-    // ── pledging: 100% to treasury, mint parcel token at the LIVE pool price ──
-    function pledgeETH(bytes32 parcelId) external payable nonReentrant whenNotPaused onlyValidated {
+    // ── pledging: 100% to treasury, mint parcel token at the steward's OTC rate ──
+    /// @dev No live pool price is read — parcelOut is fixed by rootPriceE6 + mintRateE18
+    ///      (steward OTC terms), so it cannot be manipulated by moving the pool. Patrons
+    ///      realize the OTC $R00T deal later by SELLING the parcel token into its pool.
+    ///      `minParcelOut`/`deadline` protect the patron against a steward rate change
+    ///      landing between quote and execution.
+    function pledgeETH(bytes32 parcelId, uint256 minParcelOut, uint256 deadline)
+        external payable nonReentrant whenNotPaused onlyValidated
+    {
+        if (block.timestamp > deadline) revert Expired();
         if (msg.value == 0) revert ZeroAmount();
         uint256 usd6 = (msg.value * ethPriceE6) / 1e18;
-        _record(parcelId, address(0), msg.value, usd6);
+        _record(parcelId, address(0), msg.value, usd6, minParcelOut);
         (bool ok, ) = treasury.call{value: msg.value}("");
         if (!ok) revert EthTransferFailed();
     }
 
-    function pledgeUSDC(bytes32 parcelId, uint256 amount) external nonReentrant whenNotPaused onlyValidated {
+    function pledgeUSDC(bytes32 parcelId, uint256 amount, uint256 minParcelOut, uint256 deadline)
+        external nonReentrant whenNotPaused onlyValidated
+    {
+        if (block.timestamp > deadline) revert Expired();
         if (amount == 0) revert ZeroAmount();
         usdc.safeTransferFrom(msg.sender, treasury, amount);
-        _record(parcelId, address(usdc), amount, amount);
+        _record(parcelId, address(usdc), amount, amount, minParcelOut);
     }
 
-    function _record(bytes32 parcelId, address token, uint256 amount, uint256 usd6) internal {
+    function _record(bytes32 parcelId, address token, uint256 amount, uint256 usd6, uint256 minParcelOut) internal {
         Parcel storage p = _parcels[parcelId];
         if (!p.poolInit) revert NotSeeded();
 
-        // value the pledge in $R00T, then in parcel tokens at the live pool price
+        // value the pledge in $R00T at the steward OTC price, then in parcel tokens at
+        // the steward OTC mint rate. Deterministic — not a function of live pool state.
         uint256 rootEq = FullMath.mulDiv(usd6, 1e18, rootPriceE6);
-        uint256 parcelOut = _parcelOutForRoot(p, rootEq);
+        uint256 parcelOut = FullMath.mulDiv(rootEq, mintRateE18, 1e18);
+        if (parcelOut < minParcelOut) revert Slippage();
 
         uint256 points = (usd6 * bonusBps) / 10000; // reward ledger only (future $R00T airdrop)
         totalRaisedUsd6 += usd6;
@@ -234,18 +250,6 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
 
         p.token.mint(msg.sender, parcelOut);
         emit Pledged(msg.sender, parcelId, token, amount, usd6, parcelOut, points, round);
-    }
-
-    /// @dev parcel tokens per `rootEq` $R00T, read from the pool's sqrtPrice.
-    function _parcelOutForRoot(Parcel storage p, uint256 rootEq) internal view returns (uint256) {
-        (uint160 sp,,,) = poolManager.getSlot0(p.key.toId());
-        if (p.rootIsCurrency0) {
-            // parcel is token1; price(token1/token0) = (sp/Q96)^2 → parcelOut = rootEq * price
-            return FullMath.mulDiv(FullMath.mulDiv(rootEq, sp, Q96), sp, Q96);
-        } else {
-            // parcel is token0; parcelOut = rootEq / price
-            return FullMath.mulDiv(FullMath.mulDiv(rootEq, Q96, sp), Q96, sp);
-        }
     }
 
     // ── collect pool trading fees, split 70/30 steward/protocol ──
@@ -341,6 +345,8 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     function setTreasury(address t) external onlySteward { require(t != address(0), "0"); treasury = t; }
     function setEthPrice(uint256 pE6) external onlySteward { ethPriceE6 = pE6; }
     function setRootPrice(uint256 pE6) external onlySteward { require(pE6 > 0, "0"); rootPriceE6 = pE6; }
+    /// @notice OTC mint rate: parcel tokens minted per 1 R00T-equivalent of pledge (18dp).
+    function setMintRate(uint256 rateE18) external onlySteward { require(rateE18 > 0, "0"); mintRateE18 = rateE18; }
     function pause() external onlySteward { _pause(); }
     function unpause() external onlySteward { _unpause(); }
 }

@@ -24,10 +24,10 @@ ethereum = "${ETHEREUM_RPC_URL}"
 sepolia = "${SEPOLIA_RPC_URL}"
 arbitrum = "${ARBITRUM_RPC_URL}"
 tenderly-vnet = "${TENDERLY_VIRTUAL_TESTNET_RPC}"
-# Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Override with a private/
-# provider URL via env for production broadcasts; public RPC is rate-limited.
-robinhood = "${ROBINHOOD_RPC_URL:-https://rpc.mainnet.chain.robinhood.com}"
-robinhood-testnet = "${ROBINHOOD_TESTNET_RPC_URL:-https://rpc.testnet.chain.robinhood.com}"
+# Robinhood Chain (Arbitrum Orbit L2, chainId 4663). Set ROBINHOOD_RPC_URL in
+# .env (Alchemy/provider URL); public RPC is rate-limited.
+robinhood = "${ROBINHOOD_RPC_URL}"
+robinhood-testnet = "${ROBINHOOD_TESTNET_RPC_URL}"
 
 [etherscan]
 base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
