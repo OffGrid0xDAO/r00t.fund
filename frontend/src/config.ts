@@ -83,16 +83,16 @@ const TENDERLY_CONTRACTS = {
   compliantPrivateVault: '0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49',
 } as const;
 
-// Arbitrum mainnet fallback addresses (update when deployed)
+// Robinhood Chain (4663) mainnet addresses — deployed 2026-07-11
 const ARBITRUM_CONTRACTS = {
-  zkAMM: '0xc7E7fD3bC101621F588a3A47cf03343BFAC05451',
-  zkAMMPair: '0x...',
-  zkAMMRouter: '0x...',
-  zkAMMAdmin: '0x...',
-  rootToken: '0x...',
+  zkAMM: '0x54177465B7eb2753fA585D91EdEEf55f6cc68E57',       // ZkAMMPair (private DEX)
+  zkAMMPair: '0x54177465B7eb2753fA585D91EdEEf55f6cc68E57',
+  zkAMMRouter: '0xE8A03E2787AE3934c2A52b5469AA177Fe2CA40e4',
+  zkAMMAdmin: '0x501B2cd3Cb898B943ef3D7d41993116F86a3D81E',
+  rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T
   tokenPool: '0x...',
   lpPool: '0x...',
-  nullifierRegistry: '0x...',
+  nullifierRegistry: '0x068747df9E4C1FFc8734b0dd8a0807c37F44F7e9',
   launchpad: '0x...',
   tokenFactory: '0x...',
   poolFactory: '0x...',
@@ -124,7 +124,8 @@ export const CONTRACTS = {
   // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
   parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
   // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
-  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x...',
+  // Robinhood Chain (4663) deploy 2026-07-11.
+  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x849F8d78A1D8EA9cDa277Fb1f410E55272bD241D',
   // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
   poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
