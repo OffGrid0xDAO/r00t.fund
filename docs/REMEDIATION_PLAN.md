@@ -54,6 +54,22 @@ event PledgeCommitment(uint256 indexed commitment, uint256 indexed leafIndex, by
 event PledgeClaimed(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 amount);
 ```
 
+## ★ Redeploy-freely policy (applies to every phase)
+There are **no proxies, no migrations, no immutable-address constraints** on any
+r00t contract. If a change adds security or correctness, **rewrite the contract
+and redeploy it** — do NOT contort logic to preserve an existing address. This is
+the sanctioned path, not a last resort.
+- Any session may redeploy any contract it owns (zkAMM set, Land/LandFactory,
+  verifiers, registries) when it improves security/soundness.
+- Redeploy = fresh addresses. The owning session then rewires `frontend/src/config.ts`,
+  `indexer/ponder.config.ts`, `scripts/bootstrap-robinhood.mjs`, updates
+  §Shared state below, and hands off to dependent phases.
+- The only guardrails before a mainnet broadcast: tests green + circuit VKs
+  verified + `/security-review` on the diff + explicit human go.
+- Live pools only hold our own test funds — abandoning an old deployment for a
+  safer one is cheap and expected. Recover leftover funds via rescueETH/
+  rescueTokens/setReserves (or an LP note) when practical, else write off.
+
 ## Global rules for every session
 1. Work on a branch off `feat/clear-and-pilot`: `feat/phase-<x>-...`. Rebase before deploy.
 2. `forge build` + `forge test` green before every commit. No red commits.
