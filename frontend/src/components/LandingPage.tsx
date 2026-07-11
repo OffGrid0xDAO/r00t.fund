@@ -132,7 +132,7 @@ function SectionHeader({ label, title }: { label: string; title: React.ReactNode
 function HeroMeta() {
   const [copied, setCopied] = useState(false);
   const addr = CONTRACTS.rootToken;
-  const hasToken = !!addr && addr !== '0x...';
+  const hasToken = !!addr && (addr as string) !== '0x...';
   const uniswapUrl = hasToken ? `https://app.uniswap.org/swap?outputCurrency=${addr}` : 'https://app.uniswap.org/swap';
   const short = hasToken ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
   const explorer = hasToken && hasExplorer() ? getExplorerAddressUrl(addr) : '';
@@ -486,85 +486,6 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          VERIFICATION PIPELINE
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 md:py-20 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
-        <div className="max-w-6xl mx-auto">
-          <SectionHeader
-            label="Verification"
-            title={<>How verification <br className="hidden md:block" /><span className="text-[var(--accent-on-bg)]">actually works</span></>}
-          />
-
-          {/* Pipeline steps */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
-            {[
-              { step: 'Propose', icon: '01' },
-              { step: 'Fund', icon: '02' },
-              { step: 'CRE Checks', icon: '03' },
-              { step: 'Verified?', icon: '04' },
-              { step: 'Release', icon: '05' },
-            ].map((p, i) => (
-              <motion.div
-                key={p.step}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="relative"
-              >
-                <div
-                  className="p-4 rounded-xl border border-[var(--border)] text-center h-full"
-                  style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-sm)' }}
-                >
-                  <span className="text-[10px] font-mono text-[var(--accent-on-bg)] block mb-1">{p.icon}</span>
-                  <span className="text-sm font-medium text-[var(--text-primary)]">{p.step}</span>
-                </div>
-                {/* Arrow connector */}
-                {i < 4 && (
-                  <div className="hidden md:flex absolute top-1/2 -right-2 transform -translate-y-1/2 z-10 text-[var(--text-muted)]">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Data sources */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <p className="text-[10px] text-[var(--text-muted)] mb-4 uppercase tracking-[0.3em] font-mono text-center">
-              Data Sources
-            </p>
-            <div className="flex justify-center items-center gap-3 flex-wrap">
-              {[
-                'Copernicus Sentinel-2',
-                'ISRIC SoilGrids',
-                'Global Forest Watch',
-                'Verra / Gold Standard',
-                'National forest & soil registries',
-              ].map((source, i) => (
-                <motion.span
-                  key={source}
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4 + i * 0.06, duration: 0.4 }}
-                  className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
-                >
-                  {source}
-                </motion.span>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
           SDK — OpenClaw Agent Setup
@@ -582,14 +503,14 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
               >
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-8 h-px bg-[var(--accent)]" />
-                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">OpenClaw</span>
+                  <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Trading SDK · Claude MCP</span>
                 </div>
                 <h2 className="font-display text-3xl md:text-5xl text-[var(--text-primary)] tracking-[-0.02em] leading-[1.1] mb-5">
-                  Give your agent <br className="hidden md:block" />
-                  <span className="text-[var(--accent-on-bg)]">a dark pool.</span>
+                  Algorithmic trading, <br className="hidden md:block" />
+                  <span className="text-[var(--accent-on-bg)]">on a private pool.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-8">
-                  One command. Your OpenClaw agent reads the skill file, installs the SDK, and starts trading with full ZK privacy. Access Chainlink CRE verification data directly. Works with Claude, GPT, DeepSeek, Ollama — any model.
+                  The r00t SDK and Claude MCP let you run automated strategies on our ZK stack — market-make the $R00T pool, arb the parcel tokens, or wire up your own signals. Every order settles with full on-chain privacy, so your book stays yours.
                 </p>
               </motion.div>
 
@@ -601,9 +522,9 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 className="space-y-5"
               >
                 {[
-                  { num: '1', text: 'Send the curl command to your agent' },
-                  { num: '2', text: 'Agent reads the skill.md instructions' },
-                  { num: '3', text: 'It installs the SDK and starts trading privately' },
+                  { num: '1', text: 'Install the SDK or point Claude MCP at r00t' },
+                  { num: '2', text: 'Define your strategy — market-making, arb, or custom signals' },
+                  { num: '3', text: 'It trades the private pool automatically, every order shielded by ZK' },
                 ].map((step, i) => (
                   <motion.div
                     key={step.num}
@@ -628,7 +549,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                 transition={{ delay: 0.4 }}
                 className="mt-8 flex flex-wrap items-center gap-2"
               >
-                {['OpenClaw', 'Claude', 'GPT-4', 'DeepSeek', 'Ollama'].map((tag) => (
+                {['Claude MCP', 'TypeScript SDK', 'Market-making', 'Arbitrage', 'Custom signals'].map((tag) => (
                   <span
                     key={tag}
                     className="inline-flex items-center px-3 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[10px] font-mono text-[var(--text-muted)]"
@@ -694,7 +615,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                   </p>
                   <p className="text-sm text-[var(--text-secondary)]">
                     <span className="text-[var(--text-muted)] font-mono mr-2">2.</span>
-                    they'll set up the SDK & start trading privately
+                    they'll install the SDK and run your strategy on the private pool
                   </p>
                 </div>
               </div>
@@ -802,36 +723,6 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          TECH STACK
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-16 px-6 md:px-12 lg:px-16 border-t border-[var(--border)]/50 dark:border-transparent">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="max-w-4xl mx-auto text-center"
-        >
-          <p className="text-[10px] text-[var(--text-muted)] mb-6 uppercase tracking-[0.3em] font-mono">
-            Built with
-          </p>
-          <div className="flex justify-center items-center gap-3 flex-wrap">
-            {['Chainlink CRE', 'Solidity', 'ZK-SNARKs', 'Groth16', 'Circom', 'Copernicus Sentinel-2', 'World ID', 'Tenderly', 'Foundry', 'React', 'TypeScript', 'Ponder'].map((tech, i) => (
-              <motion.span
-                key={tech}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.06, duration: 0.4 }}
-                className="inline-flex items-center px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-xs font-mono text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-on-bg)] transition-colors duration-200"
-              >
-                {tech}
-              </motion.span>
-            ))}
-          </div>
-        </motion.div>
-      </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
           FINAL CTA
@@ -921,6 +812,10 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
                     <a href="https://github.com/offGrid0xDAO/r00t.fund/" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <span className="w-0 group-hover:w-2 h-px bg-[var(--accent)] transition-all duration-200" />
                       GitHub
+                    </a>
+                    <a href="https://x.com/r00tdotfund" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                      <span className="w-0 group-hover:w-2 h-px bg-[var(--accent)] transition-all duration-200" />
+                      X (Twitter)
                     </a>
                     {onOpenManifesto && (
                       <button onClick={onOpenManifesto} className="group flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">

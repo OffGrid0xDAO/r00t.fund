@@ -38,8 +38,8 @@ const LIME = '#D6FE51', TEAL = '#5BA8B5', GOLD = '#D4A84B';
 const TYPE = { syntropic: LIME, water: TEAL, structure: GOLD };
 const CULTURE = [
   { e: '🌳', t: 'OAK' }, { e: '🌰', t: 'NUT' }, { e: '🥕', t: 'CARROT' }, { e: '🥬', t: 'TURNIP' },
-  { e: '🍇', t: 'VINE' }, { e: '🥔', t: 'SPUD' }, { e: '🫘', t: 'BEAN' }, { e: '🌿', t: 'HERB' },
-  { e: '🎃', t: 'SQUASH' }, { e: '🪺', t: 'FIG' },
+  { e: '🫐', t: 'BERRY' }, { e: '🥔', t: 'SPUD' }, { e: '🫘', t: 'BEAN' }, { e: '🌿', t: 'HERB' },
+  { e: '🎃', t: 'PUMP' }, { e: '🫒', t: 'FIG' },
 ];
 const WATER = { e: '💧', t: 'SWALE' };
 const STRUCT = { e: '⛰️', t: 'STONE' };
