@@ -77,3 +77,4 @@ secret/
 # Fuzzed (non-cadastral) terrain assets — safe & required in the bundle
 !frontend/public/terrain/
 !frontend/public/terrain/*.json
+scripts/.bootstrap-lp.json

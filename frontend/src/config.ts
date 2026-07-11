@@ -25,7 +25,8 @@ export const NETWORK = {
   rpcUrl: (import.meta.env.VITE_RPC_URL as string) || 'https://rpc.mainnet.chain.robinhood.com',
   explorerUrl: 'https://robinhoodchain.blockscout.com',
   explorerName: 'Blockscout',
-  indexerUrl: '',
+  // Ponder indexer (finds commitments + builds merkle proofs). Run `PONDER_NETWORK=robinhood`.
+  indexerUrl: (import.meta.env.VITE_INDEXER_URL as string) || 'http://localhost:42069',
   isTestnet: false,
 } as const;
 

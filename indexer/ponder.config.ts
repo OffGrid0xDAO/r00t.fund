@@ -25,6 +25,12 @@ const TENDERLY_ZKAMM_ADDRESS = "0x79D52AB5EdaCFdC868c53DF8dd685f309cA20884"; // 
 const TENDERLY_ZKAMM_PAIR_ADDRESS = "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"; // ZkAMM Pair
 const TENDERLY_RPC = process.env.PONDER_RPC_URL_73571 || "https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1";
 
+// Robinhood Chain (4663) mainnet — deployed 2026-07-11
+const ROBINHOOD_FIRST_BLOCK = 7009724;
+const ROBINHOOD_ZKAMM_ADDRESS = "0xE8A03E2787AE3934c2A52b5469AA177Fe2CA40e4"; // ZkAMM Router
+const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0x54177465B7eb2753fA585D91EdEEf55f6cc68E57"; // ZkAMM Pair
+const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.chain.robinhood.com";
+
 // ABI for Pair events (NewCommitment AND NewLPCommitment come from Pair, NOT TokenPool/LPPool)
 // The Pair calls tokenPool.insert() which emits LeafInserted, then Pair emits NewCommitment
 // The Pair also emits NewLPCommitment when LP positions are created
@@ -126,23 +132,32 @@ export default createConfig({
         pollingInterval: 2_000,
       },
     }),
+    ...(NETWORK === "robinhood" && {
+      robinhood: {
+        chainId: 4663,
+        // ~0.1s blocks; poll every 2s. Use a private RPC (PONDER_RPC_URL_4663) in prod.
+        transport: rateLimit(http(ROBINHOOD_RPC), { requestsPerSecond: 10 }),
+        pollingInterval: 2_000,
+        maxRequestsPerSecond: 10,
+      },
+    }),
   },
   contracts: {
     // ZkAMM Router - handles trades, LP operations
     ZkAMMWithToken: {
-      network: NETWORK === "arbitrum" ? "arbitrum" : NETWORK === "tenderly" ? "tenderly" : "sepolia",
+      network: NETWORK === "arbitrum" ? "arbitrum" : NETWORK === "tenderly" ? "tenderly" : NETWORK === "robinhood" ? "robinhood" : "sepolia",
       abi: ZkAMMWithTokenAbi,
-      address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : NETWORK === "tenderly" ? TENDERLY_ZKAMM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
-      startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
+      address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : NETWORK === "tenderly" ? TENDERLY_ZKAMM_ADDRESS : NETWORK === "robinhood" ? ROBINHOOD_ZKAMM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
+      startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : NETWORK === "robinhood" ? ROBINHOOD_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
     },
     // ZkAMMPair - handles token AND LP commitments
     // NewCommitment, NewLPCommitment, NullifierSpent, LPNullifierSpent all come from Pair
-    ...((NETWORK === "sepolia" || NETWORK === "tenderly") && {
+    ...((NETWORK === "sepolia" || NETWORK === "tenderly" || NETWORK === "robinhood") && {
       ZkAMMPair: {
-        network: NETWORK === "tenderly" ? "tenderly" : "sepolia",
+        network: NETWORK === "tenderly" ? "tenderly" : NETWORK === "robinhood" ? "robinhood" : "sepolia",
         abi: PairAbi,
-        address: NETWORK === "tenderly" ? TENDERLY_ZKAMM_PAIR_ADDRESS : SEPOLIA_ZKAMM_PAIR_ADDRESS,
-        startBlock: NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
+        address: NETWORK === "tenderly" ? TENDERLY_ZKAMM_PAIR_ADDRESS : NETWORK === "robinhood" ? ROBINHOOD_ZKAMM_PAIR_ADDRESS : SEPOLIA_ZKAMM_PAIR_ADDRESS,
+        startBlock: NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : NETWORK === "robinhood" ? ROBINHOOD_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
       },
     }),
   },
