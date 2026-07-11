@@ -39,11 +39,13 @@ interface IZkAMMAdmin {
 contract ZkAMMRouter is ReentrancyGuard {
     // ============ Constants ============
 
-    uint256 public constant FEE_BPS = 100;
-    uint256 public constant PROTOCOL_FEE_BPS = 30;
-    uint256 public constant LP_FEE_BPS = 70;
+    // Swap fees are owner-settable (see setFees), bounded by MAX_TOTAL_FEE_BPS.
+    uint256 public FEE_BPS = 100;           // curve fee, kept == PROTOCOL+LP
+    uint256 public PROTOCOL_FEE_BPS = 30;   // 0.30%
+    uint256 public LP_FEE_BPS = 70;         // 0.70%
     uint256 public constant LP_ADD_PROTOCOL_FEE_BPS = 10;
     uint256 public constant FEE_DENOMINATOR = 10000;
+    uint256 public constant MAX_TOTAL_FEE_BPS = 1000; // hard cap: 10% total
     uint256 public constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     uint256 public POOL_REGISTRATION_COOLDOWN = 1 minutes; // mutable — raise toward 24h for mainnet via setPoolRegistrationCooldown
 
@@ -721,6 +723,16 @@ contract ZkAMMRouter is ReentrancyGuard {
         POOL_REGISTRATION_COOLDOWN = v;
     }
 
+    /// @notice Owner-settable swap fees (bps). protocolBps + lpBps capped at 10%.
+    event FeesUpdated(uint256 protocolBps, uint256 lpBps);
+    function setFees(uint256 protocolBps, uint256 lpBps) external onlyOwner {
+        require(protocolBps + lpBps <= MAX_TOTAL_FEE_BPS, "fee too high");
+        PROTOCOL_FEE_BPS = protocolBps;
+        LP_FEE_BPS = lpBps;
+        FEE_BPS = protocolBps + lpBps;
+        emit FeesUpdated(protocolBps, lpBps);
+    }
+
     function sweepETH() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
         if (balance == 0) revert NothingToSweep();
@@ -820,7 +832,7 @@ contract ZkAMMRouter is ReentrancyGuard {
     // to fit within EIP-170 size limit. Use projectPools(i) public getter + pair.getAmountOut() directly.
 
     /// @notice AMM output with built-in fee (for external price queries only)
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public pure returns (uint256 amountOut) {
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view returns (uint256 amountOut) {
         uint256 amountInWithFee = amountIn * (FEE_DENOMINATOR - FEE_BPS);
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = reserveIn * FEE_DENOMINATOR + amountInWithFee;

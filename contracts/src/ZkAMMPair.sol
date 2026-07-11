@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface IAdminOwner { function owner() external view returns (address); }
+
 /// @title ZkAMMPair
 /// @author r00t.fund
 /// @notice Core state and low-level operations for ZkAMM (like UniswapV2Pair)
@@ -724,6 +726,31 @@ contract ZkAMMPair is ReentrancyGuard {
     function setLpLockPeriod(uint256 v) external onlyAdmin {
         require(v >= 1 minutes && v <= 30 days, "range");
         LP_LOCK_PERIOD = v;
+    }
+
+    // ── owner rescue: ETH (and ROOT) can never be permanently stuck in the AMM ──
+    modifier onlyAdminOwner() {
+        require(msg.sender == IAdminOwner(admin).owner(), "not admin owner");
+        _;
+    }
+    event ETHRescued(address indexed to, uint256 amount);
+    event TokensRescued(address indexed to, uint256 amount);
+
+    /// @notice Owner withdraws ETH from the AMM reserve. Always available.
+    function rescueETH(address to, uint256 amount) external onlyAdminOwner nonReentrant {
+        require(to != address(0), "zero to");
+        require(amount <= ethReserve, "exceeds reserve");
+        ethReserve -= amount;
+        (bool ok, ) = payable(to).call{value: amount}("");
+        require(ok, "eth send failed");
+        emit ETHRescued(to, amount);
+    }
+
+    /// @notice Owner withdraws ROOT tokens from the pair (e.g. unused reserve backing).
+    function rescueTokens(address to, uint256 amount) external onlyAdminOwner nonReentrant {
+        require(to != address(0), "zero to");
+        rootToken.safeTransfer(to, amount);
+        emit TokensRescued(to, amount);
     }
 
     function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {

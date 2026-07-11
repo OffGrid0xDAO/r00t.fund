@@ -15,8 +15,8 @@ import { poseidon3 } from 'poseidon-lite';
 import { writeFileSync } from 'node:fs';
 
 const ROOT   = '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022';
-const PAIR   = '0x54177465B7eb2753fA585D91EdEEf55f6cc68E57';
-const ROUTER = '0xE8A03E2787AE3934c2A52b5469AA177Fe2CA40e4';
+const PAIR   = '0x88bA7Fc1f28cc6A0F18bDd472c43b7C6B05a3c08';
+const ROUTER = '0x3d2dB66FE7Ba8dD959ae696ec29494CB1bE0217B';
 
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const rand = () => { const b = new Uint8Array(32); crypto.getRandomValues(b); let v = 0n; for (const x of b) v = (v << 8n) | BigInt(x); return v % FIELD; };

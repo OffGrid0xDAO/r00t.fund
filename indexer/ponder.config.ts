@@ -26,9 +26,9 @@ const TENDERLY_ZKAMM_PAIR_ADDRESS = "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"
 const TENDERLY_RPC = process.env.PONDER_RPC_URL_73571 || "https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1";
 
 // Robinhood Chain (4663) mainnet — deployed 2026-07-11
-const ROBINHOOD_FIRST_BLOCK = 7009724;
-const ROBINHOOD_ZKAMM_ADDRESS = "0xE8A03E2787AE3934c2A52b5469AA177Fe2CA40e4"; // ZkAMM Router
-const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0x54177465B7eb2753fA585D91EdEEf55f6cc68E57"; // ZkAMM Pair
+const ROBINHOOD_FIRST_BLOCK = 7131193;
+const ROBINHOOD_ZKAMM_ADDRESS = "0x3d2dB66FE7Ba8dD959ae696ec29494CB1bE0217B"; // ZkAMM Router
+const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0x88bA7Fc1f28cc6A0F18bDd472c43b7C6B05a3c08"; // ZkAMM Pair
 const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.chain.robinhood.com";
 
 // ABI for Pair events (NewCommitment AND NewLPCommitment come from Pair, NOT TokenPool/LPPool)
