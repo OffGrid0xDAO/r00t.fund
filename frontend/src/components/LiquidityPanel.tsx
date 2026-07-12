@@ -1011,6 +1011,33 @@ export function LiquidityPanel({
       const withdrawShares = actualCommitmentShares;
       const minEthOut = 0n; // For demo, no slippage protection
 
+      // PRE-FLIGHT: the AMM permanently locks MIN_LIQUIDITY, so removeLiquidityPrivate reverts
+      // (InsufficientLiquidity) if this withdrawal's ethOut would take the pool below the floor.
+      // A ~100%-owner therefore can NEVER fully exit. Compute the cap and give a clear, actionable
+      // error instead of a cryptic on-chain revert (#-39000).
+      try {
+        const pairAddr = CONTRACTS.zkAMMPair as `0x${string}`;
+        const minLiq = await publicClient.readContract({
+          address: pairAddr, abi: [{ name: 'MIN_LIQUIDITY', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }], functionName: 'MIN_LIQUIDITY',
+        }) as bigint;
+        if (poolInfo.totalShares > 0n) {
+          const ethOut = (withdrawShares * poolInfo.ethReserve) / poolInfo.totalShares;
+          const cap = poolInfo.ethReserve > minLiq ? poolInfo.ethReserve - minLiq : 0n;
+          if (ethOut > cap) {
+            const maxShares = poolInfo.ethReserve > 0n ? (cap * poolInfo.totalShares) / poolInfo.ethReserve : 0n;
+            const pct = poolInfo.totalShares > 0n ? Number((maxShares * 10000n) / poolInfo.totalShares) / 100 : 0;
+            throw new Error(
+              `This would drop the pool below its locked minimum (${formatEther(minLiq)} ETH must always stay). ` +
+              `You own ~${(Number((withdrawShares * 10000n) / poolInfo.totalShares) / 100).toFixed(1)}% of the pool; the max removable right now is ~${pct.toFixed(1)}% (${formatEther(maxShares)} shares). ` +
+              `Remove a smaller position, or add more liquidity first.`
+            );
+          }
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('locked minimum')) throw e;
+        // MIN_LIQUIDITY read failed — let it proceed; the contract still guards it.
+      }
+
       // Fetch all LP commitments from Ponder indexer
       // Try LP Pool address first, fallback to all positions if none found
       const indexerUrl = NETWORK.indexerUrl;
