@@ -837,16 +837,32 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
 
       console.log(`[SwapPanel] Generating sell proof for leaf ${commitmentToSpend.leafIndex} with ${allCommitmentHashes.length} total commitments, treeState: ${treeState ? 'available' : 'NOT available'}`);
 
-      // PRE-FLIGHT VALIDATION: Check if the commitment exists in on-chain data
-      // IMPORTANT: If we got 0 results, this is likely a fetch failure - do NOT delete the commitment
+      // PRE-FLIGHT VALIDATION: distinguish the three real cases instead of always blaming
+      // the indexer. Read the AUTHORITATIVE on-chain tree size (tokenPool.nextIndex) so we
+      // can tell "tree legitimately empty / note from a retired deployment" apart from a
+      // genuine fetch failure.
       if (allCommitmentHashes.length === 0) {
-        throw new Error(`Failed to fetch on-chain commitment data from indexer. Please check your internet connection and try again. Your commitment is safe and has NOT been removed.`);
+        let onChainNextIndex = -1;
+        try {
+          const tp = CONTRACTS.tokenPool as `0x${string}`;
+          if (tp && tp !== '0x...') {
+            const res = await publicClient.readContract({ address: tp, abi: [{ name: 'nextIndex', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }], functionName: 'nextIndex' }) as bigint;
+            onChainNextIndex = Number(res);
+          }
+        } catch { /* fall through to generic message */ }
+
+        if (onChainNextIndex === 0) {
+          // Tree is genuinely empty on this pool — this note can't live here (it's from a
+          // retired deployment, or was never confirmed). Not an indexer problem.
+          throw new Error(`This private R00T note isn't on the current pool — there are no commitments here yet. It's likely from a previous deployment. Buy R00T on this pool first, then you can sell. (Your saved note wasn't touched.)`);
+        }
+        // nextIndex > 0 but the fetch came back empty → a real fetch/indexer hiccup.
+        throw new Error(`Couldn't reach the commitment data (indexer + on-chain fallback both returned nothing) although the pool has commitments. This is usually a transient network issue — retry in a moment. Your note is safe and untouched.`);
       }
 
       if (commitmentToSpend.leafIndex >= allCommitmentHashes.length) {
         console.error(`[SwapPanel] PRE-FLIGHT FAILED: leafIndex ${commitmentToSpend.leafIndex} >= on-chain tree size ${allCommitmentHashes.length}`);
-        // Don't auto-remove - the indexer may just be behind. Let the user decide.
-        throw new Error(`Commitment at leafIndex ${commitmentToSpend.leafIndex} not found on-chain yet (indexer has ${allCommitmentHashes.length} commitments). The indexer may still be syncing. Please wait a moment and try again. Your commitment has NOT been removed.`);
+        throw new Error(`This note (leaf #${commitmentToSpend.leafIndex}) isn't on the current pool — the pool only has ${allCommitmentHashes.length} commitment(s). It's likely from a retired deployment, or the indexer is still syncing. Your note wasn't removed.`);
       }
 
       // Also verify the commitment hash matches what's on-chain at that index
