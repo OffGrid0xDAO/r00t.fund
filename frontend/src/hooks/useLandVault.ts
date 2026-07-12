@@ -161,16 +161,38 @@ export function useLandVault(viewingKey: string | null) {
   /** Claim a note to ANY wallet as R00T or the parcel token. One irreversible choice. */
   const claim = useCallback(async (note: LandNote, recipient: string, kind: 'root' | 'parcel') => {
     if (!isReady || !walletClient) throw new Error('wallet/vault not ready');
-    // fetch the vault's committed leaves (ordered) to build the path
+
+    // Build the ordered leaf list. PRIMARY: the Ponder cache. FALLBACK (if servers are
+    // down): rebuild straight from on-chain Funded events via getLogs — the chain is the
+    // source of truth, so claims never depend on our infra. Only your note secret matters.
+    let leaves: bigint[] | null = null;
     const data = await queryPonder<{ merkleTreeStates: { items: { leaves: string }[] } }>(
       `query($a: String!){ merkleTreeStates(where: { id: $a }, limit: 1){ items { leaves } } }`,
       { a: vaultLower }
     );
     const leavesRaw = data?.merkleTreeStates?.items?.[0]?.leaves;
-    if (!leavesRaw) throw new Error('indexer tree unavailable — is Ponder running for this vault?');
-    const leaves: bigint[] = (JSON.parse(leavesRaw) as string[]).map((s) => BigInt(s));
+    if (leavesRaw) {
+      leaves = (JSON.parse(leavesRaw) as string[]).map((s) => BigInt(s));
+    } else if (publicClient) {
+      // trustless fallback: read Funded(commitment, leafIndex, …) logs and order by leafIndex
+      const logs = await publicClient.getLogs({
+        address: vault,
+        event: { type: 'event', name: 'Funded', inputs: [
+          { name: 'commitment', type: 'uint256', indexed: true },
+          { name: 'leafIndex', type: 'uint256', indexed: true },
+          { name: 'parcelId', type: 'bytes32' }, { name: 'rootOut', type: 'uint256' },
+          { name: 'paid', type: 'uint256' }, { name: 'payToken', type: 'address' }, { name: 'note', type: 'bytes' },
+        ] } as const,
+        fromBlock: 0n, toBlock: 'latest',
+      });
+      const byIndex = new Map<number, bigint>();
+      for (const l of logs as any[]) byIndex.set(Number(l.args.leafIndex), BigInt(l.args.commitment));
+      const max = Math.max(-1, ...byIndex.keys());
+      leaves = Array.from({ length: max + 1 }, (_, i) => byIndex.get(i) ?? 0n);
+    }
+    if (!leaves) throw new Error('could not load the commitment tree (no indexer, no RPC)');
     const leafIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
-    if (leafIndex < 0) throw new Error('commitment not indexed yet — wait a moment and retry');
+    if (leafIndex < 0) throw new Error('commitment not on-chain yet — wait a moment and retry');
 
     const { pathElements, pathIndices } = buildMerklePath(leaves, leafIndex);
     // recompute root locally (defensive)
@@ -203,8 +225,7 @@ export function useLandVault(viewingKey: string | null) {
     });
     persist(notesRef.current.map((n) => n.id === note.id ? { ...n, claimed: true, claimKind: kind, claimRecipient: recipient } : n));
     return hash;
-  }, [isReady, walletClient, vault, vaultLower, persist]);
+  }, [isReady, walletClient, vault, vaultLower, persist, publicClient]);
 
-  void publicClient;
   return { isReady, vault, notes, fundETH, claim };
 }
