@@ -1108,46 +1108,42 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const blockData = await blockRes.json();
       const currentBlock = BigInt(blockData.result);
 
-      const allLogs: Array<{ topics: string[] }> = [];
+      let allLogs: Array<{ topics: string[] }> = [];
 
-      // TRUSTLESS FALLBACK: scan from the pair's DEPLOY block so the FULL tree is rebuilt
-      // straight from chain when the indexer is down (localhost on prod, or crashed). On
-      // Robinhood Chain (~0.1s blocks) the commitments are ~600k blocks back, so the old
-      // "last 10k blocks" window silently missed everything → 0 commitments → sell failed.
-      const startBlock = DEX_DEPLOY_BLOCK > 0n ? DEX_DEPLOY_BLOCK : (currentBlock > 100000n ? currentBlock - 100000n : 0n);
-      // Large chunks: an Alchemy/provider RPC handles wide getLogs ranges fine.
-      const CHUNK_SIZE = 50000n;
+      // TRUSTLESS FALLBACK: rebuild the FULL tree straight from chain when the indexer is
+      // down (localhost unreachable on prod, or crashed). Robinhood Chain (~0.1s blocks) has
+      // the commitments ~600k blocks back, so the old "last 10k blocks" window missed them.
+      // The RH/Alchemy RPC handles a wide getLogs range in ONE call, so try that first.
+      const startBlock = DEX_DEPLOY_BLOCK > 0n ? DEX_DEPLOY_BLOCK : 0n;
+      console.warn(`[fetchAllOnChainCommitments] Indexer unavailable for ${addressToUse}. Rebuilding tree from chain (blocks ${startBlock}→latest).`);
 
-      console.warn(`[fetchAllOnChainCommitments] Ponder failed for ${addressToUse}. Falling back to RPC for blocks ${startBlock} to ${currentBlock} in chunks of ${CHUNK_SIZE}.`);
-
-      for (let fromBlock = startBlock; fromBlock < currentBlock; fromBlock += CHUNK_SIZE) {
-        const toBlock = fromBlock + CHUNK_SIZE - 1n > currentBlock ? currentBlock : fromBlock + CHUNK_SIZE - 1n;
-
-        const res = await fetch(RPC_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'eth_getLogs',
-            params: [{
-              address: addressToUse,
-              topics: [commitmentEventSig],
-              fromBlock: '0x' + fromBlock.toString(16),
-              toBlock: '0x' + toBlock.toString(16),
-            }],
-            id: 1,
-          }),
-        });
-
-        const data = await res.json();
-        if (data.error) {
-          console.error('[fetchAllOnChainCommitments] RPC error:', data.error);
-          // If we hit a limit even with 10 blocks, we have to stop
-          break;
+      const single = await fetch(RPC_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getLogs', id: 1, params: [{
+          address: addressToUse, topics: [commitmentEventSig],
+          fromBlock: '0x' + startBlock.toString(16), toBlock: 'latest',
+        }] }),
+      });
+      const singleData = await single.json();
+      if (!singleData.error && Array.isArray(singleData.result)) {
+        allLogs = singleData.result;
+      } else {
+        // Provider rejected the wide range — fall back to chunked scan.
+        console.warn('[fetchAllOnChainCommitments] wide getLogs rejected, chunking:', singleData.error);
+        const CHUNK_SIZE = 50000n;
+        for (let fromBlock = startBlock; fromBlock < currentBlock; fromBlock += CHUNK_SIZE) {
+          const toBlock = fromBlock + CHUNK_SIZE - 1n > currentBlock ? currentBlock : fromBlock + CHUNK_SIZE - 1n;
+          const res = await fetch(RPC_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getLogs', id: 1, params: [{
+              address: addressToUse, topics: [commitmentEventSig],
+              fromBlock: '0x' + fromBlock.toString(16), toBlock: '0x' + toBlock.toString(16),
+            }] }),
+          });
+          const data = await res.json();
+          if (data.error) { console.error('[fetchAllOnChainCommitments] RPC error:', data.error); break; }
+          allLogs.push(...(data.result || []));
         }
-
-        const logs = data.result || [];
-        allLogs.push(...logs);
       }
 
       // Parse logs to commitments with indices

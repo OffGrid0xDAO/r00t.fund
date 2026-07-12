@@ -14,6 +14,9 @@ import { formatEther, formatUnits } from 'viem';
 import { NETWORK, TOKEN, CONTRACTS } from '../config';
 import { ZKAMM_PRICE_ABI } from '../abis/zkAMM';
 
+// Quiet debug logging — enable via localStorage r00t_debug=1.
+const dbg = (...a: unknown[]) => { try { if (localStorage.getItem('r00t_debug') === '1') console.log(...a); } catch { /* noop */ } };
+
 // Trade completion event name — shared constant (also exported from PriceChart for back-compat)
 export const TRADE_COMPLETE_EVENT = 'r00t-trade-complete';
 
@@ -87,19 +90,19 @@ async function queryIndexer<T>(query: string, variables?: Record<string, unknown
     });
 
     if (!response.ok) {
-      console.warn('[usePriceHistory] Indexer request failed:', response.status);
+      dbg('[usePriceHistory] Indexer request failed:', response.status);
       return null;
     }
 
     const result = await response.json();
     if (result.errors) {
-      console.warn('[usePriceHistory] GraphQL errors:', result.errors);
+      dbg('[usePriceHistory] GraphQL errors:', result.errors);
       return null;
     }
 
     return result.data as T;
   } catch (err) {
-    console.warn('[usePriceHistory] Failed to query indexer:', err);
+    dbg('[usePriceHistory] Failed to query indexer:', err);
     return null;
   }
 }
@@ -166,7 +169,7 @@ function loadStoredTrades(contractAddress: string): Trade[] {
     const version = localStorage.getItem(versionKey);
     // Clear old data if version doesn't match
     if (version !== String(TRADES_VERSION)) {
-      console.log('[usePriceHistory] Clearing old trade data for', contractAddress.slice(0, 10));
+      dbg('[usePriceHistory] Clearing old trade data for', contractAddress.slice(0, 10));
       localStorage.removeItem(storageKey);
       localStorage.setItem(versionKey, String(TRADES_VERSION));
       // Also clear old global key if it exists
@@ -178,11 +181,11 @@ function loadStoredTrades(contractAddress: string): Trade[] {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       const trades = JSON.parse(stored) as Trade[];
-      console.log('[usePriceHistory] Loaded', trades.length, 'trades for', contractAddress.slice(0, 10));
+      dbg('[usePriceHistory] Loaded', trades.length, 'trades for', contractAddress.slice(0, 10));
       return trades;
     }
   } catch (e) {
-    console.error('[usePriceHistory] Failed to load stored trades:', e);
+    dbg('[usePriceHistory] Failed to load stored trades:', e);
   }
   return [];
 }
@@ -195,7 +198,7 @@ function saveStoredTrades(contractAddress: string, trades: Trade[]) {
     // Store up to 10,000 trades in localStorage for offline access
     localStorage.setItem(storageKey, JSON.stringify(trades.slice(0, 10000)));
   } catch (e) {
-    console.error('[usePriceHistory] Failed to save trades:', e);
+    dbg('[usePriceHistory] Failed to save trades:', e);
   }
 }
 
@@ -224,7 +227,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
   // Reload trades when contract address changes
   useEffect(() => {
     const storedTrades = loadStoredTrades(zkAMMAddress);
-    console.log(`[usePriceHistory] Loaded ${storedTrades.length} trades from localStorage for ${zkAMMAddress.slice(0, 10)}`);
+    dbg(`[usePriceHistory] Loaded ${storedTrades.length} trades from localStorage for ${zkAMMAddress.slice(0, 10)}`);
     setTrades(storedTrades);
   }, [zkAMMAddress]);
 
@@ -238,7 +241,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
           setEthPrice(data.ethereum.usd);
         }
       } catch (err) {
-        console.error('[usePriceHistory] Failed to fetch ETH price:', err);
+        dbg('[usePriceHistory] Failed to fetch ETH price:', err);
       }
     };
 
@@ -291,7 +294,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
 
       setIsLoading(false);
     } catch (err) {
-      console.error('[usePriceHistory] Failed to fetch reserves:', err);
+      dbg('[usePriceHistory] Failed to fetch reserves:', err);
       setIsLoading(false);
     }
   }, [publicClient, zkAMMAddress]);
@@ -302,7 +305,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
 
   // Fetch trades from Ponder indexer GraphQL API with pagination
   const fetchTradesFromIndexer = useCallback(async () => {
-    console.log('[usePriceHistory] Fetching trades from indexer with pagination...');
+    dbg('[usePriceHistory] Fetching trades from indexer with pagination...');
 
     interface IndexerTrade {
       id: string;
@@ -358,7 +361,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
         lastTimestamp = lastItem.timestamp;
         hasMore = data.tradess.items.length === BATCH_SIZE;
         batchCount++;
-        console.log(`[usePriceHistory] Fetched batch ${batchCount}: ${data.tradess.items.length} trades (total: ${allIndexerTrades.length})`);
+        dbg(`[usePriceHistory] Fetched batch ${batchCount}: ${data.tradess.items.length} trades (total: ${allIndexerTrades.length})`);
       } else {
         hasMore = false;
       }
@@ -381,7 +384,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
         };
       });
 
-      console.log(`[usePriceHistory] Loaded ${indexerTrades.length} total trades from indexer`);
+      dbg(`[usePriceHistory] Loaded ${indexerTrades.length} total trades from indexer`);
       setTrades(indexerTrades);
       saveStoredTrades(zkAMMAddress, indexerTrades);
       return indexerTrades;
@@ -397,7 +400,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     const pairAddress = CONTRACTS.zkAMMPair.toLowerCase();
 
     try {
-      console.log('[usePriceHistory] Fetching trades from RPC event logs via raw fetch...');
+      dbg('[usePriceHistory] Fetching trades from RPC event logs via raw fetch...');
 
       // Fetch buy and sell logs in parallel using raw eth_getLogs
       const [buyRes, sellRes] = await Promise.all([
@@ -424,7 +427,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       const buyLogs = buyData.result || [];
       const sellLogs = sellData.result || [];
 
-      console.log(`[usePriceHistory] RPC logs: ${buyLogs.length} buys, ${sellLogs.length} sells`);
+      dbg(`[usePriceHistory] RPC logs: ${buyLogs.length} buys, ${sellLogs.length} sells`);
 
       if (buyLogs.length === 0 && sellLogs.length === 0) return [];
 
@@ -500,7 +503,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
 
       // Sort by timestamp ascending
       rpcTrades.sort((a, b) => a.timestamp - b.timestamp);
-      console.log(`[usePriceHistory] Loaded ${rpcTrades.length} trades from RPC logs`, rpcTrades.map(t => ({ type: t.type, eth: t.ethAmount.toFixed(4), price: t.price.toFixed(8), ts: new Date(t.timestamp).toISOString() })));
+      dbg(`[usePriceHistory] Loaded ${rpcTrades.length} trades from RPC logs`, rpcTrades.map(t => ({ type: t.type, eth: t.ethAmount.toFixed(4), price: t.price.toFixed(8), ts: new Date(t.timestamp).toISOString() })));
 
       if (rpcTrades.length > 0) {
         setTrades(rpcTrades);
@@ -509,7 +512,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
 
       return rpcTrades;
     } catch (err) {
-      console.warn('[usePriceHistory] RPC log fetch failed:', err);
+      dbg('[usePriceHistory] RPC log fetch failed:', err);
       return [];
     }
   }, [zkAMMAddress]);
@@ -530,7 +533,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     if (data?.statss?.items?.[0]) {
       const stats = data.statss.items[0];
       setAllTimeVolume(Number(stats.totalVolume));
-      console.log(`[usePriceHistory] Stats from indexer: volume=${stats.totalVolume}, trades=${stats.totalTrades}`);
+      dbg(`[usePriceHistory] Stats from indexer: volume=${stats.totalVolume}, trades=${stats.totalTrades}`);
     }
   }, []);
 
@@ -560,7 +563,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
         setCurrentPrice(pricePerToken);
         setMarketCap(TOTAL_SUPPLY * pricePerToken);
         setLiquidity(ethRes * 2);
-        console.log(`[usePriceHistory] Pool state from indexer: ethReserve=${ethRes}, tokenReserve=${tokenRes}`);
+        dbg(`[usePriceHistory] Pool state from indexer: ethReserve=${ethRes}, tokenReserve=${tokenRes}`);
         return true;
       }
     }
@@ -589,7 +592,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
         setIsConnected(true);
         return;
       } catch (err) {
-        console.warn('[usePriceHistory] Ponder fetch failed:', err);
+        dbg('[usePriceHistory] Ponder fetch failed:', err);
       }
     }
 
@@ -609,14 +612,14 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     let pingInterval: NodeJS.Timeout | null = null;
 
     const connect = () => {
-      console.log('[usePriceHistory] Connecting WebSocket to:', wsUrl);
+      dbg('[usePriceHistory] Connecting WebSocket to:', wsUrl);
 
       try {
         ws = new WebSocket(wsUrl, 'graphql-transport-ws');
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log('[usePriceHistory] WebSocket connected, sending init...');
+          dbg('[usePriceHistory] WebSocket connected, sending init...');
           // graphql-ws protocol: send connection_init
           ws?.send(JSON.stringify({ type: 'connection_init' }));
         };
@@ -627,7 +630,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
 
             switch (message.type) {
               case 'connection_ack':
-                console.log('[usePriceHistory] WebSocket connection acknowledged, subscribing...');
+                dbg('[usePriceHistory] WebSocket connection acknowledged, subscribing...');
                 setIsConnected(true);
                 // Subscribe to trades updates
                 ws?.send(JSON.stringify({
@@ -653,18 +656,18 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
               case 'next':
                 // Received data update
                 if (message.payload?.data?.tradess?.items) {
-                  console.log('[usePriceHistory] WebSocket received trades update');
+                  dbg('[usePriceHistory] WebSocket received trades update');
                   // Trigger a fresh fetch to get all updated data
                   fetchFromPonder();
                 }
                 break;
 
               case 'error':
-                console.warn('[usePriceHistory] WebSocket subscription error:', message.payload);
+                dbg('[usePriceHistory] WebSocket subscription error:', message.payload);
                 break;
 
               case 'complete':
-                console.log('[usePriceHistory] WebSocket subscription completed');
+                dbg('[usePriceHistory] WebSocket subscription completed');
                 break;
 
               case 'pong':
@@ -676,29 +679,29 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
                 break;
             }
           } catch (err) {
-            console.warn('[usePriceHistory] WebSocket message parse error:', err);
+            dbg('[usePriceHistory] WebSocket message parse error:', err);
           }
         };
 
         ws.onerror = (error) => {
-          console.warn('[usePriceHistory] WebSocket error, falling back to polling:', error);
+          dbg('[usePriceHistory] WebSocket error, falling back to polling:', error);
           setUseWebSocket(false);
         };
 
         ws.onclose = (event) => {
-          console.log('[usePriceHistory] WebSocket closed:', event.code, event.reason);
+          dbg('[usePriceHistory] WebSocket closed:', event.code, event.reason);
           if (pingInterval) clearInterval(pingInterval);
 
           // Reconnect after 5 seconds if not intentionally closed
           if (event.code !== 1000 && useWebSocket) {
             wsReconnectTimeout.current = setTimeout(() => {
-              console.log('[usePriceHistory] Attempting WebSocket reconnect...');
+              dbg('[usePriceHistory] Attempting WebSocket reconnect...');
               connect();
             }, 5000);
           }
         };
       } catch (err) {
-        console.warn('[usePriceHistory] WebSocket connection failed, falling back to polling:', err);
+        dbg('[usePriceHistory] WebSocket connection failed, falling back to polling:', err);
         setUseWebSocket(false);
       }
     };
@@ -723,7 +726,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       return;
     }
 
-    console.log('[usePriceHistory] Using polling fallback (5s interval)');
+    dbg('[usePriceHistory] Using polling fallback (5s interval)');
 
     // Reset on address change
     if (lastFetchedAddress.current !== zkAMMAddress) {
@@ -754,7 +757,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       const detail = (event as CustomEvent).detail as Trade | undefined;
       if (!detail || !detail.type || !detail.txHash) return;
 
-      console.log('[usePriceHistory] Injecting local trade into live feed:', detail.type, detail.txHash?.slice(0, 16));
+      dbg('[usePriceHistory] Injecting local trade into live feed:', detail.type, detail.txHash?.slice(0, 16));
       setTrades(prev => {
         // Avoid duplicates (Ponder might also deliver this trade)
         if (prev.some(t => t.txHash === detail.txHash)) return prev;
@@ -781,7 +784,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
     const timeframeMs = timeframeMsMap[timeFrame];
     const cutoff = now - timeframeMs;
 
-    console.log(`[usePriceHistory] Building history: ${trades.length} trades, timeframe=${timeFrame}, cutoff=${new Date(cutoff).toISOString()}`);
+    dbg(`[usePriceHistory] Building history: ${trades.length} trades, timeframe=${timeFrame}, cutoff=${new Date(cutoff).toISOString()}`);
 
     // Filter trades by timeframe - include trades within the time window
     const filteredTrades = trades.filter((t) => {
@@ -789,7 +792,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       return t.timestamp >= cutoff;
     });
 
-    console.log(`[usePriceHistory] Filtered to ${filteredTrades.length} trades within timeframe`);
+    dbg(`[usePriceHistory] Filtered to ${filteredTrades.length} trades within timeframe`);
 
     // Build price history from FILTERED trades (oldest first for chart)
     // This ensures the chart respects the selected timeframe
@@ -835,13 +838,13 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       });
     }
 
-    console.log(`[usePriceHistory] Built price history with ${history.length} points, price: ${derivedPrice}`);
+    dbg(`[usePriceHistory] Built price history with ${history.length} points, price: ${derivedPrice}`);
     setPriceHistory(history);
 
     // Calculate volume from filtered trades and all-time
     const filteredVolume = filteredTrades.reduce((sum, t) => sum + t.ethAmount, 0);
     const totalVolume = trades.reduce((sum, t) => sum + t.ethAmount, 0);
-    console.log(`[usePriceHistory] Volume - filtered: ${filteredVolume.toFixed(4)} ETH, all-time: ${totalVolume.toFixed(4)} ETH`);
+    dbg(`[usePriceHistory] Volume - filtered: ${filteredVolume.toFixed(4)} ETH, all-time: ${totalVolume.toFixed(4)} ETH`);
     setVolume(filteredVolume);
     setAllTimeVolume(totalVolume);
 
@@ -881,7 +884,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
   // Manual refresh function - fetches new data without clearing existing state
   // This ensures the chart stays visible during refresh (no flickering)
   const refreshAll = useCallback(async () => {
-    console.log('[usePriceHistory] Manual refresh triggered - fetching new data...');
+    dbg('[usePriceHistory] Manual refresh triggered - fetching new data...');
 
     // Don't clear trades[] - keep showing existing data while fetching
     await fetchReserves();
@@ -893,7 +896,7 @@ export function usePriceHistory(zkAMMAddress: string, timeFrame: TimeFrame = '1d
       await fetchTradesFromRPC();
     }
 
-    console.log('[usePriceHistory] Refresh complete');
+    dbg('[usePriceHistory] Refresh complete');
   }, [fetchTradesFromIndexer, fetchStatsFromIndexer, fetchReserves, fetchTradesFromRPC]);
 
   return {
