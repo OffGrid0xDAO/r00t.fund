@@ -137,9 +137,9 @@ export const CONTRACTS = {
   // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully
   // funded) OR the parcel token (upside). Set VITE_LAND_VAULT after deploy
   // (also wire indexer PONDER_PLEDGE_ADDRESS + authorize the vault in NullifierRegistry).
-  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x...',
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x063363b69fDF63632AaF2F4ead8ee02B2939c673',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
-  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || (import.meta.env.VITE_PLEDGE_VAULT as string) || '0x...',
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x063363b69fDF63632AaF2F4ead8ee02B2939c673',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
