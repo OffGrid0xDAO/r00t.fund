@@ -112,18 +112,66 @@ interface IClaimLPFeesVerifier {
 }
 
 /// @title IPledgeVerifier
-/// @notice Interface for proposal pledge circuit verifier
-/// @dev Proves ownership of ROOT commitment and locks it as pledge for proposal creation
-/// Public signals: [merkleRoot, nullifierHash, pledgeAmount, creator, publicInputsBinding]
-/// - merkleRoot: ROOT pool merkle root
-/// - nullifierHash: Prevents double-spending the pledged ROOT
-/// - pledgeAmount: Amount of ROOT being pledged
-/// - creator: Address creating the proposal (binds proof to msg.sender)
-/// - publicInputsBinding: Circuit binding to prevent proof reuse
+/// @notice Interface for the PHASE C anonymous-pledge circuit verifier
+/// @dev Proves ownership+spend of a shielded R00T note and mints a parcel-/value-bound
+///      pledge commitment for later claim. Snarkjs emits circuit OUTPUTS first.
+/// Public signals: [pledgeCommitment, publicInputsBinding, merkleRoot, nullifierHash, pledgeAmount, parcelId, creator]
+/// - pledgeCommitment:    Poseidon(pledgeNullifier, pledgeSecret, parcelId, pledgeAmount) — inserted into the pledge tree
+/// - publicInputsBinding: Poseidon(merkleRoot, nullifierHash, pledgeAmount, parcelId, creator)
+/// - merkleRoot:          zkAMM R00T commitment-tree root (source of funds)
+/// - nullifierHash:       spend nullifier for the R00T note (SHARED NullifierRegistry)
+/// - pledgeAmount:        R00T pledged; 100% to land treasury AND exactly claimable later
+/// - parcelId:            parcel being funded (bytes32 as field element)
+/// - creator:             msg.sender of the pledge tx (funder binding; unlinked from claim wallet)
 interface IPledgeVerifier {
     function verifyProof(
         uint256[8] calldata proof,
-        uint256[5] calldata pubSignals
+        uint256[7] calldata pubSignals
+    ) external view returns (bool);
+}
+
+/// @title IClaimVerifier
+/// @notice Interface for the PHASE C anonymous-claim circuit verifier
+/// @dev Withdraw-shaped proof against the pledge tree, opening the 4-input parcel-bound
+///      commitment so the contract mints EXACTLY `amount` of EXACTLY `parcelId`'s token
+///      to `recipient`. Over-claim / cross-parcel claim are cryptographically impossible.
+/// Public signals: [recipientBinding, merkleRoot, nullifierHash, parcelId, amount, recipient]
+/// - recipientBinding: Poseidon(parcelId, amount, recipient) — anti-front-run binding
+/// - merkleRoot:       pledge-tree root
+/// - nullifierHash:    claim nullifier (SHARED NullifierRegistry) — blocks double-claim
+/// - parcelId:         parcel whose token is minted (must match the commitment)
+/// - amount:           parcel tokens minted == pledged amount (bound in the commitment)
+/// - recipient:        wallet receiving the minted parcel tokens (any wallet)
+interface IClaimVerifier {
+    function verifyProof(
+        uint256[8] calldata proof,
+        uint256[6] calldata pubSignals
+    ) external view returns (bool);
+}
+
+/// @title IDepositVerifier
+/// @notice Interface for the deposit-binding circuit verifier (CRITICAL-1 fix)
+/// @dev Proves a note's public `amount` equals the amount baked into its public
+///      `commitment` (commitment == Poseidon(nullifier, secret, amount)). The zkAMM
+///      verifies this before inserting a commitment so a note's value can never
+///      exceed the R00T actually deposited / the curve's tokensOut.
+/// Public signals: [binding, amount, commitment]  (Circom output first)
+/// - binding:    Poseidon(amount, commitment) — anti-malleability binding output
+/// - amount:     R00T deposited (contract-enforced == transferred / tokensOut)
+/// - commitment: the note being inserted into the merkle tree
+interface IDepositVerifier {
+    function verifyProof(
+        uint256[8] calldata proof,
+        uint256[3] calldata pubSignals
+    ) external view returns (bool);
+}
+
+/// @notice LandVault fund binding — commitment binds (parcelId, amount).
+/// @dev Public signals: [binding, parcelId, amount, commitment] (Circom output first).
+interface ILandDepositVerifier {
+    function verifyProof(
+        uint256[8] calldata proof,
+        uint256[4] calldata pubSignals
     ) external view returns (bool);
 }
 

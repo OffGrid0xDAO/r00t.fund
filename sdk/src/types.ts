@@ -122,6 +122,21 @@ export interface PledgeProofInputs {
   pathIndices: number[];
 }
 
+export interface ClaimProofInputs {
+  // Public — matches circuits/claim.circom main component
+  merkleRoot: bigint;
+  nullifierHash: bigint;
+  parcelId: bigint;
+  amount: bigint;
+  recipient: string; // payout wallet address
+
+  // Private
+  nullifier: bigint;
+  secret: bigint;
+  pathElements: bigint[];
+  pathIndices: number[];
+}
+
 export interface SwapProofInputs {
   // Public
   inputMerkleRoot: bigint;

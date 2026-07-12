@@ -4,10 +4,11 @@
  * bridged verification attestation.
  */
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
 import type { PledgePay } from './patronage';
+import { FundPrivatelyPanel } from './FundPrivatelyPanel';
 import { CROPS } from './data';
 import { TYPE_COLOR, REWARD_LABEL, usd, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact, ETH_USD, fmtEth } from './ui';
 
@@ -28,6 +29,7 @@ export function PlotDetailPanel({
   onRename?: (name: string) => void;
 }) {
   const [asset, setAsset] = useState<'ETH' | 'USDC'>('ETH');
+  const [showFundPrivately, setShowFundPrivately] = useState(false);
   const [usdcAmount, setUsdcAmount] = useState(100);
   const [ethAmount, setEthAmount] = useState(0.05);
   const amountUsd = asset === 'ETH' ? ethAmount * ETH_USD : usdcAmount;
@@ -212,6 +214,15 @@ export function PlotDetailPanel({
           <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
             ⚡ live price {fmtPrice(price)} · 100% funds the land · ${ticker} mints to you now
           </p>
+
+          {/* fund privately — shield R00T then pledge, unlinkable from a later claim */}
+          <button
+            onClick={() => setShowFundPrivately(true)}
+            className="mt-2 w-full py-2.5 rounded-lg border border-dashed text-sm font-medium transition-colors hover:bg-[var(--bg-secondary)]"
+            style={{ borderColor: `color-mix(in srgb, ${color} 50%, var(--border))`, color }}
+          >
+            🕶️ Fund privately with R00T
+          </button>
         </div>
 
         {/* lifecycle actions */}
@@ -263,6 +274,12 @@ export function PlotDetailPanel({
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showFundPrivately && (
+          <FundPrivatelyPanel plot={plot} onClose={() => setShowFundPrivately(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

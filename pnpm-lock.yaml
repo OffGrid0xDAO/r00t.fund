@@ -90,12 +90,18 @@ importers:
       memdown:
         specifier: ^6.1.1
         version: 6.1.1
+      poseidon-lite:
+        specifier: ^0.3.0
+        version: 0.3.0
       react:
         specifier: ^18.2.0
         version: 18.3.1
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      snarkjs:
+        specifier: ^0.7.6
+        version: 0.7.6
       three:
         specifier: 0.184.0
         version: 0.184.0
@@ -11742,6 +11748,10 @@ packages:
 
   /poseidon-lite@0.2.1:
     resolution: {integrity: sha512-xIr+G6HeYfOhCuswdqcFpSX47SPhm0EpisWJ6h7fHlWwaVIvH3dLnejpatrtw6Xc6HaLrpq05y7VRfvDmDGIog==}
+    dev: false
+
+  /poseidon-lite@0.3.0:
+    resolution: {integrity: sha512-ilJj4MIve4uBEG7SrtPqUUNkvpJ/pLVbndxa0WvebcQqeIhe+h72JR4g0EvwchUzm9sOQDlOjiDNmRAgxNZl4A==}
     dev: false
 
   /possible-typed-array-names@1.1.0:
