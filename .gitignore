@@ -78,3 +78,6 @@ secret/
 !frontend/public/terrain/
 !frontend/public/terrain/*.json
 scripts/.bootstrap-lp.json
+
+# circuit wasm must ship for browser proof-gen (overrides *.wasm ignore)
+!frontend/public/circuits/**/*.wasm
