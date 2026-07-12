@@ -9,6 +9,7 @@ import {NullifierRegistry} from "../src/NullifierRegistry.sol";
 import {RealLandDepositVerifier} from "../src/verifiers/RealLandDepositVerifier.sol";
 import {RealClaimVerifier} from "../src/verifiers/RealClaimVerifier.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TestRootToken} from "../src/TestRootToken.sol";
 
 /// @notice Deploys the full LandVault chain on Robinhood Chain (4663):
 ///   new LandFactory (landVault-aware Land) → createLand (deployer bonds R00T) →
@@ -23,7 +24,10 @@ contract DeployLandVault is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(pk);
         address root = vm.envAddress("ROOT_TOKEN");
-        address usdc = vm.envAddress("USDC_ADDRESS");
+        // USDC/USDG for the pay-with-stablecoin funding path. If the real RH stablecoin
+        // address isn't provided, deploy a mock so the vault deploys and ETH-funding can be
+        // tested end-to-end (the USDC path just uses this mock). Replace with real USDG later.
+        address usdc = vm.envOr("USDC_ADDRESS", address(0));
         address poolManager = vm.envOr("POOL_MANAGER", RH_POOL_MANAGER);
 
         uint256 landBond = 1_000e18;      // steward bond to the Land (pool-seed reserve)
@@ -34,6 +38,12 @@ contract DeployLandVault is Script {
         uint256 parcelTarget = 100e18;    // R00T-equiv to "fully fund" the demo parcel
 
         vm.startBroadcast(pk);
+
+        // 0. Mock stablecoin if no real USDG provided (test ETH-funding path works regardless).
+        if (usdc == address(0)) {
+            usdc = address(new TestRootToken());
+            console.log("  mock USDC (test)  :", usdc);
+        }
 
         // 1. Factory (validator = protocolTreasury = deployer for the demo)
         LandFactory factory = new LandFactory(
@@ -62,13 +72,18 @@ contract DeployLandVault is Script {
         land.validate();
         land.createParcel(parcelId, "Oak Terrace", "OAK");
 
-        // 4. Verifiers + registry + vault
+        // 4. Verifiers + SHARED nullifier registry + vault.
+        //    Use the SAME registry the v2 zkAMM router uses (deployer is its governance), so a
+        //    shielded allocation can never be double-spent ACROSS rails — funded-then-claimed
+        //    here AND sold on the zkAMM both mark the one global set. (Set REGISTRY via env to
+        //    override; default = v2 shared registry.)
         address depositV = address(new RealLandDepositVerifier());
         address claimV = address(new RealClaimVerifier());
-        NullifierRegistry reg = new NullifierRegistry(deployer); // governance = deployer
+        NullifierRegistry reg = NullifierRegistry(vm.envOr("REGISTRY", 0x6Ae7adf4Cba5eEAc58a70832998bdb18C6588D4A));
         LandVault vault = new LandVault(landAddr, root, usdc, address(reg), depositV, claimV);
 
-        // 5. Wire: vault can mint parcel tokens; vault authorized to mark nullifiers
+        // 5. Wire: vault can mint parcel tokens; vault authorized to mark nullifiers in the
+        //    shared registry (deployer is governance, so this authorization succeeds).
         land.setLandVault(address(vault));
         reg.setPoolAuthorization(address(vault), true);
 

@@ -127,21 +127,21 @@ export const CONTRACTS = {
   // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
   parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
   // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
-  // Robinhood Chain (4663) deploy 2026-07-11.
-  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x849F8d78A1D8EA9cDa277Fb1f410E55272bD241D',
+  // Robinhood Chain (4663) LandVault chain deploy 2026-07-12.
+  landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x70E3432B83a83Caa818a98010DF87AF6daa6AbC9',
   // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
   poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
-  // The deployed pilot Land (steward: r00t). Pledges route here once set.
-  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0xB1195fd631B090CBe989eF10B243FCc34400aADC',
-  // LandVault — private plot funding. Pay ETH/USDC (100% to the land treasury) →
-  // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully
-  // funded) OR the parcel token (upside). Set VITE_LAND_VAULT after deploy
-  // (also wire indexer PONDER_PLEDGE_ADDRESS + authorize the vault in NullifierRegistry).
-  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x063363b69fDF63632AaF2F4ead8ee02B2939c673',
+  // The deployed pilot Land (steward: r00t, parcelId=1 "Oak Terrace"/$OAK). LandVault v1 (RH 2026-07-12).
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x4F64E3C93CF66e8083fAf9Cb1f56f30D58379417',
+  // LandVault — private plot funding LIVE on RH. Pay ETH (100% to the land treasury) →
+  // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully funded)
+  // OR the parcel token (upside). Uses the SHARED v2 nullifier registry (no cross-rail
+  // double-spend). 5M R00T reserve, parcel target 100 R00T.
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x99e6e42bcbd383C2076F34449281F3d7e2F5ED6a',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
-  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x063363b69fDF63632AaF2F4ead8ee02B2939c673',
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x99e6e42bcbd383C2076F34449281F3d7e2F5ED6a',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
