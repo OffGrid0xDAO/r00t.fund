@@ -50,7 +50,7 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     address public steward;
     address public validator;
     address public treasury;          // receives pledges (regeneration capital)
-    address public pledgeVault;       // PHASE C: anonymous pledge/claim rail (mints parcel tokens on claim)
+    address public landVault;       // LandVault: private fund + dual-claim rail (mints parcel tokens on claim)
     address public protocolTreasury;  // receives the protocol's 30% of pool fees
     uint256 public ethPriceE6;        // USD/ETH, 6dp (Chainlink feed or owner-set)
     uint256 public rootPriceE6;       // USD/$R00T, 6dp (steward-set OTC price)
@@ -125,7 +125,7 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     error NoParcel();
     error NotVault();
 
-    event PledgeVaultSet(address indexed vault);
+    event LandVaultSet(address indexed vault);
 
     modifier onlySteward() { if (msg.sender != steward) revert NotSteward(); _; }
     modifier onlyValidated() { if (!validated) revert NotValidated(); _; }
@@ -172,21 +172,21 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
         return address(pt);
     }
 
-    // ── PHASE C: anonymous pledge/claim rail ──
+    // ── LandVault: private fund + dual-claim rail ──
     /// @notice Wire the anonymous-pledge vault. One-time (immutable-after-set) so the vault's
     ///         mint authority can never be silently repointed. Set by the steward after the
     ///         vault is deployed against this Land.
-    function setPledgeVault(address v) external onlySteward {
-        require(pledgeVault == address(0), "set");
+    function setLandVault(address v) external onlySteward {
+        require(landVault == address(0), "set");
         require(v != address(0), "0");
-        pledgeVault = v;
-        emit PledgeVaultSet(v);
+        landVault = v;
+        emit LandVaultSet(v);
     }
 
     /// @notice Mint parcel tokens on an anonymous claim. Only the wired vault may call this;
     ///         the vault mints EXACTLY the cryptographically-committed amount to `to`.
     function mintParcel(bytes32 parcelId, address to, uint256 amount) external {
-        if (msg.sender != pledgeVault) revert NotVault();
+        if (msg.sender != landVault) revert NotVault();
         Parcel storage p = _parcels[parcelId];
         if (address(p.token) == address(0)) revert NoParcel();
         p.token.mint(to, amount);

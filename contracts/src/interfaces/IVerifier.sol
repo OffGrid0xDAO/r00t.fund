@@ -166,6 +166,15 @@ interface IDepositVerifier {
     ) external view returns (bool);
 }
 
+/// @notice LandVault fund binding — commitment binds (parcelId, amount).
+/// @dev Public signals: [binding, parcelId, amount, commitment] (Circom output first).
+interface ILandDepositVerifier {
+    function verifyProof(
+        uint256[8] calldata proof,
+        uint256[4] calldata pubSignals
+    ) external view returns (bool);
+}
+
 /// @title IMergeVerifier
 /// @notice Interface for privacy-preserving commitment consolidation circuit verifier
 /// @dev Proves ownership of 2 commitments and merges them into a single output commitment
