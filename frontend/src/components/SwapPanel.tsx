@@ -399,6 +399,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
   const [inputAmount, setInputAmount] = useState('');
   const debouncedInputAmount = useDebounce(inputAmount, 100); // 100ms debounce for calculations
   const [isLoading, setIsLoading] = useState(false);
+  const [sellProgress, setSellProgress] = useState<string>('');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [tokensReceived, setTokensReceived] = useState<bigint | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -814,6 +815,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       // Apply user-configured slippage tolerance
       const minEthOut = estimatedEthOut * BigInt(10000 - slippageTolerance) / 10000n;
       // Fetch on-chain commitments with retry (network issues can cause 0 results)
+      setSellProgress('Reading the commitment tree…');
       let allCommitmentHashes: { commitment: bigint; leafIndex: number }[] = [];
       let treeState: { filledSubtrees: bigint[]; root: bigint } | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -846,6 +848,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         throw new Error(`Commitment at leafIndex ${commitmentToSpend.leafIndex} not found in on-chain data. The indexer may still be syncing. Please wait and try again.`);
       }
 
+      setSellProgress('Generating zero-knowledge proof…');
       const proofResult = await generateSellProof({
         commitment: { nullifier: BigInt(commitmentToSpend.nullifier), secret: BigInt(commitmentToSpend.secret), amount: BigInt(commitmentToSpend.amount), leafIndex: commitmentToSpend.leafIndex },
         tokenAmount, minEthOut, recipient: address, relayer: '0x0000000000000000000000000000000000000000', fee: 0n, allCommitments: allCommitmentHashes,
@@ -886,6 +889,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       console.log('[SwapPanel] proof[0..7]:', proofResult.proof.map(p => p.toString().slice(0, 20) + '...'));
       // Must go through Router so Ponder indexes the trade (TokensSold event)
       const sellAddress = CONTRACTS.zkAMMRouter || activeAMMAddress;
+      setSellProgress('Submitting private swap…');
       console.log('[SwapPanel] Sending sellPrivate to Router:', sellAddress);
       console.log('[SwapPanel] ==========================================');
 
@@ -954,7 +958,7 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           });
         }
       }
-    } finally { setIsLoading(false); }
+    } finally { setIsLoading(false); setSellProgress(''); }
   };
 
   const handleSwap = () => direction === 'buy' ? handleBuy() : handleSell();
@@ -1418,7 +1422,10 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         >
           <span className="flex items-center justify-center gap-2">
             {isLoading || isBuyLoading ? (
-              buyProgress || 'processing...'
+              <span className="inline-flex items-center gap-2">
+                <span className="animate-pulse">🔒</span>
+                {buyProgress || sellProgress || 'processing…'}
+              </span>
             ) : direction === 'buy' ? (
               <>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
