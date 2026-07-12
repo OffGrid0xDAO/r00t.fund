@@ -12,6 +12,7 @@ import { usePrivateWallet } from './hooks/usePrivateWallet';
 import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
 import { CONTRACTS, TOKEN, NETWORK } from './config';
+import { switchToRobinhood } from './utils/switchChain';
 import { fetchParcelTokens } from './components/pilot/parcelTokens';
 
 // Deterministic synthetic address for a parcel token until its real pool exists
@@ -290,7 +291,9 @@ function App() {
   const { address, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
+
+  const handleSwitchChain = () => switchToRobinhood(switchChainAsync);
 
   // Centralized wallet session management (viewing key lifecycle)
   const session = useWalletSession();
@@ -599,7 +602,7 @@ function App() {
                     <span className="text-sm text-[var(--warning)]">Wrong network — switch to {NETWORK.name}</span>
                   </div>
                   <GlowButton
-                    onClick={() => switchChain({ chainId: expectedChainId })}
+                    onClick={handleSwitchChain}
                     variant="secondary"
                     size="sm"
                   >

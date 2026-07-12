@@ -9,6 +9,7 @@ import { useRailgunBuy } from '../hooks/useRailgunBuy';
 import type { WalletSession } from '../hooks/useWalletSession';
 import type { Commitment } from '../hooks/usePrivateWallet';
 import { getExplorerTxUrl, NETWORK, CHAIN, CONTRACTS } from '../config';
+import { switchToRobinhood } from '../utils/switchChain';
 import { GlowButton } from './ui/GlowButton';
 import { RootLogo } from './ui/RootLogo';
 import { ZKAMM_ABI } from '../abis/zkAMM';
@@ -358,12 +359,12 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
     chainId: CHAIN.id,
   });
   const { signMessageAsync } = useSignMessage();
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+  const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const isPageVisible = usePageVisibility();
   const { stats: vaultStats } = useCompliantVault();
 
   const isOnCorrectChain = chainId === CHAIN.id;
-  const handleSwitchToCorrectChain = useCallback(() => switchChain({ chainId: CHAIN.id }), [switchChain]);
+  const handleSwitchToCorrectChain = useCallback(() => switchToRobinhood(switchChainAsync), [switchChainAsync]);
 
   // Token identification — must be before useRailgunBuy so it can route correctly
   const currentToken = availableTokens?.find(t => t.address === selectedToken) || availableTokens?.find(t => t.isRoot) || { address: zkAMMAddress, name: 'r00t', symbol: 'ROOT', isRoot: true };

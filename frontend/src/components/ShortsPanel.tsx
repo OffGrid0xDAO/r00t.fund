@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, usePublicClient, useWalletClient, useBalance, useSwitchChain } from 'wagmi';
 import { parseEther, formatEther, formatUnits } from 'viem';
 import { CONTRACTS, NETWORK, CHAIN, getExplorerTxUrl } from '../config';
+import { switchToRobinhood } from '../utils/switchChain';
 import { GlowButton } from './ui/GlowButton';
 
 // R00TShorts ABI - matches deployed R00TShorts contract
@@ -295,7 +296,7 @@ export function ShortsPanel() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { data: ethBalance, refetch: refetchBalance } = useBalance({ address, chainId: CHAIN.id });
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+  const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
 
   const isOnCorrectChain = chainId === CHAIN.id;
 
@@ -778,7 +779,7 @@ export function ShortsPanel() {
           </GlowButton>
         ) : !isOnCorrectChain ? (
           <GlowButton
-            onClick={() => switchChain({ chainId: CHAIN.id })}
+            onClick={() => switchToRobinhood(switchChainAsync)}
             loading={isSwitchingChain}
             fullWidth
             size="lg"
