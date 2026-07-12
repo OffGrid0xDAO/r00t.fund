@@ -227,6 +227,21 @@ contract R00TShortsTest is Test {
         vm.deal(liquidator, 10 ether);
     }
 
+    // ============ TWAP test helpers ============
+
+    /// @dev Set the pool price and let it PERSIST long enough for the TWAP to converge to it.
+    ///      Two full-window pokes guarantee a clean window entirely at the new price, so the
+    ///      TWAP equals the new spot (mimics a real, sustained price move — not a flash pump).
+    function _setPriceAndWarm(uint256 ethReserve, uint256 tokenReserve) internal {
+        pair.setReserves(ethReserve, tokenReserve);
+        uint256 period = shorts.TWAP_PERIOD();
+        shorts.pokeOracle();
+        vm.warp(block.timestamp + period + 1);
+        shorts.pokeOracle();
+        vm.warp(block.timestamp + period + 1);
+        shorts.pokeOracle();
+    }
+
     // ============ Constructor Tests ============
 
     function test_Constructor() public view {
@@ -464,22 +479,12 @@ contract R00TShortsTest is Test {
         vm.prank(user1);
         uint256 positionId = shorts.openShort{value: 1 ether}(0);
 
-        // Price rises significantly to make position liquidatable
-        // At 10x ETH reserve with same tokens, price per token rises 10x
-        // This means the cost to repurchase the shorted tokens is much higher
-        pair.setReserves(INITIAL_ETH * 10, INITIAL_TOKENS);
+        // Price rises significantly AND PERSISTS (sustained move, not a flash pump) so the
+        // TWAP converges to the higher price and the short becomes genuinely liquidatable.
+        _setPriceAndWarm(INITIAL_ETH * 100, INITIAL_TOKENS);
 
-        // Check if position is liquidatable (may need higher price movement)
-        bool canLiquidate = shorts.isLiquidatable(positionId);
-
-        // If not liquidatable yet, increase price more
-        if (!canLiquidate) {
-            pair.setReserves(INITIAL_ETH * 100, INITIAL_TOKENS);
-            canLiquidate = shorts.isLiquidatable(positionId);
-        }
-
-        // Now it should be liquidatable
-        assertTrue(canLiquidate, "Position should be liquidatable");
+        // Now it should be liquidatable (decided by the TWAP)
+        assertTrue(shorts.isLiquidatable(positionId), "Position should be liquidatable");
 
         uint256 liquidatorBalanceBefore = liquidator.balance;
 
@@ -500,20 +505,64 @@ contract R00TShortsTest is Test {
         vm.prank(user1);
         uint256 positionId = shorts.openShort{value: 1 ether}(0);
 
-        // Position just opened, not underwater
+        // Warm the oracle at the SAME price so it's ready but the position stays healthy —
+        // this exercises the PositionNotLiquidatable path (not OracleNotReady).
+        _setPriceAndWarm(INITIAL_ETH, INITIAL_TOKENS);
+
+        // Position not underwater
         assertFalse(shorts.isLiquidatable(positionId));
 
         vm.prank(liquidator);
         vm.expectRevert(IR00TShorts.PositionNotLiquidatable.selector);
-        shorts.liquidate(positionId, 0);
+        shorts.liquidate(positionId, type(uint256).max);
+    }
+
+    /// @notice SECURITY: a flash / single-block spot-price PUMP must NOT make a healthy short
+    ///         liquidatable. Eligibility is decided by the TWAP, which a transient pump can't move.
+    function test_Liquidate_SpotManipulationBlocked() public {
+        vm.prank(user1);
+        uint256 positionId = shorts.openShort{value: 1 ether}(0);
+
+        // Establish a healthy TWAP at the normal price.
+        _setPriceAndWarm(INITIAL_ETH, INITIAL_TOKENS);
+        assertFalse(shorts.isLiquidatable(positionId), "healthy before manipulation");
+
+        // Attacker slams the SPOT price up 100x within the current block (no time passes).
+        pair.setReserves(INITIAL_ETH * 100, INITIAL_TOKENS);
+        shorts.pokeOracle(); // even poking can't retro-accrue a price that existed for 0 seconds
+
+        // Spot says huge loss, but the TWAP is unchanged → NOT liquidatable.
+        assertFalse(shorts.isLiquidatable(positionId), "TWAP must ignore the flash pump");
+
+        // And an actual liquidation attempt reverts.
+        vm.prank(liquidator);
+        vm.expectRevert(IR00TShorts.PositionNotLiquidatable.selector);
+        shorts.liquidate(positionId, type(uint256).max);
+
+        // Only once the pumped price PERSISTS for a full window does it become liquidatable.
+        _setPriceAndWarm(INITIAL_ETH * 100, INITIAL_TOKENS);
+        assertTrue(shorts.isLiquidatable(positionId), "sustained move IS liquidatable");
+    }
+
+    /// @notice Liquidation before the oracle has a full window of history reverts OracleNotReady.
+    function test_Liquidate_RevertOracleNotReady() public {
+        vm.prank(user1);
+        uint256 positionId = shorts.openShort{value: 1 ether}(0);
+
+        // Move spot up but DON'T warm the TWAP (oracle still cold → twapEthPerToken == 0).
+        pair.setReserves(INITIAL_ETH * 100, INITIAL_TOKENS);
+
+        vm.prank(liquidator);
+        vm.expectRevert(R00TShorts.OracleNotReady.selector);
+        shorts.liquidate(positionId, type(uint256).max);
     }
 
     function test_Liquidate_RevertNotOpen() public {
         vm.prank(user1);
         uint256 positionId = shorts.openShort{value: 1 ether}(0);
 
-        // Make liquidatable
-        pair.setReserves(INITIAL_ETH * 10, INITIAL_TOKENS);
+        // Make liquidatable via a sustained price rise (TWAP converges)
+        _setPriceAndWarm(INITIAL_ETH * 100, INITIAL_TOKENS);
 
         // Liquidate once (max cap so the buyback isn't slippage-blocked)
         vm.prank(liquidator);

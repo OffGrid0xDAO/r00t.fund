@@ -56,6 +56,14 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     /// @notice AMM fee for price calculations (1%)
     uint256 public constant AMM_FEE_BPS = 100;
 
+    /// @notice TWAP window for liquidation-eligibility pricing (manipulation resistance).
+    /// @dev Liquidation eligibility uses a time-weighted average ETH-per-token price over
+    ///      this window instead of raw spot reserves. A flash / single-block price pump
+    ///      cannot move a 30-min average, so it cannot force-liquidate a healthy short. The
+    ///      actual buyback still executes at spot (it is a real swap), but WHETHER a
+    ///      position is liquidatable is decided by the manipulation-resistant TWAP.
+    uint256 public constant TWAP_PERIOD = 30 minutes;
+
     // ============ Immutables ============
 
     /// @notice ZkAMMPair contract for actual swaps
@@ -96,6 +104,28 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     /// @notice User address => Array of position IDs
     mapping(address => uint256[]) private _userPositions;
 
+    // ============ TWAP Oracle State ============
+    // Uniswap-V2-style cumulative price oracle, self-contained (the deployed Pair has no
+    // price accumulator). Accumulates the LAST-observed spot price over elapsed time, so a
+    // price set within a single block contributes nothing until a later block — and a
+    // TWAP_PERIOD average dilutes any brief manipulation to noise.
+
+    /// @notice ∑ (ETH-per-token spot at last obs) * seconds elapsed, scaled 1e18.
+    uint256 public priceCumulative;
+    /// @notice Timestamp priceCumulative was last advanced.
+    uint256 public priceCumulativeTs;
+    /// @notice Spot ETH-per-token (1e18) recorded at priceCumulativeTs — accrues over the NEXT interval.
+    uint256 public lastSpotEthPerToken;
+    /// @notice Snapshot of priceCumulative at the start of the current TWAP window.
+    uint256 public observationCumulative;
+    /// @notice Timestamp of the current window snapshot.
+    uint256 public observationTs;
+    /// @notice Last finalized TWAP (ETH-per-token, 1e18). 0 until the first window closes.
+    uint256 public twapEthPerToken;
+
+    /// @notice Liquidation attempted before the TWAP oracle has a full window of history.
+    error OracleNotReady();
+
     // ============ Constructor ============
 
     /// @notice Initialize the shorts contract
@@ -111,6 +141,11 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         rootToken = IERC20(_rootToken);
         treasury = _treasury;
         maxOpenInterestBps = DEFAULT_MAX_OPEN_INTEREST_BPS;
+
+        // Seed the TWAP oracle at the current spot so accumulation starts immediately.
+        priceCumulativeTs = block.timestamp;
+        observationTs = block.timestamp;
+        lastSpotEthPerToken = _spotEthPerToken();
 
         // Note: ROOT token approval to pair is done per-operation for safety
     }
@@ -131,6 +166,9 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         nonReentrant
         returns (uint256 positionId)
     {
+        // Advance the TWAP oracle with pre-trade price before this short moves the pool.
+        _updateOracle();
+
         // ============ CHECKS ============
 
         if (msg.value < MIN_POSITION_ETH) revert PositionTooSmall();
@@ -216,6 +254,7 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         external
         nonReentrant
     {
+        _updateOracle();
         ShortPosition storage position = _positions[positionId];
 
         // ============ CHECKS ============
@@ -288,11 +327,15 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     ///      provides slippage protection and actualRepurchaseCost is capped at totalHeld, the
     ///      liquidator bonus may be slightly inaccurate but funds are not at risk.
     function liquidate(uint256 positionId, uint256 maxRepurchaseCost) external nonReentrant {
+        _updateOracle();
         ShortPosition storage position = _positions[positionId];
 
         // ============ CHECKS ============
 
         if (!position.isOpen) revert PositionNotOpen();
+        // Eligibility is decided by the TWAP (manipulation-resistant); reverts clearly if the
+        // oracle hasn't warmed up yet so a liquidator isn't left guessing.
+        if (twapEthPerToken == 0) revert OracleNotReady();
         if (!isLiquidatable(positionId)) revert PositionNotLiquidatable();
 
         // ============ EFFECTS ============
@@ -399,21 +442,29 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     }
 
     /// @inheritdoc IR00TShorts
+    /// @dev Eligibility uses the manipulation-resistant TWAP (not spot), so a flash/single-block
+    ///      price pump cannot force-liquidate a healthy short. Returns false (never reverts)
+    ///      while the oracle is still warming up, so no position is liquidatable until a full
+    ///      window of price history exists.
     function isLiquidatable(uint256 positionId) public view returns (bool) {
         ShortPosition storage position = _positions[positionId];
 
         if (!position.isOpen) return false;
+        if (twapEthPerToken == 0) return false; // oracle not ready → nothing liquidatable
 
-        (int256 pnl, ) = calculatePnL(positionId);
+        // Cost to buy back the shorted tokens valued at the TWAP (linear; ignores this
+        // position's own slippage, which only makes it MORE conservative — i.e. harder to
+        // liquidate — so it never enables an unfair liquidation).
+        uint256 repurchaseCostTwap = (position.tokenAmountShorted * _twapNow()) / 1e18;
 
-        // Profitable positions cannot be liquidated
-        if (pnl >= 0) return false;
+        // Profitable / break-even at TWAP → cannot be liquidated
+        if (repurchaseCostTwap <= position.ethFromSale) return false;
 
-        uint256 loss = uint256(-pnl);
+        uint256 loss = repurchaseCostTwap - position.ethFromSale;
         uint256 totalHeld = position.ethCollateral + position.ethFromSale;
 
-        // Liquidatable when loss exceeds (100% - threshold) of total held
-        // With 90% threshold: liquidatable when loss > 10% of total
+        // Liquidatable when loss exceeds (100% - threshold) of total held.
+        // With 90% threshold: liquidatable when loss > 10% of total held.
         uint256 maxLoss = (totalHeld * (FEE_DENOMINATOR - LIQUIDATION_THRESHOLD_BPS)) / FEE_DENOMINATOR;
 
         return loss >= maxLoss;
@@ -500,25 +551,66 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     /// @dev Iterates through recent positions — bounded by openPositionCount
     /// @return count Number of liquidatable positions
     function getLiquidatablePositionCount() external view returns (uint256 count) {
-        // Iterate backwards from latest position, check up to openPositionCount active ones
+        // Iterate backwards from latest position, check up to openPositionCount active ones.
+        // Uses the same TWAP-based isLiquidatable() as on-chain liquidation for consistency.
         uint256 checked = 0;
         for (uint256 i = nextPositionId; i > 0 && checked < openPositionCount; i--) {
-            ShortPosition storage pos = _positions[i - 1];
-            if (!pos.isOpen) continue;
+            if (!_positions[i - 1].isOpen) continue;
             checked++;
-
-            // Check if liquidatable
-            (int256 pnl, ) = calculatePnL(i - 1);
-            if (pnl >= 0) continue;
-
-            uint256 loss = uint256(-pnl);
-            uint256 totalHeld = pos.ethCollateral + pos.ethFromSale;
-            uint256 maxLoss = (totalHeld * (FEE_DENOMINATOR - LIQUIDATION_THRESHOLD_BPS)) / FEE_DENOMINATOR;
-
-            if (loss >= maxLoss) {
+            if (isLiquidatable(i - 1)) {
                 count++;
             }
         }
+    }
+
+    // ============ TWAP Oracle ============
+
+    /// @notice Current spot price, ETH per token, scaled 1e18 (0 if reserves empty).
+    function _spotEthPerToken() internal view returns (uint256) {
+        (uint256 ethReserve, uint256 tokenReserve) = pair.getReserves();
+        if (tokenReserve == 0) return 0;
+        return (ethReserve * 1e18) / tokenReserve;
+    }
+
+    /// @notice Advance the cumulative accumulator and roll the TWAP window if it has elapsed.
+    /// @dev Accrues the price observed at the LAST update over the elapsed interval (V2-style),
+    ///      so a price appearing within a single block is not counted until a later block.
+    ///      Called at the start of every state-changing action and permissionlessly via poke().
+    function _updateOracle() internal {
+        uint256 nowTs = block.timestamp;
+        uint256 dt = nowTs - priceCumulativeTs;
+        if (dt > 0) {
+            priceCumulative += lastSpotEthPerToken * dt;
+            priceCumulativeTs = nowTs;
+            lastSpotEthPerToken = _spotEthPerToken();
+        }
+        // Finalize a TWAP once a full window has accumulated, then start a fresh window.
+        uint256 windowElapsed = nowTs - observationTs;
+        if (windowElapsed >= TWAP_PERIOD) {
+            twapEthPerToken = (priceCumulative - observationCumulative) / windowElapsed;
+            observationCumulative = priceCumulative;
+            observationTs = nowTs;
+        }
+    }
+
+    /// @notice Permissionless keeper entry to keep the oracle fresh between trades.
+    function pokeOracle() external {
+        _updateOracle();
+    }
+
+    /// @notice The manipulation-resistant TWAP price right now (ETH per token, 1e18).
+    /// @dev Averages over [observationTs, now], including the in-progress interval so a stale
+    ///      keeper can't freeze the price at an old value. Assumes the oracle is ready.
+    function _twapNow() internal view returns (uint256) {
+        uint256 dt = block.timestamp - observationTs;
+        if (dt == 0) return twapEthPerToken;
+        uint256 liveCumulative = priceCumulative + lastSpotEthPerToken * (block.timestamp - priceCumulativeTs);
+        return (liveCumulative - observationCumulative) / dt;
+    }
+
+    /// @notice View: current TWAP eligibility price (0 if not yet ready).
+    function getLiquidationPrice() external view returns (uint256) {
+        return twapEthPerToken == 0 ? 0 : _twapNow();
     }
 
     // ============ Internal Functions ============
