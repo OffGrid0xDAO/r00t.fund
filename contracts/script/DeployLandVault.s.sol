@@ -80,7 +80,11 @@ contract DeployLandVault is Script {
         address depositV = address(new RealLandDepositVerifier());
         address claimV = address(new RealClaimVerifier());
         NullifierRegistry reg = NullifierRegistry(vm.envOr("REGISTRY", 0x6Ae7adf4Cba5eEAc58a70832998bdb18C6588D4A));
-        LandVault vault = new LandVault(landAddr, root, usdc, address(reg), depositV, claimV);
+        // Deployed v2 verifiers the ZkParcelPool reuses (swap/deposit/withdraw). Defaults = RH v2.
+        address swapV = vm.envOr("SWAP_VERIFIER", 0x63B376A158BCaC3e2b5349297E7D3bdbA357A3b6);
+        address r00tDepV = vm.envOr("DEPOSIT_VERIFIER", 0x3B80AABD8c8d52b272Ce836737396186Dc87105c);
+        address withdrawV = vm.envOr("WITHDRAW_VERIFIER", 0x3F8a748ceCf94C05bF65968674db4c6b0942ad11);
+        LandVault vault = new LandVault(landAddr, root, usdc, address(reg), depositV, claimV, swapV, r00tDepV, withdrawV);
 
         // 5. Wire: vault can mint parcel tokens; vault authorized to mark nullifiers in the
         //    shared registry (deployer is governance, so this authorization succeeds).

@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./TokenPool.sol";
 import "./PoseidonT3.sol";
+import "./ZkParcelPool.sol";
 import {ILandDepositVerifier, IClaimVerifier} from "./interfaces/IVerifier.sol";
 import {FullMath} from "v4-core/libraries/FullMath.sol";
 
@@ -64,6 +65,13 @@ contract LandVault is ReentrancyGuard, Pausable {
     IClaimVerifier public immutable claimVerifier;
     TokenPool public immutable pledgePool;     // this vault's own commitment tree
 
+    // ── ZkParcelPool wiring (private parcel↔R00T AMM, seeded on full-funding) ──
+    address public immutable swapVerifier;         // deployed RealSwapVerifier (for pools)
+    address public immutable r00tDepositVerifier;  // deployed RealDepositVerifier (pool shield)
+    address public immutable withdrawVerifier;     // deployed RealWithdrawVerifier (pool exit)
+    address public immutable poseidon;             // shared Poseidon for pool trees
+    mapping(bytes32 => address) public zkParcelPoolByParcel;
+
     // ── reserve accounting (R00T-denominated) ──
     uint256 public reserveR00T;                // steward-bonded R00T held here, backs claims
     uint256 public committedR00T;              // outstanding R00T liability (≤ reserveR00T)
@@ -106,11 +114,15 @@ contract LandVault is ReentrancyGuard, Pausable {
         address _usdc,
         address _nullifierRegistry,
         address _depositVerifier,
-        address _claimVerifier
+        address _claimVerifier,
+        address _swapVerifier,
+        address _r00tDepositVerifier,
+        address _withdrawVerifier
     ) {
         if (
             _land == address(0) || _root == address(0) || _usdc == address(0)
                 || _nullifierRegistry == address(0) || _depositVerifier == address(0) || _claimVerifier == address(0)
+                || _swapVerifier == address(0) || _r00tDepositVerifier == address(0) || _withdrawVerifier == address(0)
         ) revert ZeroAddress();
         land = ILand(_land);
         root = IERC20(_root);
@@ -118,7 +130,11 @@ contract LandVault is ReentrancyGuard, Pausable {
         nullifierRegistry = INullifierRegistry(_nullifierRegistry);
         depositVerifier = ILandDepositVerifier(_depositVerifier);
         claimVerifier = IClaimVerifier(_claimVerifier);
+        swapVerifier = _swapVerifier;
+        r00tDepositVerifier = _r00tDepositVerifier;
+        withdrawVerifier = _withdrawVerifier;
         address poseidonAddr = PoseidonT3Deployer.deploy();
+        poseidon = poseidonAddr;
         pledgePool = new TokenPool(poseidonAddr); // vault is deployer => sole authorized inserter
     }
 
@@ -157,6 +173,44 @@ contract LandVault is ReentrancyGuard, Pausable {
         if (raisedR00TByParcel[parcelId] != 0) revert TargetLocked();
         parcelTargetR00T[parcelId] = targetR00T;
         emit ParcelTargetSet(parcelId, targetR00T);
+    }
+
+    event ZkParcelPoolSeeded(bytes32 indexed parcelId, address indexed pool, uint256 r00tSeed, uint256 parcelSeed);
+    error AlreadyHasPool();
+
+    /// @notice Once a parcel is FULLY FUNDED, spin up its private parcel↔R00T AMM (ZkParcelPool)
+    ///         and seed it: R00T from the vault's FREE reserve + freshly minted parcel tokens
+    ///         (at the OTC mint rate) so the opening price matches the funding valuation. Buyers
+    ///         then trade the parcel token shielded, exactly like $R00T. One-shot per parcel.
+    /// @dev After this, GOVERNANCE must authorize the pool in the shared NullifierRegistry
+    ///      (setPoolAuthorization) before swaps/withdraws can mark nullifiers — see ZkParcelPoolSeeded.
+    function seedZkParcelPool(bytes32 parcelId, uint256 r00tSeed, uint256 parcelSeed)
+        external
+        onlySteward
+        nonReentrant
+        returns (address pool)
+    {
+        uint256 target = parcelTargetR00T[parcelId];
+        if (target == 0 || raisedR00TByParcel[parcelId] < target) revert NotFullyFunded();
+        if (zkParcelPoolByParcel[parcelId] != address(0)) revert AlreadyHasPool();
+        if (r00tSeed == 0 || parcelSeed == 0) revert ZeroAmount();
+        // R00T seed must come from FREE (uncommitted) reserve so claims stay fully backed.
+        if (r00tSeed > reserveR00T - committedR00T) revert InsufficientReserve();
+
+        pool = address(new ZkParcelPool(
+            parcelId, address(root), land.parcelToken(parcelId),
+            swapVerifier, r00tDepositVerifier, withdrawVerifier,
+            address(nullifierRegistry), address(this), poseidon
+        ));
+        zkParcelPoolByParcel[parcelId] = pool;
+
+        // Seed reserves: move free R00T out of the vault + mint parcel tokens straight to the pool.
+        reserveR00T -= r00tSeed;
+        root.safeTransfer(pool, r00tSeed);
+        land.mintParcel(parcelId, pool, parcelSeed);
+        ZkParcelPool(pool).seed();
+
+        emit ZkParcelPoolSeeded(parcelId, pool, r00tSeed, parcelSeed);
     }
 
     // ── funding: ETH/USDC → treasury, shielded R00T commitment ──

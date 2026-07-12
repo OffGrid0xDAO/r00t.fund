@@ -86,7 +86,8 @@ contract LandVaultTest is Test {
         nr = new MockNR();
         dv = new MockDepositV();
         cv = new MockClaimV();
-        vault = new LandVault(address(land), address(root), address(usdc), address(nr), address(dv), address(cv));
+        // ZkParcelPool verifiers reuse the same mock (returns true) for the extended constructor.
+        vault = new LandVault(address(land), address(root), address(usdc), address(nr), address(dv), address(cv), address(dv), address(dv), address(dv));
         land.setParcel(PARCEL, address(0xF00D)); // parcel exists
 
         // steward bonds 1,000,000 R00T reserve
