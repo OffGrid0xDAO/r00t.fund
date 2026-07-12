@@ -130,6 +130,20 @@ const SHORTS_ABI = [
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  // Custom errors — REQUIRED so viem can decode a revert like 0x945e9268 into its NAME.
+  // Without these, a failed short surfaces as raw hex and the friendly-message mapping
+  // below never matches (this was the "raw revert, no message" UI bug).
+  { type: 'error', name: 'PositionTooSmall', inputs: [] },
+  { type: 'error', name: 'PositionTooLarge', inputs: [] },
+  { type: 'error', name: 'OpenInterestLimitExceeded', inputs: [] },
+  { type: 'error', name: 'SlippageExceeded', inputs: [] },
+  { type: 'error', name: 'PositionNotOpen', inputs: [] },
+  { type: 'error', name: 'NotPositionOwner', inputs: [] },
+  { type: 'error', name: 'CooldownNotMet', inputs: [] },
+  { type: 'error', name: 'PositionNotLiquidatable', inputs: [] },
+  { type: 'error', name: 'TransferFailed', inputs: [] },
+  { type: 'error', name: 'InsufficientReserves', inputs: [] },
+  { type: 'error', name: 'OracleNotReady', inputs: [] },
 ] as const;
 
 // Pair ABI for price data
@@ -468,6 +482,19 @@ export function ShortsPanel() {
       // minTokensShorted = estimated * (1 - slippageBps/10000)
       const minTokens = tokenAmount - (tokenAmount * BigInt(slippageBps)) / 10000n;
 
+      // PRE-FLIGHT: simulate first so a doomed short (thin pool, OI cap, under-seeded
+      // shorts reserve, etc.) surfaces its decoded custom error HERE — before we pop the
+      // wallet and burn gas on a tx that would revert. viem decodes the revert against
+      // SHORTS_ABI's error entries, so the catch-block mapping gets a named message.
+      await publicClient.simulateContract({
+        address: shortsAddress,
+        abi: SHORTS_ABI,
+        functionName: 'openShort',
+        args: [minTokens],
+        value: ethValue,
+        account: address,
+      });
+
       const hash = await walletClient.writeContract({
         address: shortsAddress,
         abi: SHORTS_ABI,
@@ -491,13 +518,16 @@ export function ShortsPanel() {
     } catch (err: unknown) {
       const error = err as Error;
       let msg = error.message || 'Failed to open short';
-      if (msg.includes('User rejected')) msg = 'Transaction rejected';
+      if (msg.includes('User rejected') || msg.includes('User denied')) msg = 'Transaction rejected';
       else if (msg.includes('insufficient funds')) msg = 'Insufficient ETH balance';
       else if (msg.includes('PositionTooSmall')) msg = 'Minimum collateral is 0.01 ETH';
       else if (msg.includes('PositionTooLarge')) msg = 'Maximum collateral is 100 ETH';
-      else if (msg.includes('InsufficientReserves')) msg = 'Not enough tokens available for shorting';
-      else if (msg.includes('OpenInterestLimitExceeded')) msg = 'Open interest limit reached';
-      else if (msg.includes('SlippageExceeded')) msg = 'Slippage exceeded, try increasing tolerance';
+      else if (msg.includes('InsufficientReserves')) msg = 'Short too large for current liquidity — try a smaller size';
+      else if (msg.includes('InsufficientLiquidity')) msg = 'Pool too shallow for this short right now — try a smaller size';
+      else if (msg.includes('OpenInterestLimitExceeded')) msg = 'Open interest limit reached — try again later';
+      else if (msg.includes('SlippageExceeded')) msg = 'Slippage exceeded — increase tolerance or reduce size';
+      else if (msg.includes('OracleNotReady')) msg = 'Price oracle still warming up — try again shortly';
+      else msg = 'Short failed to open — the pool may be too shallow. Try a smaller size.';
       setError(msg);
     } finally {
       setIsLoading(false);
