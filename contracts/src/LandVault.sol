@@ -93,6 +93,7 @@ contract LandVault is ReentrancyGuard, Pausable {
     error RecipientMismatch();
     error NotFullyFunded();
     error OverCommitted();
+    error TargetLocked();
 
     modifier onlySteward() {
         if (msg.sender != land.steward()) revert NotSteward();
@@ -148,9 +149,12 @@ contract LandVault is ReentrancyGuard, Pausable {
 
     /// @notice Set a parcel's full-funding target (R00T-equivalent). R00T claims for the
     ///         parcel unlock once raisedR00TByParcel ≥ target.
+    /// @dev Lockable-on-funding: once ANY funding has landed for the parcel the target is
+    ///      frozen, so a steward can never move the goalposts to deny patrons the R00T floor.
     function setParcelTarget(bytes32 parcelId, uint256 targetR00T) external onlySteward {
         if (targetR00T == 0) revert ZeroAmount();
         if (land.parcelToken(parcelId) == address(0)) revert UnknownParcel();
+        if (raisedR00TByParcel[parcelId] != 0) revert TargetLocked();
         parcelTargetR00T[parcelId] = targetR00T;
         emit ParcelTargetSet(parcelId, targetR00T);
     }
@@ -238,7 +242,7 @@ contract LandVault is ReentrancyGuard, Pausable {
         uint256[8] calldata proof,
         uint256[6] calldata pubSignals,
         address recipient
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant {
         (bytes32 parcelId, uint256 nullifierHash, uint256 amount) = _verifyClaim(proof, pubSignals, recipient);
 
         // Full-funding gate — R00T floor only unlocks once the parcel is fully funded.
@@ -262,7 +266,7 @@ contract LandVault is ReentrancyGuard, Pausable {
         uint256[8] calldata proof,
         uint256[6] calldata pubSignals,
         address recipient
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant {
         (bytes32 parcelId, uint256 nullifierHash, uint256 amount) = _verifyClaim(proof, pubSignals, recipient);
 
         // ── Effects: shared nullifier (one-shot vs R00T claim + zkAMM), free the liability ──

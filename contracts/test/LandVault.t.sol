@@ -94,6 +94,7 @@ contract LandVaultTest is Test {
         vm.startPrank(steward);
         root.approve(address(vault), type(uint256).max);
         vault.fundReserve(1_000_000e18);
+        vault.setParcelTarget(PARCEL, 1000e18); // target set BEFORE any funding (now locked)
         vm.stopPrank();
 
         vm.deal(backer, 100 ether);
@@ -140,8 +141,6 @@ contract LandVaultTest is Test {
     function test_claimR00T_afterFullyFunded_paysToAnyWallet() public {
         uint256 rootOut = 1000e18;
         _fundETH(rootOut, 333);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 1000e18); // target met by the single fund
 
         uint256 mroot = vault.pledgeRoot();
         vm.prank(claimWallet);
@@ -167,8 +166,6 @@ contract LandVaultTest is Test {
     // ── attack cases (must REVERT) ───────────────────────────────────────────────
     function test_doubleClaim_REJECTED_sharedNullifier() public {
         _fundETH(1000e18, 555);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 1000e18);
         uint256 mroot = vault.pledgeRoot();
         vm.prank(claimWallet);
         vault.claimR00T(PROOF, _claimPub(mroot, 9, PARCEL, 1000e18, claimWallet), claimWallet);
@@ -179,13 +176,28 @@ contract LandVaultTest is Test {
     }
 
     function test_claimR00T_beforeFullyFunded_REJECTED() public {
-        _fundETH(1000e18, 666);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 5000e18); // target NOT met
+        _fundETH(500e18, 666); // raised 500 < target 1000 (set in setUp)
         uint256 mroot = vault.pledgeRoot();
         vm.prank(claimWallet);
         vm.expectRevert(LandVault.NotFullyFunded.selector);
-        vault.claimR00T(PROOF, _claimPub(mroot, 10, PARCEL, 1000e18, claimWallet), claimWallet);
+        vault.claimR00T(PROOF, _claimPub(mroot, 10, PARCEL, 500e18, claimWallet), claimWallet);
+    }
+
+    function test_setParcelTarget_lockedAfterFunding_REJECTED() public {
+        _fundETH(100e18, 6661); // funding started → target frozen
+        vm.prank(steward);
+        vm.expectRevert(LandVault.TargetLocked.selector);
+        vault.setParcelTarget(PARCEL, 9999e18);
+    }
+
+    function test_claims_workWhenPaused() public {
+        _fundETH(1000e18, 6662);
+        vm.prank(steward);
+        vault.pause(); // pausing must NEVER trap claimable patron funds
+        uint256 mroot = vault.pledgeRoot();
+        vm.prank(claimWallet);
+        vault.claimR00T(PROOF, _claimPub(mroot, 6663, PARCEL, 1000e18, claimWallet), claimWallet);
+        assertEq(root.balanceOf(claimWallet), 1000e18, "claim works despite pause");
     }
 
     function test_overCommit_beyondReserve_REJECTED() public {
@@ -232,8 +244,6 @@ contract LandVaultTest is Test {
 
     function test_claim_recipientBindingMismatch_REJECTED() public {
         _fundETH(1000e18, 1003);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 1000e18);
         uint256 mroot = vault.pledgeRoot();
         // pubSignals recipient field points at a DIFFERENT address than the arg
         uint256[6] memory p = _claimPub(mroot, 11, PARCEL, 1000e18, address(0xBEEF));
@@ -244,8 +254,6 @@ contract LandVaultTest is Test {
 
     function test_claim_fieldRange_REJECTED() public {
         _fundETH(1000e18, 1004);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 1000e18);
         uint256[6] memory p = _claimPub(vault.pledgeRoot(), 12, PARCEL, 1000e18, claimWallet);
         p[2] = vault.SNARK_SCALAR_FIELD(); // nullifier out of field
         vm.prank(claimWallet);
@@ -255,8 +263,6 @@ contract LandVaultTest is Test {
 
     function test_claim_unknownRoot_REJECTED() public {
         _fundETH(1000e18, 1005);
-        vm.prank(steward);
-        vault.setParcelTarget(PARCEL, 1000e18);
         uint256[6] memory p = _claimPub(999999, 13, PARCEL, 1000e18, claimWallet); // bogus root
         vm.prank(claimWallet);
         vm.expectRevert(LandVault.UnknownMerkleRoot.selector);
