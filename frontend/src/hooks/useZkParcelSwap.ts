@@ -23,10 +23,14 @@ const DEPTH = 24;
 const ZERO_VALUE = 21663839004416932945382355908790599225266501822907911457504978515578255421292n;
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
+// SwapParams struct mirrors ZkParcelPool.SwapParams. outputAmount is PINNED by outputDepositProof
+// (deposit verifier proves outputCommitment == Commitment(_,_,outputAmount)) so the note can't
+// claim more than the curve yields — the output-forgery fix.
+const SP = '(uint256[8] proof,uint256 inputMerkleRoot,uint256 inputNullifierHash,uint256 inputAmount,uint256 outputCommitment,uint256 outputAmount,uint256 outputBinding,uint256[8] outputDepositProof,uint256 minOutputAmount,uint256 changeCommitment,uint256 publicInputsBinding,uint256 deadline)';
 const poolAbi = parseAbi([
   'function shieldR00T(uint256 amount,uint256 commitment,uint256 binding,uint256[8] depositProof,bytes note)',
-  'function buyParcel(uint256[8] proof,uint256 inputMerkleRoot,uint256 inputNullifierHash,uint256 inputAmount,uint256 outputCommitment,uint256 minOutputAmount,uint256 changeCommitment,uint256 publicInputsBinding,uint256 deadline,bytes parcelNote,bytes changeNote)',
-  'function sellParcel(uint256[8] proof,uint256 inputMerkleRoot,uint256 inputNullifierHash,uint256 inputAmount,uint256 outputCommitment,uint256 minOutputAmount,uint256 changeCommitment,uint256 publicInputsBinding,uint256 deadline,bytes r00tNote,bytes changeNote)',
+  `function buyParcel(${SP} p,bytes parcelNote,bytes changeNote)`,
+  `function sellParcel(${SP} p,bytes r00tNote,bytes changeNote)`,
   'function r00tNotePool() view returns (address)',
   'function parcelPool() view returns (address)',
   'function getReserves() view returns (uint256,uint256)',
@@ -156,6 +160,7 @@ export function useZkParcelSwap(poolAddress?: string) {
       const nullifier = BigInt(note.nullifier); const secret = BigInt(note.secret);
       const nullifierHash = poseidon2([nullifier, BigInt(leafIndex)]);
       const outNullifier = randomFieldElement(); const outSecret = randomFieldElement();
+      // The note's value = the curve output `out`. The deposit-pin proof binds outCommit↔out.
       const outCommit = hashCommitment(outNullifier, outSecret, out);
 
       setProgress('Generating zero-knowledge proof…');
@@ -168,9 +173,20 @@ export function useZkParcelSwap(poolAddress?: string) {
         changeNullifier: randomFieldElement().toString(), changeSecret: randomFieldElement().toString(),
       }, WASM('swap'), ZKEY('swap'));
       const pib = BigInt(proof.publicSignals[0]);
+
+      // OUTPUT DEPOSIT-PIN proof: binds outCommit to the exact `out` (public), so the note
+      // provably can't claim more than the curve yields. pub = [binding, out, outCommit].
+      const dep = await fullProve({ amount: out.toString(), commitment: outCommit.toString(), nullifier: outNullifier.toString(), secret: outSecret.toString() }, WASM('deposit'), ZKEY('deposit'));
+      const outBinding = BigInt(dep.publicSignals[0]);
+
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
       const fn = isBuy ? 'buyParcel' : 'sellParcel';
-      const args = [packProof(proof.proof), onchainRoot, nullifierHash, inputAmount, outCommit, minOut, 0n, pib, deadline, '0x', '0x'] as const;
+      const sp = {
+        proof: packProof(proof.proof), inputMerkleRoot: onchainRoot, inputNullifierHash: nullifierHash, inputAmount,
+        outputCommitment: outCommit, outputAmount: out, outputBinding: outBinding, outputDepositProof: packProof(dep.proof),
+        minOutputAmount: minOut, changeCommitment: 0n, publicInputsBinding: pib, deadline,
+      };
+      const args = [sp, '0x', '0x'] as const;
 
       setProgress('Submitting private swap…');
       await publicClient.simulateContract({ address: pool, abi: poolAbi, functionName: fn, args, account: address });

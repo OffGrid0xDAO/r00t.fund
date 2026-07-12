@@ -183,117 +183,111 @@ contract ZkParcelPool is ReentrancyGuard {
 
     // ============ Buy: shielded R00T note → shielded parcel note ============
 
-    function buyParcel(
-        uint256[8] calldata proof,
-        uint256 inputMerkleRoot,       // r00tNotePool root
-        uint256 inputNullifierHash,
-        uint256 inputAmount,           // R00T being swapped
-        uint256 outputCommitment,      // parcel note
-        uint256 minOutputAmount,       // min parcel out (slippage)
-        uint256 changeCommitment,      // R00T change note (0 if none)
-        uint256 publicInputsBinding,
-        uint256 deadline,
-        bytes calldata parcelNote,
-        bytes calldata changeNote
-    ) external nonReentrant notExpired(deadline) {
-        uint256 parcelOut = _swap(
-            true, proof, inputMerkleRoot, inputNullifierHash, inputAmount,
-            outputCommitment, minOutputAmount, changeCommitment, publicInputsBinding,
-            parcelNote, changeNote
-        );
-        emit ParcelBought(inputNullifierHash, inputAmount, parcelOut, outputCommitment);
+    /// @dev All numeric swap inputs. Struct avoids stack-too-deep with the output deposit-pin.
+    struct SwapParams {
+        uint256[8] proof;              // swap proof (input ownership + output/change well-formed)
+        uint256 inputMerkleRoot;
+        uint256 inputNullifierHash;
+        uint256 inputAmount;
+        uint256 outputCommitment;
+        uint256 outputAmount;          // SECURITY: the note's value, PINNED by outputDepositProof
+        uint256 outputBinding;         // deposit binding = Poseidon(outputAmount, outputCommitment)
+        uint256[8] outputDepositProof; // deposit proof pinning outputCommitment ↔ outputAmount
+        uint256 minOutputAmount;
+        uint256 changeCommitment;
+        uint256 publicInputsBinding;
+        uint256 deadline;
+    }
+
+    function buyParcel(SwapParams calldata p, bytes calldata parcelNote, bytes calldata changeNote)
+        external nonReentrant notExpired(p.deadline)
+    {
+        uint256 parcelOut = _swap(true, p, parcelNote, changeNote);
+        emit ParcelBought(p.inputNullifierHash, p.inputAmount, parcelOut, p.outputCommitment);
     }
 
     // ============ Sell: shielded parcel note → shielded R00T note ============
 
-    function sellParcel(
-        uint256[8] calldata proof,
-        uint256 inputMerkleRoot,       // parcelPool root
-        uint256 inputNullifierHash,
-        uint256 inputAmount,           // parcel being swapped
-        uint256 outputCommitment,      // R00T note
-        uint256 minOutputAmount,       // min R00T out (slippage)
-        uint256 changeCommitment,      // parcel change note (0 if none)
-        uint256 publicInputsBinding,
-        uint256 deadline,
-        bytes calldata r00tNote,
-        bytes calldata changeNote
-    ) external nonReentrant notExpired(deadline) {
-        uint256 r00tOut = _swap(
-            false, proof, inputMerkleRoot, inputNullifierHash, inputAmount,
-            outputCommitment, minOutputAmount, changeCommitment, publicInputsBinding,
-            r00tNote, changeNote
-        );
-        emit ParcelSold(inputNullifierHash, inputAmount, r00tOut, outputCommitment);
+    function sellParcel(SwapParams calldata p, bytes calldata r00tNote, bytes calldata changeNote)
+        external nonReentrant notExpired(p.deadline)
+    {
+        uint256 r00tOut = _swap(false, p, r00tNote, changeNote);
+        emit ParcelSold(p.inputNullifierHash, p.inputAmount, r00tOut, p.outputCommitment);
     }
 
     /// @dev Shared swap core. isBuy: R00T-note-in (r00tNotePool) → parcel-note-out (parcelPool).
     ///      !isBuy: parcel-note-in (parcelPool) → R00T-note-out (r00tNotePool).
-    function _swap(
-        bool isBuy,
-        uint256[8] calldata proof,
-        uint256 inputMerkleRoot,
-        uint256 inputNullifierHash,
-        uint256 inputAmount,
-        uint256 outputCommitment,
-        uint256 minOutputAmount,
-        uint256 changeCommitment,
-        uint256 publicInputsBinding,
-        bytes calldata outNote,
-        bytes calldata changeNote
-    ) internal returns (uint256 amountOut) {
+    function _swap(bool isBuy, SwapParams calldata p, bytes calldata outNote, bytes calldata changeNote)
+        internal returns (uint256 amountOut)
+    {
         if (!seeded) revert NotSeeded();
         // Field-range guards on every public signal.
         if (
-            inputMerkleRoot >= SNARK_SCALAR_FIELD || inputNullifierHash >= SNARK_SCALAR_FIELD
-                || inputAmount >= SNARK_SCALAR_FIELD || outputCommitment >= SNARK_SCALAR_FIELD
-                || minOutputAmount >= SNARK_SCALAR_FIELD || changeCommitment >= SNARK_SCALAR_FIELD
-                || publicInputsBinding >= SNARK_SCALAR_FIELD
+            p.inputMerkleRoot >= SNARK_SCALAR_FIELD || p.inputNullifierHash >= SNARK_SCALAR_FIELD
+                || p.inputAmount >= SNARK_SCALAR_FIELD || p.outputCommitment >= SNARK_SCALAR_FIELD
+                || p.outputAmount >= SNARK_SCALAR_FIELD || p.outputBinding >= SNARK_SCALAR_FIELD
+                || p.minOutputAmount >= SNARK_SCALAR_FIELD || p.changeCommitment >= SNARK_SCALAR_FIELD
+                || p.publicInputsBinding >= SNARK_SCALAR_FIELD
         ) revert FieldRange();
-        if (inputAmount == 0 || outputCommitment == 0) revert ZeroAmount();
+        if (p.inputAmount == 0 || p.outputCommitment == 0) revert ZeroAmount();
 
         TokenPool inTree = isBuy ? r00tNotePool : parcelPool;
         TokenPool outTree = isBuy ? parcelPool : r00tNotePool;
 
-        if (!inTree.isKnownRoot(inputMerkleRoot)) revert UnknownMerkleRoot();
-        if (nullifierRegistry.isSpent(inputNullifierHash)) revert NullifierAlreadySpent();
+        if (!inTree.isKnownRoot(p.inputMerkleRoot)) revert UnknownMerkleRoot();
+        if (nullifierRegistry.isSpent(p.inputNullifierHash)) revert NullifierAlreadySpent();
 
-        // Verify the swap proof. pubSignals order MUST match the circuit (verified on-chain):
-        // [publicInputsBinding, inputMerkleRoot, inputNullifierHash, inputAmount, outputCommitment, minOutputAmount, changeCommitment]
+        // 1) Verify the SWAP proof — proves input-note ownership + that outputCommitment/
+        //    changeCommitment are well-formed. pubSignals order matches the circuit (verified on-chain):
+        //    [publicInputsBinding, inputMerkleRoot, inputNullifierHash, inputAmount, outputCommitment, minOutputAmount, changeCommitment]
         {
             uint256[7] memory pub = [
-                publicInputsBinding, inputMerkleRoot, inputNullifierHash, inputAmount,
-                outputCommitment, minOutputAmount, changeCommitment
+                p.publicInputsBinding, p.inputMerkleRoot, p.inputNullifierHash, p.inputAmount,
+                p.outputCommitment, p.minOutputAmount, p.changeCommitment
             ];
-            if (!swapVerifier.verifyProof(proof, pub)) revert InvalidProof();
+            if (!swapVerifier.verifyProof(p.proof, pub)) revert InvalidProof();
         }
 
-        // AMM: reserves in curve order.
+        // 2) SECURITY FIX (output-forgery): the swap circuit leaves outputAmount PRIVATE and
+        //    unconstrained, so a note could claim more than the curve gives. Pin the output
+        //    note's value with a DEPOSIT proof — depositVerifier proves
+        //    outputCommitment == Commitment(_, _, outputAmount) for the PUBLIC outputAmount.
+        //    Because both proofs reference the SAME outputCommitment, the swap's private amount
+        //    is forced to equal this public outputAmount. Then enforce it against the curve.
+        {
+            uint256[3] memory dpub = [p.outputBinding, p.outputAmount, p.outputCommitment];
+            if (!depositVerifier.verifyProof(p.outputDepositProof, dpub)) revert InvalidProof();
+        }
+
+        // 3) AMM check: the pinned outputAmount must be within slippage AND must NOT exceed what
+        //    the curve actually yields (no over-claim). Reserves move by the real note value.
         uint256 reserveIn = isBuy ? r00tReserve : parcelReserve;
         uint256 reserveOut = isBuy ? parcelReserve : r00tReserve;
-        amountOut = getAmountOut(inputAmount, reserveIn, reserveOut);
-        if (amountOut < minOutputAmount) revert SlippageExceeded();
-        if (amountOut > reserveOut - MIN_RESERVE) revert InsufficientLiquidity();
+        uint256 curveOut = getAmountOut(p.inputAmount, reserveIn, reserveOut);
+        if (p.outputAmount < p.minOutputAmount) revert SlippageExceeded();
+        if (p.outputAmount > curveOut) revert SlippageExceeded();       // ← closes the forgery
+        if (p.outputAmount > reserveOut - MIN_RESERVE) revert InsufficientLiquidity();
+        amountOut = p.outputAmount;
 
         // ── Effects (CEI): spend the input nullifier in the shared registry first ──
-        nullifierRegistry.checkAndMark(inputNullifierHash);
+        nullifierRegistry.checkAndMark(p.inputNullifierHash);
 
         // Reshuffle between curve and note-backing (no tokens leave the pool):
-        // input value moves INTO the curve; amountOut moves OUT of the curve into the new note.
+        // input value moves INTO the curve; the PINNED amountOut moves OUT into the new note.
         if (isBuy) {
-            r00tReserve = reserveIn + inputAmount;
+            r00tReserve = reserveIn + p.inputAmount;
             parcelReserve = reserveOut - amountOut;
         } else {
-            parcelReserve = reserveIn + inputAmount;
+            parcelReserve = reserveIn + p.inputAmount;
             r00tReserve = reserveOut - amountOut;
         }
 
         // Insert the output note (into the opposite tree) + optional change note (back into the input tree).
-        uint256 outLeaf = outTree.insert(outputCommitment);
-        emit NewCommitment(outputCommitment, outLeaf, outNote);
-        if (changeCommitment != 0) {
-            uint256 chLeaf = inTree.insert(changeCommitment);
-            emit NewCommitment(changeCommitment, chLeaf, changeNote);
+        uint256 outLeaf = outTree.insert(p.outputCommitment);
+        emit NewCommitment(p.outputCommitment, outLeaf, outNote);
+        if (p.changeCommitment != 0) {
+            uint256 chLeaf = inTree.insert(p.changeCommitment);
+            emit NewCommitment(p.changeCommitment, chLeaf, changeNote);
         }
     }
 

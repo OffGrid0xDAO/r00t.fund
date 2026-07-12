@@ -31,7 +31,9 @@ contract DeployLandVault is Script {
         address poolManager = vm.envOr("POOL_MANAGER", RH_POOL_MANAGER);
 
         uint256 landBond = 1_000e18;      // steward bond to the Land (pool-seed reserve)
-        uint256 vaultReserve = 5_000_000e18; // R00T the vault holds to back claims
+        // R00T the vault holds to back claims. Overridable via VAULT_RESERVE env so the deploy
+        // fits the deployer's remaining balance (default 3M for the demo).
+        uint256 vaultReserve = vm.envOr("VAULT_RESERVE", uint256(3_000_000e18));
         uint256 rootPriceE6 = 100000;     // $0.10 / R00T
         uint256 ethPriceE6 = 3000_000000; // $3000 / ETH
         bytes32 parcelId = bytes32(uint256(1));

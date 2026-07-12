@@ -52,6 +52,25 @@ contract ZkParcelPoolTest is Test {
     /// @dev field-safe pseudo-commitment (keccak mod field) so we don't trip the contract's FieldRange guard
     function _c(string memory s) internal pure returns (uint256) { return uint256(keccak256(bytes(s))) % FIELD; }
 
+    /// @dev build a SwapParams struct (mock proofs; outputAmount is the note's pinned value)
+    function _p(uint256 root_, uint256 nul, uint256 inAmt, uint256 outCommit, uint256 outAmount, uint256 minOut, uint256 change, uint256 deadline)
+        internal pure returns (ZkParcelPool.SwapParams memory p)
+    {
+        uint256[8] memory zp;
+        p.proof = zp;
+        p.inputMerkleRoot = root_;
+        p.inputNullifierHash = nul;
+        p.inputAmount = inAmt;
+        p.outputCommitment = outCommit;
+        p.outputAmount = outAmount;
+        p.outputBinding = 12345;      // mock (deposit verifier returns true)
+        p.outputDepositProof = zp;
+        p.minOutputAmount = minOut;
+        p.changeCommitment = change;
+        p.publicInputsBinding = 222;
+        p.deadline = deadline;
+    }
+
     function setUp() public {
         swapV = new MockVerifier();
         depV = new MockVerifier();
@@ -142,12 +161,7 @@ contract ZkParcelPoolTest is Test {
         uint256 inAmt = 10_000e18;
         uint256 expectedOut = pool.getAmountOut(inAmt, rIn, pOut);
 
-        uint256[8] memory proof;
-        pool.buyParcel(
-            proof, r00tRoot, 111 /*nullifier*/, inAmt,
-            _c("parcelNote") /*outputCommitment*/, 1 /*minOut*/, 0 /*change*/,
-            222 /*binding*/, block.timestamp + 100, "", ""
-        );
+        pool.buyParcel(_p(r00tRoot, 111, inAmt, _c("parcelNote"), expectedOut, 1, 0, block.timestamp + 100), "", "");
 
         (uint256 rAfter, uint256 pAfter) = pool.getReserves();
         assertEq(rAfter, rIn + inAmt, "r00tReserve += inAmt");
@@ -159,45 +173,55 @@ contract ZkParcelPoolTest is Test {
         assertEq(pool.parcelPool().nextIndex(), 1);
     }
 
+    /// @notice SECURITY: the fix — a note claiming MORE than the curve yields must revert.
+    function test_Buy_RevertsOutputForgery() public {
+        uint256 r00tRoot = _shield(10_000e18);
+        (uint256 rIn, uint256 pOut) = pool.getReserves();
+        uint256 honest = pool.getAmountOut(10_000e18, rIn, pOut);
+        // outputAmount = 100x the honest curve output → must revert (over-claim closed)
+        vm.expectRevert(ZkParcelPool.SlippageExceeded.selector);
+        pool.buyParcel(_p(r00tRoot, 111, 10_000e18, _c("forged"), honest * 100, 1, 0, block.timestamp + 100), "", "");
+    }
+
     function test_Buy_RevertsSlippage() public {
         uint256 r00tRoot = _shield(10_000e18);
         (uint256 rIn, uint256 pOut) = pool.getReserves();
         uint256 out = pool.getAmountOut(10_000e18, rIn, pOut);
-        uint256[8] memory proof;
+        // outputAmount below the min → slippage
         vm.expectRevert(ZkParcelPool.SlippageExceeded.selector);
-        pool.buyParcel(proof, r00tRoot, 111, 10_000e18, _c("n"), out + 1 /*minOut too high*/, 0, 222, block.timestamp + 100, "", "");
+        pool.buyParcel(_p(r00tRoot, 111, 10_000e18, _c("n"), out, out + 1 /*minOut too high*/, 0, block.timestamp + 100), "", "");
     }
 
     function test_Buy_RevertsDoubleSpend() public {
         uint256 r00tRoot = _shield(20_000e18);
-        uint256[8] memory proof;
-        pool.buyParcel(proof, r00tRoot, 111, 5_000e18, _c("a"), 1, 0, 222, block.timestamp + 100, "", "");
+        (uint256 rIn, uint256 pOut) = pool.getReserves();
+        uint256 out = pool.getAmountOut(5_000e18, rIn, pOut);
+        pool.buyParcel(_p(r00tRoot, 111, 5_000e18, _c("a"), out, 1, 0, block.timestamp + 100), "", "");
         // reuse nullifier 111 → contract's isSpent pre-check reverts NullifierAlreadySpent
         uint256 newRoot = pool.r00tNotePool().root();
         vm.expectRevert(ZkParcelPool.NullifierAlreadySpent.selector);
-        pool.buyParcel(proof, newRoot, 111, 5_000e18, _c("b"), 1, 0, 222, block.timestamp + 100, "", "");
+        pool.buyParcel(_p(newRoot, 111, 5_000e18, _c("b"), 1, 1, 0, block.timestamp + 100), "", "");
     }
 
     function test_Buy_RevertsUnknownRoot() public {
         _shield(10_000e18);
-        uint256[8] memory proof;
         vm.expectRevert(ZkParcelPool.UnknownMerkleRoot.selector);
-        pool.buyParcel(proof, 999999 /*bogus root*/, 111, 1e18, _c("n"), 1, 0, 222, block.timestamp + 100, "", "");
+        pool.buyParcel(_p(999999 /*bogus root*/, 111, 1e18, _c("n"), 1, 1, 0, block.timestamp + 100), "", "");
     }
 
     function test_Buy_RevertsExpired() public {
         uint256 r00tRoot = _shield(10_000e18);
-        uint256[8] memory proof;
         vm.expectRevert(ZkParcelPool.Expired.selector);
-        pool.buyParcel(proof, r00tRoot, 111, 1e18, _c("n"), 1, 0, 222, block.timestamp - 1, "", "");
+        pool.buyParcel(_p(r00tRoot, 111, 1e18, _c("n"), 1, 1, 0, block.timestamp - 1), "", "");
     }
 
     // ---- sell ----
     function test_Sell_ReshufflesReserves() public {
         // first buy to create a parcel note + move price
         uint256 r00tRoot = _shield(50_000e18);
-        uint256[8] memory proof;
-        pool.buyParcel(proof, r00tRoot, 111, 50_000e18, _c("pn"), 1, 0, 222, block.timestamp + 100, "", "");
+        (uint256 br, uint256 bp) = pool.getReserves();
+        uint256 buyOut = pool.getAmountOut(50_000e18, br, bp);
+        pool.buyParcel(_p(r00tRoot, 111, 50_000e18, _c("pn"), buyOut, 1, 0, block.timestamp + 100), "", "");
         uint256 parcelRoot = pool.parcelPool().root();
 
         uint256 realR00TBefore = root.balanceOf(address(pool));
@@ -206,7 +230,7 @@ contract ZkParcelPoolTest is Test {
         uint256 sellAmt = 100_000e18;
         uint256 expectedR00tOut = pool.getAmountOut(sellAmt, pBefore, rBefore);
 
-        pool.sellParcel(proof, parcelRoot, 333 /*nullifier*/, sellAmt, _c("r00tNote"), 1, 0, 444, block.timestamp + 100, "", "");
+        pool.sellParcel(_p(parcelRoot, 333 /*nullifier*/, sellAmt, _c("r00tNote"), expectedR00tOut, 1, 0, block.timestamp + 100), "", "");
 
         (uint256 rAfter, uint256 pAfter) = pool.getReserves();
         assertEq(pAfter, pBefore + sellAmt, "parcelReserve += sellAmt");
@@ -240,10 +264,13 @@ contract ZkParcelPoolTest is Test {
     // ---- accounting invariant across a full round-trip ----
     function test_Invariant_RealBalanceEqualsReservePlusBacking() public {
         uint256 r00tRoot = _shield(30_000e18);
-        uint256[8] memory proof;
-        pool.buyParcel(proof, r00tRoot, 1, 15_000e18, _c("p1"), 1, 0, 2, block.timestamp + 100, "", "");
+        (uint256 br, uint256 bp) = pool.getReserves();
+        uint256 buyOut = pool.getAmountOut(15_000e18, br, bp);
+        pool.buyParcel(_p(r00tRoot, 1, 15_000e18, _c("p1"), buyOut, 1, 0, block.timestamp + 100), "", "");
         uint256 parcelRoot = pool.parcelPool().root();
-        pool.sellParcel(proof, parcelRoot, 3, 20_000e18, _c("r1"), 1, 0, 4, block.timestamp + 100, "", "");
+        (uint256 sr, uint256 sp) = pool.getReserves();
+        uint256 sellOut = pool.getAmountOut(20_000e18, sp, sr);
+        pool.sellParcel(_p(parcelRoot, 3, 20_000e18, _c("r1"), sellOut, 1, 0, block.timestamp + 100), "", "");
 
         // realR00T = reserve + backing ; backing must be >= 0
         (uint256 rRes, uint256 pRes) = pool.getReserves();

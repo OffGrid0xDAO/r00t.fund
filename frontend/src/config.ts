@@ -132,21 +132,24 @@ export const CONTRACTS = {
   // Deployed swap/deposit/withdraw verifiers (reused by ZkParcelPool). RH v2.
   swapVerifier: (import.meta.env.VITE_SWAP_VERIFIER as string) || '0x63B376A158BCaC3e2b5349297E7D3bdbA357A3b6',
   // Demo parcel (parcelId=1, $OAK) private AMM — trade $OAK↔R00T shielded like R00T.
-  parcelToken: (import.meta.env.VITE_PARCEL_TOKEN as string) || '0x7DE4eA3179cf750b09645e5Cd8885CDc331F7F26',
-  zkParcelPool: (import.meta.env.VITE_ZK_PARCEL_POOL as string) || '0x13Eba5469c60f3C66acFF71f3265936d6658bD85',
+  // v2 (2026-07-12): output-forgery fixed (deposit-pin binds note value to the curve).
+  parcelToken: (import.meta.env.VITE_PARCEL_TOKEN as string) || '0x8298EE52BdA92932eAF3956aA654816C2B489bc0',
+  zkParcelPool: (import.meta.env.VITE_ZK_PARCEL_POOL as string) || '0x443740f65780014843dDfe35eb722547A1409fbE',
+  // deposit verifier (reused by the pool for shield + output-pin) + withdraw verifier.
+  depositVerifier: (import.meta.env.VITE_DEPOSIT_VERIFIER as string) || '0x3B80AABD8c8d52b272Ce836737396186Dc87105c',
   // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
   poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
   // The deployed pilot Land (steward: r00t, parcelId=1 "Oak Terrace"/$OAK). LandVault v2 (RH 2026-07-12).
-  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x985865379b8482C38A8104a2e58fD639E7Cd4DCB',
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x24c5cD6DEE4361769787D65cc2971bb67c3D0D75',
   // LandVault — private plot funding LIVE on RH, now with the ZkParcelPool auto-seed hook.
   // Pay ETH (100% to land treasury) → shielded commitment claimable as R00T (OTC floor,
   // once fully funded) OR the parcel token. Uses the SHARED v2 nullifier registry (no
   // cross-rail double-spend). On full-funding the steward seeds a private parcel↔R00T AMM.
-  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xeF6774fFA84df6578104ae61462e78b10F348536',
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
-  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xeF6774fFA84df6578104ae61462e78b10F348536',
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
