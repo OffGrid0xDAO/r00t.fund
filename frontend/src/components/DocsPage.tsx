@@ -405,54 +405,57 @@ export function DocsPage({ onClose }: DocsPageProps) {
                   system <span className="text-[var(--accent)]">architecture</span>
                 </h2>
                 <p className="text-[var(--text-secondary)] font-body leading-relaxed">
-                  The protocol is built as a layered contract architecture where each component has a single responsibility.
-                  State modifications flow through authorized callers only, with timelock protections on all admin operations.
+                  r00t.fund runs on <span className="text-[var(--accent)]">Robinhood Chain</span> (an Arbitrum
+                  Orbit L2, chainId 4663). It's a layered architecture: a fixed-supply base token, a
+                  Virtuals-style land launchpad, a private funding vault, and a confidential-transfer DEX —
+                  each with a single responsibility, state changes flowing through authorized callers only.
                 </p>
 
                 {/* Contract diagram */}
                 <CodeBlock>
-                  <Cm>{'// Contract Relationships'}</Cm>{'\n\n'}
-                  <Tx>{'ZkAMMAdmin'}</Tx>  <Mu>{'──── manages ────▶'}</Mu>  <Tx>{'ZkAMMPair'}</Tx>{'\n'}
-                  <Mu>{'    │                            │'}</Mu>{'\n'}
-                  <Mu>{'    │ sets router, verifiers     │ holds reserves'}</Mu>{'\n'}
-                  <Mu>{'    │ CRE callback auth          │ token + LP merkle trees'}</Mu>{'\n'}
-                  <Mu>{'    │ emergency multisig         │ nullifier sets'}</Mu>{'\n'}
-                  <Mu>{'    │                            │'}</Mu>{'\n'}
-                  <Tx>{'CompliantPrivateVault'}</Tx>  <Mu>{'──▶'}</Mu>  <Ty>{'insertCommitmentFromCRE()'}</Ty>{'\n'}
-                  <Mu>{'    │                            │'}</Mu>{'\n'}
-                  <Mu>{'    │ escrow ETH                 │ commitment ──▶ TokenPool'}</Mu>{'\n'}
-                  <Mu>{'    │ emit events for CRE DON    │   (Poseidon Merkle tree)'}</Mu>{'\n'}
-                  <Mu>{'    │                            │'}</Mu>{'\n'}
-                  <Tx>{'R00tPolicyEngine'}</Tx>{'\n'}
-                  <Mu>{'    │'}</Mu>{'\n'}
-                  <Mu>{'    │ compliance attestations'}</Mu>{'\n'}
-                  <Mu>{'    │ transfer policies'}</Mu>{'\n'}
-                  <Mu>{'    │ sanctions + KYC checks'}</Mu>{'\n'}
+                  <Cm>{'// Contract Relationships (Robinhood Chain 4663)'}</Cm>{'\n\n'}
+                  <Tx>{'$R00T'}</Tx>  <Cm>{'  // fixed 69M supply, no mint'}</Cm>{'\n'}
+                  <Mu>{'    │ base pair + OTC underlying'}</Mu>{'\n'}
                   <Mu>{'    ▼'}</Mu>{'\n'}
-                  <Tx>{'R00tCREReceiver'}</Tx>  <Cm>{'  // base contract: DON auth + pause'}</Cm>
+                  <Tx>{'LandFactory'}</Tx>  <Mu>{'──── deploys ────▶'}</Mu>  <Tx>{'Land'}</Tx>  <Cm>{'  // steward bonds $R00T'}</Cm>{'\n'}
+                  <Mu>{'    │                             │'}</Mu>{'\n'}
+                  <Mu>{'    │ shared v4 wiring            │ r00tLiquidityReserve'}</Mu>{'\n'}
+                  <Mu>{'    │ protocol treasury           │ parcel tokens + v4 pools'}</Mu>{'\n'}
+                  <Mu>{'    ▼                             ▼'}</Mu>{'\n'}
+                  <Tx>{'LandVault'}</Tx>  <Mu>{'──▶'}</Mu>  <Ty>{'otcFund / claimR00T / claimParcelToken'}</Ty>{'\n'}
+                  <Mu>{'    │ pay ETH/USDC → treasury (100%)'}</Mu>{'\n'}
+                  <Mu>{'    │ shielded commitment ──▶ Poseidon Merkle tree'}</Mu>{'\n'}
+                  <Mu>{'    │ claim to ANY wallet (shared NullifierRegistry)'}</Mu>{'\n'}
+                  <Mu>{'    ▼'}</Mu>{'\n'}
+                  <Tx>{'ZkAMM (Pair/Router/Admin)'}</Tx>  <Cm>{'  // confidential $R00T transfers'}</Cm>{'\n'}
+                  <Mu>{'    │ deposit-binding verifier (no value forgery)'}</Mu>{'\n'}
+                  <Mu>{'    ▼'}</Mu>{'\n'}
+                  <Tx>{'Ponder indexer'}</Tx>  <Cm>{'  // rebuilds trees; untrusted for soundness'}</Cm>
                 </CodeBlock>
 
                 <div className="space-y-4 text-[var(--text-secondary)] font-body leading-relaxed">
                   <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
-                    How Deposits Flow
+                    How Land Funding Flows
                   </h3>
                   <p>
-                    When a user deposits, their ETH enters escrow in the CompliantPrivateVault. The vault emits
-                    a <code className="text-[var(--accent)] font-mono text-xs">PrivateTransferRequested</code> event
-                    that the Chainlink CRE DON picks up. The DON queries the PolicyEngine off-chain
-                    via <code className="text-[var(--accent)] font-mono text-xs">eth_call</code>, runs
-                    sanctions checks, and either authorizes or denies the request. On authorization, the vault
-                    inserts a Poseidon commitment into the ZkAMM Merkle tree and the deposit is live.
+                    A steward opens a Land through the <code className="text-[var(--accent)] font-mono text-xs">LandFactory</code> and
+                    bonds <code className="text-[var(--accent)] font-mono text-xs">$R00T</code> — the Virtuals-style
+                    seed that backs the parcels. Patrons fund a parcel through the <code className="text-[var(--accent)] font-mono text-xs">LandVault</code> with
+                    ETH or USDC; 100% goes to the land treasury (the ground). In return they receive a shielded
+                    commitment — value+parcel bound by a Groth16 proof — that they can later claim to <em>any</em> wallet,
+                    unlinkable from the funding address.
                   </p>
 
                   <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
-                    How Trades Flow
+                    How Claiming Works
                   </h3>
                   <p>
-                    Trading happens entirely on-chain through ZK proofs. To swap, a user generates a Groth16 proof
-                    demonstrating they own a commitment in the Merkle tree with sufficient balance. The proof is
-                    verified by one of 8 on-chain verifier contracts managed by ZkAMMAdmin. On success, the old
-                    commitment is nullified and a new one is inserted with the updated balance.
+                    At claim time the holder chooses: <strong>$R00T</strong> — the OTC floor paid from the steward's
+                    bonded reserve, unlocked once the parcel is fully funded and irreversible; or the
+                    <strong> parcel token</strong> — the upside, minted by the Land and tradeable on its parcel/$R00T
+                    pool. A single shared nullifier makes the choice one-shot. Confidential $R00T transfers on the
+                    ZkAMM use the same proof machinery, with a deposit-binding verifier so a note can never be worth
+                    more $R00T than was actually deposited.
                   </p>
                 </div>
 

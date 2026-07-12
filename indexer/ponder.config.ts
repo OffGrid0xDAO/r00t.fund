@@ -101,28 +101,42 @@ const PairAbi = [
   },
 ] as const;
 
-// Pledge vault events (Phase C) — frozen in docs/REMEDIATION_PLAN.md:
-//   PledgeCommitment(uint256 indexed commitment, uint256 indexed leafIndex, bytes32 parcelId, bytes note)
-//   PledgeClaimed(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 amount)
+// LandVault events (private ETH/USDC funding of land parcels + dual claim):
+//   Funded(commitment, leafIndex, parcelId, rootOut, paid, payToken, note)  → tree insert
+//   ClaimedR00T(nullifierHash, recipient, parcelId, amount)                 → nullifier spend
+//   ClaimedParcelToken(nullifierHash, recipient, parcelId, parcelOut)       → nullifier spend
 const PledgeAbi = [
   {
     type: "event",
-    name: "PledgeCommitment",
+    name: "Funded",
     inputs: [
       { type: "uint256", indexed: true, name: "commitment" },
       { type: "uint256", indexed: true, name: "leafIndex" },
       { type: "bytes32", indexed: false, name: "parcelId" },
+      { type: "uint256", indexed: false, name: "rootOut" },
+      { type: "uint256", indexed: false, name: "paid" },
+      { type: "address", indexed: false, name: "payToken" },
       { type: "bytes", indexed: false, name: "note" },
     ],
   },
   {
     type: "event",
-    name: "PledgeClaimed",
+    name: "ClaimedR00T",
     inputs: [
       { type: "uint256", indexed: true, name: "nullifierHash" },
       { type: "address", indexed: true, name: "recipient" },
       { type: "bytes32", indexed: false, name: "parcelId" },
       { type: "uint256", indexed: false, name: "amount" },
+    ],
+  },
+  {
+    type: "event",
+    name: "ClaimedParcelToken",
+    inputs: [
+      { type: "uint256", indexed: true, name: "nullifierHash" },
+      { type: "address", indexed: true, name: "recipient" },
+      { type: "bytes32", indexed: false, name: "parcelId" },
+      { type: "uint256", indexed: false, name: "parcelOut" },
     ],
   },
 ] as const;

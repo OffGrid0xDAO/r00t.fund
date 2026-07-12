@@ -265,7 +265,10 @@ async function handlePledgeCommitment({ event, context }: any) {
 
 async function handlePledgeClaimed({ event, context }: any) {
   const { db } = context;
-  const { nullifierHash, recipient, parcelId, amount } = event.args;
+  // ClaimedR00T carries `amount`; ClaimedParcelToken carries `parcelOut` — both are the
+  // claimed R00T-equivalent for indexing purposes.
+  const { nullifierHash, recipient, parcelId } = event.args;
+  const amount = event.args.amount ?? event.args.parcelOut;
   const contractAddress = event.log.address.toLowerCase();
 
   await db.insert(pledgeClaims).values({
@@ -617,6 +620,8 @@ ponder.on("ZkAMMPair:LPNullifierSpent", async ({ event, context }) => {
 // Pledge vault handlers — only registered when the pledge address is wired
 // (Phase C). Registering handlers for an unconfigured contract makes Ponder throw.
 if (PLEDGE_ENABLED) {
-  ponder.on("PledgeVault:PledgeCommitment", handlePledgeCommitment);
-  ponder.on("PledgeVault:PledgeClaimed", handlePledgeClaimed);
+  // LandVault: Funded → tree insert; both claim events → nullifier spend.
+  ponder.on("PledgeVault:Funded", handlePledgeCommitment);
+  ponder.on("PledgeVault:ClaimedR00T", handlePledgeClaimed);
+  ponder.on("PledgeVault:ClaimedParcelToken", handlePledgeClaimed);
 }

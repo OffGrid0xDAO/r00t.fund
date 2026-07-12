@@ -133,10 +133,13 @@ export const CONTRACTS = {
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
   // The deployed pilot Land (steward: r00t). Pledges route here once set.
   pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x...',
-  // Anonymous plot-funding pledge vault (Phase C). Shields R00T then records a
-  // private pledge bound to a parcelId; claimed later to an unlinked wallet.
-  // Set VITE_PLEDGE_VAULT after Phase C deploys (also wire indexer PONDER_PLEDGE_ADDRESS).
-  pledgeVault: (import.meta.env.VITE_PLEDGE_VAULT as string) || '0x...',
+  // LandVault — private plot funding. Pay ETH/USDC (100% to the land treasury) →
+  // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully
+  // funded) OR the parcel token (upside). Set VITE_LAND_VAULT after deploy
+  // (also wire indexer PONDER_PLEDGE_ADDRESS + authorize the vault in NullifierRegistry).
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x...',
+  // Back-compat alias for Phase-D panels that referenced pledgeVault.
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || (import.meta.env.VITE_PLEDGE_VAULT as string) || '0x...',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
