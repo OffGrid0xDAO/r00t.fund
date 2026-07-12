@@ -1,90 +1,46 @@
 /**
- * PrivatePledges — Portfolio section listing the user's anonymous plot pledges
- * and letting them claim each to any wallet (Phase D).
+ * PrivatePledges — Portfolio section for the user's private plot funds (LandVault).
  *
- * Claimable pledges are the encrypted notes stored client-side (usePledge) whose
- * commitment has been indexed (leafIndex resolved) and not yet claimed. "Claim to
- * wallet…" builds a fresh ZK proof over the pledge tree and calls
- * claim(proof, pubSignals, recipient) — paying out to a wallet unlinked from the
- * original deposit.
+ * Each note is a shielded commitment (stored client-side; recoverable from chain via
+ * the SDK viewing key). Claim it to ANY wallet as R00T (OTC floor, once the parcel is
+ * fully funded) OR the parcel token — ONE irreversible choice (the shared nullifier
+ * makes double-claim impossible on-chain). The merkle proof is built from Ponder, and
+ * falls back to reading on-chain Funded logs directly if the indexer is down.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useState } from 'react';
+import { useAccount, usePublicClient } from 'wagmi';
 import { formatUnits, isAddress } from 'viem';
 import type { WalletSession } from '../../hooks/useWalletSession';
-import { usePledge, type PledgeNote } from '../../hooks/usePledge';
-import { useZkProver } from '../../hooks/useZkProver';
-import { PLEDGE_VAULT_ABI } from '../../abis/pledge';
-import { CHAIN, getExplorerTxUrl } from '../../config';
+import { useLandVault, type LandNote } from '../../hooks/useLandVault';
+import { getExplorerTxUrl } from '../../config';
 
 const fmt = (wei: string) => Number(formatUnits(BigInt(wei), 18)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 export function PrivatePledges({ session }: { session: WalletSession }) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
-
-  const pledge = usePledge(session.viewingKey);
-  const zkProver = useZkProver();
+  const vault = useLandVault(session.viewingKey);
 
   const [recipients, setRecipients] = useState<Record<string, string>>({});
+  const [kinds, setKinds] = useState<Record<string, 'root' | 'parcel'>>({});
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [txById, setTxById] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (pledge.isReady) void pledge.refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pledge.isReady, pledge.notes.length]);
+  const claimable = vault.notes.filter((n) => !n.claimed);
+  const claimed = vault.notes.filter((n) => n.claimed);
 
-  const { claimable, pending, claimed } = useMemo(() => {
-    const claimable: PledgeNote[] = [];
-    const pending: PledgeNote[] = [];
-    const claimed: PledgeNote[] = [];
-    for (const n of pledge.notes) {
-      if (n.claimed) claimed.push(n);
-      else if (n.leafIndex != null) claimable.push(n);
-      else pending.push(n);
-    }
-    return { claimable, pending, claimed };
-  }, [pledge.notes]);
-
-  const doClaim = async (note: PledgeNote) => {
+  const doClaim = async (note: LandNote) => {
     setErrors((e) => ({ ...e, [note.id]: '' }));
-    const recipient = (recipients[note.id] || '').trim();
+    const recipient = (recipients[note.id] || address || '').trim();
+    const kind = kinds[note.id] || 'parcel';
     if (!isAddress(recipient)) { setErrors((e) => ({ ...e, [note.id]: 'Enter a valid recipient address.' })); return; }
-    if (!zkProver.isReady) { setErrors((e) => ({ ...e, [note.id]: 'Prover still loading.' })); return; }
-    if (!walletClient || !publicClient || !address) { setErrors((e) => ({ ...e, [note.id]: 'Wallet not ready.' })); return; }
-    if (note.leafIndex == null) { setErrors((e) => ({ ...e, [note.id]: 'Pledge not yet indexed.' })); return; }
-
+    if (!vault.isReady) { setErrors((e) => ({ ...e, [note.id]: 'LandVault not configured.' })); return; }
     try {
       setClaimingId(note.id);
-      const { commitments, treeState } = await pledge.fetchPledgeTree();
-
-      const claim = await zkProver.generateClaimProof({
-        commitment: {
-          nullifier: BigInt(note.nullifier),
-          secret: BigInt(note.secret),
-          amount: BigInt(note.amount),
-          leafIndex: note.leafIndex,
-        },
-        parcelId: note.parcelId,
-        recipient,
-        allCommitments: commitments,
-        treeState,
-      });
-
-      const proof = claim.proof as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-      const hash = await walletClient.writeContract({
-        address: pledge.pledgeVault as `0x${string}`,
-        abi: PLEDGE_VAULT_ABI,
-        functionName: 'claim',
-        args: [proof, claim.pubSignals, recipient as `0x${string}`],
-        chain: CHAIN,
-        account: address,
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-
-      pledge.markClaimed(note.id, recipient, hash);
+      const hash = await vault.claim(note, recipient, kind);
+      if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
+      setTxById((t) => ({ ...t, [note.id]: hash }));
     } catch (err) {
       console.error('[PrivatePledges] claim failed', err);
       setErrors((e) => ({ ...e, [note.id]: (err as Error).message || 'Claim failed.' }));
@@ -93,92 +49,70 @@ export function PrivatePledges({ session }: { session: WalletSession }) {
     }
   };
 
-  if (!pledge.isReady) {
+  if (!vault.isReady) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center">
-        <p className="text-sm text-[var(--text-secondary)]">
-          Private plot pledging goes live once the pledge vault deploys (Phase C).
-        </p>
+        <p className="text-sm text-[var(--text-secondary)]">Private plot funding isn't configured yet.</p>
       </div>
     );
   }
-
-  if (pledge.notes.length === 0) {
+  if (vault.notes.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center">
-        <p className="text-sm text-[var(--text-secondary)]">
-          No private pledges yet. Fund a plot privately from the pilot map to see it here.
-        </p>
+        <p className="text-sm text-[var(--text-secondary)]">No private funds yet. Fund a plot privately from the pilot map to see it here.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          <span className="text-[var(--accent)] opacity-60">// </span>private pledges
-        </h3>
-        <button
-          onClick={() => pledge.refresh()}
-          disabled={pledge.isLoading}
-          className="text-xs font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50"
-        >
-          {pledge.isLoading ? 'syncing…' : '↻ refresh'}
-        </button>
-      </div>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+        <span className="text-[var(--accent)] opacity-60">// </span>private funds
+      </h3>
 
-      {claimable.map((n) => (
-        <div key={n.id} className="rounded-lg border border-[var(--border)] p-4 bg-[var(--bg-secondary)]">
-          <div className="flex items-baseline justify-between mb-2">
-            <span className="text-[var(--text-primary)] font-medium">{n.parcelLabel || 'Plot pledge'}</span>
-            <span className="font-mono text-sm text-[var(--text-primary)]">{fmt(n.amount)} R00T</span>
-          </div>
-          <p className="text-[11px] font-mono text-[var(--text-muted)] mb-3">
-            claimable · leaf #{n.leafIndex} · parcel {n.parcelId.slice(0, 10)}…
-          </p>
-          <div className="flex gap-2">
-            <input
-              value={recipients[n.id] || ''}
-              onChange={(e) => setRecipients((r) => ({ ...r, [n.id]: e.target.value }))}
-              placeholder="Claim to wallet… (0x…)"
-              className="flex-1 min-w-0 px-2.5 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] font-mono"
-            />
-            <button
-              onClick={() => doClaim(n)}
-              disabled={claimingId === n.id}
-              className="shrink-0 px-3 py-2 rounded-lg text-[var(--accent-ink)] bg-[var(--accent)] font-medium text-sm disabled:opacity-60 hover:opacity-90"
-            >
-              {claimingId === n.id ? 'Claiming…' : 'Claim'}
-            </button>
-          </div>
-          {errors[n.id] && <p className="mt-1.5 text-[11px] text-[var(--error,#e05555)]">{errors[n.id]}</p>}
-        </div>
-      ))}
+      {claimable.map((n) => {
+        const kind = kinds[n.id] || 'parcel';
+        return (
+          <div key={n.id} className="rounded-lg border border-[var(--border)] p-4 bg-[var(--bg-secondary)]">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-[var(--text-primary)] font-medium">Plot fund</span>
+              <span className="font-mono text-sm text-[var(--text-primary)]">{fmt(n.rootOut)} R00T-eq</span>
+            </div>
+            <p className="text-[11px] font-mono text-[var(--text-muted)] mb-3">claimable · parcel {n.parcelId.slice(0, 10)}… · one irreversible choice</p>
 
-      {pending.map((n) => (
-        <div key={n.id} className="rounded-lg border border-[var(--border)] p-4 opacity-70">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[var(--text-primary)] font-medium">{n.parcelLabel || 'Plot pledge'}</span>
-            <span className="font-mono text-sm text-[var(--text-primary)]">{fmt(n.amount)} R00T</span>
+            {/* R00T vs parcel-token choice */}
+            <div className="flex gap-2 mb-2">
+              {(['root', 'parcel'] as const).map((k) => (
+                <button key={k} onClick={() => setKinds((s) => ({ ...s, [n.id]: k }))}
+                  className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition-colors ${kind === k ? 'text-[var(--accent-ink)] bg-[var(--accent)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)]'}`}>
+                  {k === 'root' ? 'Claim $R00T (floor)' : 'Claim parcel token'}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input value={recipients[n.id] || ''} onChange={(e) => setRecipients((r) => ({ ...r, [n.id]: e.target.value }))}
+                placeholder={`Claim to wallet… (default: ${(address || '0x…').slice(0, 8)}…)`}
+                className="flex-1 min-w-0 px-2.5 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] font-mono" />
+              <button onClick={() => doClaim(n)} disabled={claimingId === n.id}
+                className="shrink-0 px-3 py-2 rounded-lg text-[var(--accent-ink)] bg-[var(--accent)] font-medium text-sm disabled:opacity-60 hover:opacity-90">
+                {claimingId === n.id ? 'Claiming…' : 'Claim'}
+              </button>
+            </div>
+            {errors[n.id] && <p className="mt-1.5 text-[11px] text-[var(--error,#e05555)] break-words">{errors[n.id]}</p>}
           </div>
-          <p className="text-[11px] font-mono text-[var(--text-muted)] mt-1">
-            pending · waiting for the indexer to confirm the commitment
-          </p>
-        </div>
-      ))}
+        );
+      })}
 
       {claimed.map((n) => (
         <div key={n.id} className="rounded-lg border border-[var(--border)] p-4 opacity-60">
           <div className="flex items-baseline justify-between">
-            <span className="text-[var(--text-secondary)]">{n.parcelLabel || 'Plot pledge'}</span>
-            <span className="font-mono text-sm text-[var(--text-secondary)]">{fmt(n.amount)} R00T</span>
+            <span className="text-[var(--text-secondary)]">Plot fund</span>
+            <span className="font-mono text-sm text-[var(--text-secondary)]">{fmt(n.rootOut)} R00T-eq</span>
           </div>
           <p className="text-[11px] font-mono text-[var(--text-muted)] mt-1">
-            claimed{n.claimRecipient ? ` → ${n.claimRecipient.slice(0, 10)}…` : ''}
-            {n.claimTxHash && (
-              <> · <a href={getExplorerTxUrl(n.claimTxHash)} target="_blank" rel="noreferrer" className="underline">tx ↗</a></>
-            )}
+            claimed as {n.claimKind === 'root' ? '$R00T' : 'parcel token'}{n.claimRecipient ? ` → ${n.claimRecipient.slice(0, 10)}…` : ''}
+            {txById[n.id] && (<> · <a href={getExplorerTxUrl(txById[n.id])} target="_blank" rel="noreferrer" className="underline">tx ↗</a></>)}
           </p>
         </div>
       ))}
