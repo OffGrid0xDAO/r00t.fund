@@ -702,16 +702,31 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
 
         // SECURITY: Don't log secrets - was revealing private commitment ownership
 
-        // Check if this commitment was already spent on-chain by computing its nullifierHash
+        // Check if this commitment was already spent on-chain by computing its nullifierHash.
+        // NOTE: the indexer's `nullifierss` set (spentNullifiers) is built from the PAIR's local
+        // NullifierSpent events, which the v2 router NEVER emits — it marks spends in the SHARED
+        // NullifierRegistry. So we ALSO query the registry's isSpent() directly; otherwise a
+        // sold note never gets marked spent and keeps showing (→ re-sell → on-chain revert).
         let isSpentOnChain = false;
-        if (existingData?.nullifier && spentNullifiers.size > 0) {
+        if (existingData?.nullifier) {
           try {
             const nullifierBigInt = BigInt(existingData.nullifier);
             const computedNullifierHash = hashNullifier(nullifierBigInt, leafIndex);
             const hashString = computedNullifierHash.toString();
             isSpentOnChain = spentNullifiers.has(hashString);
-            // Debug: Log nullifier check for troubleshooting
-            dbg(`[usePrivateWallet] Nullifier check for leafIndex ${leafIndex}: hash=${hashString.slice(0, 20)}... spent=${isSpentOnChain}`);
+            if (!isSpentOnChain && CONTRACTS.nullifierRegistry && (CONTRACTS.nullifierRegistry as string) !== '0x...') {
+              try {
+                // isSpent(uint256) selector 0x5a129efe + padded arg
+                const sel = '0x5a129efe' + computedNullifierHash.toString(16).padStart(64, '0');
+                const rr = await fetch(NETWORK.rpcUrl, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: CONTRACTS.nullifierRegistry, data: sel }, 'latest'] }),
+                });
+                const jj = await rr.json();
+                if (jj?.result && BigInt(jj.result) === 1n) isSpentOnChain = true;
+              } catch { /* registry read failed — fall back to indexer set */ }
+            }
+            dbg(`[usePrivateWallet] Nullifier check for leafIndex ${leafIndex}: spent=${isSpentOnChain}`);
           } catch (err) {
             console.error(`[usePrivateWallet] Failed to compute nullifier hash for leafIndex ${leafIndex}:`, err);
           }

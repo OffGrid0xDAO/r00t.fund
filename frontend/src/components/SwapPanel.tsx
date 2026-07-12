@@ -885,9 +885,18 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       console.log(`[SwapPanel] Computed merkle root: ${proofResult.merkleRoot.toString()}`);
       console.log(`[SwapPanel] Nullifier hash: ${proofResult.nullifierHash.toString()}`);
 
+      // IMPORTANT: the v2 router spends nullifiers in the SHARED NullifierRegistry (via
+      // checkAndMark), NOT the pair's local `nullifiers` mapping. So we MUST check the
+      // registry's isSpent(), not pair.isNullifierSpent() — the latter always returns false
+      // for real spends, letting a re-sell of an already-sold note pass pre-flight and then
+      // revert on-chain as a generic wallet error (#-39000).
+      const registryAddress = CONTRACTS.nullifierRegistry as `0x${string}`;
+      const REGISTRY_ISSPENT_ABI = [{ name: 'isSpent', type: 'function', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'bool' }] }] as const;
       const [isRootKnown, isNullifierSpent] = await Promise.all([
         publicClient.readContract({ address: pairAddress, abi: ZKAMM_ABI, functionName: 'isKnownRoot', args: [proofResult.merkleRoot] }),
-        publicClient.readContract({ address: pairAddress, abi: ZKAMM_ABI, functionName: 'isNullifierSpent', args: [proofResult.nullifierHash] }),
+        registryAddress && registryAddress !== '0x...'
+          ? publicClient.readContract({ address: registryAddress, abi: REGISTRY_ISSPENT_ABI, functionName: 'isSpent', args: [proofResult.nullifierHash] })
+          : publicClient.readContract({ address: pairAddress, abi: ZKAMM_ABI, functionName: 'isNullifierSpent', args: [proofResult.nullifierHash] }),
       ]);
 
       console.log(`[SwapPanel] isKnownRoot: ${isRootKnown}, isNullifierSpent: ${isNullifierSpent}`);
@@ -896,7 +905,9 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
         throw new Error(`Merkle root not recognized on-chain. Root: ${proofResult.merkleRoot.toString().slice(0, 20)}... This usually means the indexer is out of sync - try refreshing or waiting a few blocks.`);
       }
       if (isNullifierSpent) {
-        throw new Error('This commitment has already been spent. Please refresh your wallet.');
+        // This exact note was already sold. Drop it locally so it stops showing.
+        try { _removeCommitment?.(commitmentToSpend.commitment); } catch { /* noop */ }
+        throw new Error('You already sold this note — it can only be spent once. Pick a different note (or buy more R00T).');
       }
 
       // Log all public signals for debugging proof verification
