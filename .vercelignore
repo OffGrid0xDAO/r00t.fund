@@ -1,0 +1,14 @@
+# Keep the Vercel upload lean — exclude build artifacts and non-frontend heavy dirs.
+# The frontend + sdk + circuits(public) are all that the build needs.
+.git
+node_modules
+**/node_modules
+out
+cache
+contracts/out
+contracts/cache
+contracts/lib
+indexer/.ponder
+**/.forge-cache
+broadcast
+*.log
