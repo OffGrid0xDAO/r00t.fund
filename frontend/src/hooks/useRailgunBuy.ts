@@ -13,6 +13,25 @@ import { Wallet } from 'ethers';
 import { EVENTS, CHAIN, CONTRACTS } from '../config';
 import { ZKAMM_ABI } from '../abis/zkAMM';
 
+// Pack a snarkjs groth16 proof into the uint256[8] the Solidity verifier expects (b-coord swap).
+function packProof(p: { pi_a: string[]; pi_b: string[][]; pi_c: string[] }): [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] {
+  return [p.pi_a[0], p.pi_a[1], p.pi_b[0][1], p.pi_b[0][0], p.pi_b[1][1], p.pi_b[1][0], p.pi_c[0], p.pi_c[1]].map(BigInt) as
+    [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+}
+
+// Lazy snarkjs (browser). Deposit circuit served from public/circuits/deposit/.
+async function generateDepositProof(input: { amount: bigint; commitment: bigint; nullifier: bigint; secret: bigint }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snarkjs: any = await import('snarkjs');
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+    { amount: input.amount.toString(), commitment: input.commitment.toString(), nullifier: input.nullifier.toString(), secret: input.secret.toString() },
+    '/circuits/deposit/deposit.wasm',
+    '/circuits/deposit/deposit_final.zkey',
+  );
+  // Circuit: public [amount, commitment], output binding → publicSignals = [binding, amount, commitment]
+  return { binding: BigInt(publicSignals[0]), packed: packProof(proof) };
+}
+
 interface BuyResult {
   success: boolean;
   error?: string;
@@ -104,28 +123,29 @@ export function useRailgunBuy(_zkAMMAddress: string, options?: UseRailgunBuyOpti
         }) as bigint;
       }
 
-      onProgress?.('Generating commitment...', 30);
-      setProgress('Generating commitment...');
+      // EXACT-OUT: the secure buyPrivate delivers EXACTLY `committedTokensOut` and refunds
+      // the ETH difference. Commit to slightly fewer tokens than the raw quote so the curve's
+      // ethRequired stays under msg.value (our max-in) even after rounding/fees — otherwise it
+      // reverts SlippageExceeded. The note's amount MUST equal committedTokensOut (it's bound
+      // by the deposit proof), so we build the commitment from it.
+      const committedTokensOut = tokensOut * BigInt(10000 - slippageBps) / 10000n;
 
       const nullifier = randomFieldElement();
       const secret = randomFieldElement();
-      const commitment = poseidonHashCommitment(nullifier, secret, tokensOut);
+      const commitment = poseidonHashCommitment(nullifier, secret, committedTokensOut);
 
       const wallet = new Wallet(viewingKey);
       const viewingPublicKey = wallet.signingKey.compressedPublicKey;
-      const encryptedNoteData = await encryptNote(nullifier, secret, tokensOut, viewingPublicKey);
+      const encryptedNoteData = await encryptNote(nullifier, secret, committedTokensOut, viewingPublicKey);
 
-      const minTokensOut = tokensOut * BigInt(10000 - slippageBps) / 10000n;
       // Deadline: use chain's block timestamp (Tenderly VNet timestamps can differ from real time)
       const latestBlock = await publicClient.getBlock();
       const deadline = latestBlock.timestamp + 1200n;
 
-      onProgress?.('Sending transaction...', 50);
-      setProgress('Sending transaction...');
-
       let hash: `0x${string}`;
 
       if (isProject) {
+        const minTokensOut = committedTokensOut;
         // Project token buy: ETH → ROOT → Token via Router's swapETHForProjectToken
         const minR00TOut = 0n; // Let minTokensOut protect the final output
         const userEntropy = keccak256(toBytes(`${nullifier}${secret}${Date.now()}`));
@@ -147,12 +167,28 @@ export function useRailgunBuy(_zkAMMAddress: string, options?: UseRailgunBuyOpti
           chain: CHAIN,
         });
       } else {
-        // ROOT buy: ETH → ROOT via buyPrivate
+        // ROOT buy: ETH → ROOT via the SECURE 6-arg buyPrivate (CRITICAL-1).
+        // Generate the deposit-binding proof so the note's amount is provably == committedTokensOut.
+        onProgress?.('Generating zero-knowledge proof…', 45);
+        setProgress('Generating zero-knowledge proof…');
+        const { binding, packed } = await generateDepositProof({ amount: committedTokensOut, commitment, nullifier, secret });
+
+        const buyArgs = [commitment, committedTokensOut, binding, packed, deadline, encryptedNoteData as Hex] as const;
+
+        // PRE-FLIGHT: simulate so a doomed buy (slippage, bad proof, thin pool) fails HERE with
+        // a decoded error — before the wallet popup, and so we never record a phantom note.
+        onProgress?.('Submitting private swap…', 60);
+        setProgress('Submitting private swap…');
+        await publicClient.simulateContract({
+          address: routerAddress, abi: ZKAMM_ABI, functionName: 'buyPrivate',
+          args: buyArgs, value: ethAmountWei, account: address,
+        });
+
         hash = await walletClient.writeContract({
           address: routerAddress,
           abi: ZKAMM_ABI,
           functionName: 'buyPrivate',
-          args: [commitment, minTokensOut, deadline, encryptedNoteData as Hex],
+          args: buyArgs,
           value: ethAmountWei,
           chain: CHAIN,
         });
@@ -161,6 +197,14 @@ export function useRailgunBuy(_zkAMMAddress: string, options?: UseRailgunBuyOpti
       onProgress?.('Confirming...', 80);
       setProgress('Confirming...');
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      // CRITICAL: only treat the buy as real if the tx actually succeeded. Previously this
+      // returned success even on a reverted tx, so the caller saved a phantom note that could
+      // never be sold (nothing on-chain). Gate on receipt.status.
+      if (receipt.status !== 'success') {
+        setProgress('');
+        return { success: false, error: 'Transaction reverted on-chain — no tokens were bought.' };
+      }
 
       const commitmentLog = receipt.logs.find(log =>
         log.topics[0] === EVENTS.newCommitment
@@ -176,7 +220,8 @@ export function useRailgunBuy(_zkAMMAddress: string, options?: UseRailgunBuyOpti
         commitment,
         nullifier,
         secret,
-        tokensReceived: tokensOut,
+        // The note holds committedTokensOut (exact-out); that's what's actually spendable.
+        tokensReceived: isProject ? tokensOut : committedTokensOut,
         leafIndex,
       };
 

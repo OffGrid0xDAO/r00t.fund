@@ -6,17 +6,27 @@
 export const ZKAMM_ABI = [
   // Buy/Sell functions
   {
+    // CRITICAL-1 secure buy: exact-out with a deposit-binding proof so a note can never
+    // claim more R00T than the curve released. binding = Poseidon(tokensOut, newCommitment).
     name: 'buyPrivate',
     type: 'function',
     stateMutability: 'payable',
     inputs: [
       { name: 'newCommitment', type: 'uint256' },
-      { name: 'minTokensOut', type: 'uint256' },
+      { name: 'tokensOut', type: 'uint256' },
+      { name: 'binding', type: 'uint256' },
+      { name: 'depositProof', type: 'uint256[8]' },
       { name: 'deadline', type: 'uint256' },
       { name: 'encryptedNote', type: 'bytes' },
     ],
     outputs: [],
   },
+  // Custom errors so viem decodes buy reverts by name (deposit-proof / slippage / liquidity)
+  { type: 'error', name: 'InvalidProof', inputs: [] },
+  { type: 'error', name: 'SlippageExceeded', inputs: [] },
+  { type: 'error', name: 'InsufficientLiquidity', inputs: [] },
+  { type: 'error', name: 'NoETH', inputs: [] },
+  { type: 'error', name: 'ZeroAmount', inputs: [] },
   {
     name: 'sellPrivate',
     type: 'function',
