@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useConnect, useChainId, useSwitchChain, usePublicClient } from 'wagmi';
 import { SwapPanel, TokenOption } from './components/SwapPanel';
 import { ShortsPanel } from './components/ShortsPanel';
@@ -371,10 +371,6 @@ function App() {
   const expectedChainId = NETWORK.chainId;
   const isWrongNetwork = isConnected && chainId !== expectedChainId;
 
-  // Scroll animations
-  const { scrollY } = useScroll();
-  const headerOpacity = useTransform(scrollY, [0, 100], [1, 0.95]);
-
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
@@ -441,8 +437,7 @@ function App() {
 
       {/* Header */}
       <motion.header
-        style={{ opacity: headerOpacity }}
-        className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-md bg-[var(--bg-primary)]/80"
+        className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-md bg-[var(--bg-primary)]/90 border-b border-[var(--border)]/60"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <AnimatedLogo onClick={() => setShowLanding(true)} />

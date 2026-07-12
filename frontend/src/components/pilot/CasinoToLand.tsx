@@ -30,6 +30,7 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
                 <span className="text-xs tracking-[0.2em] uppercase font-mono" style={{ color: GREEN }}>RWA ReFi launchpad</span>
               </div>
               <span className="text-[10px] font-mono uppercase tracking-[0.18em] px-2 py-1 rounded-md border" style={{ borderColor: `color-mix(in srgb, ${GREEN} 40%, var(--border))`, color: 'var(--text-muted)' }}>real-world assets · regenerative finance</span>
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] px-2 py-1 rounded-md border" style={{ borderColor: `color-mix(in srgb, ${GREEN} 40%, var(--border))`, color: 'var(--text-muted)' }}>IRL Farmville · root network</span>
               <span className="text-[10px] font-mono uppercase tracking-[0.18em] px-2 py-1 rounded-md border" style={{ borderColor: `color-mix(in srgb, ${GREEN} 40%, var(--border))`, color: 'var(--text-muted)' }}>Robinhood Chain</span>
             </div>
 
@@ -37,19 +38,21 @@ export function CasinoToLand({ onEnterApp }: { onEnterApp?: () => void }) {
               {/* copy */}
               <div>
                 <h2 className="font-display text-3xl md:text-4xl tracking-[-0.02em] leading-[1.08] mb-5 text-[var(--text-primary)]">
-                  The casino, <span style={{ color: GREEN }}>pointed at the ground.</span>
+                  The memecoin machine, <span style={{ color: GREEN }}>replanted.</span>
                 </h2>
                 <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-lg mb-5">
-                  Same fair-launch mechanics, same speculative velocity that mints tokens by the
-                  minute — but the value that gets extracted doesn't vanish into insiders and snipers.
-                  It roots. Every launch funds a real off-grid plot that's coming back to life. Take
-                  from the casino, give it back to the land.
+                  Every day the fair-launch machine spins up thousands of coins and pipes the fees to
+                  insiders, snipers, and the next KOL rug. Imagine that exact velocity aimed at burned
+                  land instead. Here every launch <span className="text-[var(--text-primary)] font-medium">is</span> a
+                  real parcel — you plant it, satellites watch it regrow, and the extracted value roots
+                  and compounds instead of vanishing. It's <span className="text-[var(--text-primary)] font-medium">IRL Farmville</span>,
+                  on the root network. A breath of fresh air in a casino that only ever exhaled.
                 </p>
 
                 {/* same power, opposite direction */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 max-w-lg">
-                  <ExtractRow tone="drain" label="the casino" flow="value extracted → insiders" tail="then it's gone" />
-                  <ExtractRow tone="root" label="r00t.fund" flow="value extracted → the land" tail="and it compounds" />
+                  <ExtractRow tone="drain" label="the casino" flow="fees → insiders & KOL rug" tail="then it's gone" />
+                  <ExtractRow tone="root" label="r00t.fund" flow="fees → real living land" tail="and it compounds" />
                 </div>
 
                 <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border mb-6" style={{ borderColor: `color-mix(in srgb, ${GREEN} 45%, var(--border))`, background: `color-mix(in srgb, ${GREEN} 7%, var(--bg-elevated))` }}>
