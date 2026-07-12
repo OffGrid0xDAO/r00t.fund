@@ -134,6 +134,14 @@ interface WalletState {
 // VERSION 3: Force refresh to clear stale commitments from v2 that had corrupted leafIndex data
 const WALLET_STORAGE_KEY = 'r00t_wallet_state_v3';
 
+// Robinhood Chain: block the current zkAMM pair was deployed. Used as the start for the
+// trustless RPC fallback so the full commitment tree can be rebuilt straight from chain
+// when the indexer is unavailable. Override with VITE_DEX_DEPLOY_BLOCK.
+const DEX_DEPLOY_BLOCK: bigint = (() => {
+  const v = import.meta.env.VITE_DEX_DEPLOY_BLOCK as string | undefined;
+  try { return v ? BigInt(v) : 7139900n; } catch { return 7139900n; }
+})();
+
 /**
  * Hook for managing private wallet state
  * Note: In production, this would use the full SDK with proper note decryption
@@ -1097,16 +1105,15 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const blockData = await blockRes.json();
       const currentBlock = BigInt(blockData.result);
 
-      // Fetch in small chunks to avoid RPC limits
-      // Note: Some providers (like the user's) have a 10-block limit for eth_getLogs
       const allLogs: Array<{ topics: string[] }> = [];
 
-      // If Ponder failed, we can't easily build the full tree via RPC on a free tier
-      // We'll try to fetch the last 10000 blocks as a last resort, but warn the user
-      const MAX_RPC_BLOCKS = 10000n;
-      const startBlock = currentBlock > MAX_RPC_BLOCKS ? currentBlock - MAX_RPC_BLOCKS : 0n;
-      // OPTIMIZED: Increased chunk size to 2000 to avoid 429 Rate Limits (10 was too small)
-      const CHUNK_SIZE = 2000n;
+      // TRUSTLESS FALLBACK: scan from the pair's DEPLOY block so the FULL tree is rebuilt
+      // straight from chain when the indexer is down (localhost on prod, or crashed). On
+      // Robinhood Chain (~0.1s blocks) the commitments are ~600k blocks back, so the old
+      // "last 10k blocks" window silently missed everything → 0 commitments → sell failed.
+      const startBlock = DEX_DEPLOY_BLOCK > 0n ? DEX_DEPLOY_BLOCK : (currentBlock > 100000n ? currentBlock - 100000n : 0n);
+      // Large chunks: an Alchemy/provider RPC handles wide getLogs ranges fine.
+      const CHUNK_SIZE = 50000n;
 
       console.warn(`[fetchAllOnChainCommitments] Ponder failed for ${addressToUse}. Falling back to RPC for blocks ${startBlock} to ${currentBlock} in chunks of ${CHUNK_SIZE}.`);
 
