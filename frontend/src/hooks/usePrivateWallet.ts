@@ -134,6 +134,9 @@ interface WalletState {
 // VERSION 3: Force refresh to clear stale commitments from v2 that had corrupted leafIndex data
 const WALLET_STORAGE_KEY = 'r00t_wallet_state_v3';
 
+// Quiet debug logging — enable with localStorage.setItem('r00t_debug','1'). Errors/warnings still show.
+const dbg = (...a: unknown[]) => { try { if (localStorage.getItem('r00t_debug') === '1') console.log(...a); } catch { /* noop */ } };
+
 // Robinhood Chain: block the current zkAMM pair was deployed. Used as the start for the
 // trustless RPC fallback so the full commitment tree can be rebuilt straight from chain
 // when the indexer is unavailable. Override with VITE_DEX_DEPLOY_BLOCK.
@@ -198,7 +201,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         // Don't migrate old data - it's from different contract deployments
         // Just log that we're starting fresh
         if (localStorage.getItem(oldKeyV1) || localStorage.getItem(oldKeyV1Alt)) {
-          console.log('[usePrivateWallet] Found old wallet data from previous deployment, starting fresh for new contracts');
+          dbg('[usePrivateWallet] Found old wallet data from previous deployment, starting fresh for new contracts');
         }
       }
 
@@ -213,7 +216,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           loadedBalance = BigInt(parsed.balance || '0');
           loadedCommitments = parsed.commitments || [];
           loadedLastScannedBlock = parsed.lastScannedBlock || 0;
-          console.log(`[usePrivateWallet] Loaded ${loadedCommitments.length} commitments from storage (key: ${storageKey})`);
+          dbg(`[usePrivateWallet] Loaded ${loadedCommitments.length} commitments from storage (key: ${storageKey})`);
         } catch (e) {
           console.error('[usePrivateWallet] Failed to parse saved state:', e);
         }
@@ -254,7 +257,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
     };
     const storageKey = getStorageKey(currentState.publicKey);
     localStorage.setItem(storageKey, JSON.stringify(toSave));
-    console.log(`[usePrivateWallet] Saved ${currentState.commitments.length} commitments to storage (key: ${storageKey})`);
+    dbg(`[usePrivateWallet] Saved ${currentState.commitments.length} commitments to storage (key: ${storageKey})`);
   }, [getStorageKey]);
 
   // Debounced save to prevent excessive writes
@@ -303,7 +306,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
     }
 
     setState((s) => ({ ...s, isScanning: true }));
-    console.log(`[usePrivateWallet] Starting scan using indexer: ${NETWORK.indexerUrl}`);
+    dbg(`[usePrivateWallet] Starting scan using indexer: ${NETWORK.indexerUrl}`);
 
     try {
       // Types for Ponder responses
@@ -352,7 +355,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const PAGE_SIZE = 1000;
       const pairAddressLower = pairAddress.toLowerCase();
 
-      console.log(`[usePrivateWallet] Starting paginated fetch for pair: ${pairAddressLower}`);
+      dbg(`[usePrivateWallet] Starting paginated fetch for pair: ${pairAddressLower}`);
       while (hasMore) {
         const page = await queryPonder<CommitmentsResponse>(COMMITMENTS_QUERY_PAGINATED, {
           limit: PAGE_SIZE,
@@ -364,7 +367,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           allPonderCommitments.push(...page.commitmentss.items);
           const lastItem = page.commitmentss.items[page.commitmentss.items.length - 1];
           afterLeafIndex = BigInt(lastItem.leafIndex) + 1n;
-          console.log(`[usePrivateWallet] Fetched page: ${page.commitmentss.items.length} items (total: ${allPonderCommitments.length}, next: ${afterLeafIndex})`);
+          dbg(`[usePrivateWallet] Fetched page: ${page.commitmentss.items.length} items (total: ${allPonderCommitments.length}, next: ${afterLeafIndex})`);
 
           // Stop if we got less than PAGE_SIZE (no more data)
           if (page.commitmentss.items.length < PAGE_SIZE) {
@@ -374,7 +377,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           hasMore = false;
         }
       }
-      console.log(`[usePrivateWallet] Pagination complete: ${allPonderCommitments.length} commitments for pair`);
+      dbg(`[usePrivateWallet] Pagination complete: ${allPonderCommitments.length} commitments for pair`);
 
       // Fetch trades and nullifiers (these are typically smaller, single query is fine)
       const [ponderTrades, ponderNullifiers, ponderMeta] = await Promise.all([
@@ -386,10 +389,10 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       // Build a Set of spent nullifier hashes for quick lookup
       const spentNullifiers = new Set<string>();
       if (ponderNullifiers?.nullifierss?.items?.length) {
-        console.log(`[usePrivateWallet] Loaded ${ponderNullifiers.nullifierss.items.length} spent nullifiers from Ponder`);
+        dbg(`[usePrivateWallet] Loaded ${ponderNullifiers.nullifierss.items.length} spent nullifiers from Ponder`);
         for (const n of ponderNullifiers.nullifierss.items) {
           spentNullifiers.add(n.id); // id is the nullifierHash
-          console.log(`[usePrivateWallet] Spent nullifier: ${n.id.slice(0, 30)}...`);
+          dbg(`[usePrivateWallet] Spent nullifier: ${n.id.slice(0, 30)}...`);
         }
       } else {
         console.warn(`[usePrivateWallet] NO spent nullifiers found! Query result:`, ponderNullifiers);
@@ -408,7 +411,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
 
       // If Ponder has data, use it (already filtered server-side by address_in)
       if (allPonderCommitments.length > 0) {
-        console.log(`[usePrivateWallet] Using Ponder: ${allPonderCommitments.length} commitments for pair ${pairAddressLower}`);
+        dbg(`[usePrivateWallet] Using Ponder: ${allPonderCommitments.length} commitments for pair ${pairAddressLower}`);
         commitmentLogs = allPonderCommitments.map(c => ({
           topics: [
             EVENTS.newCommitment,
@@ -426,7 +429,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       }
 
       if (ponderTrades?.tradess?.items?.length) {
-        console.log(`[usePrivateWallet] Using Ponder: ${ponderTrades.tradess.items.length} trades`);
+        dbg(`[usePrivateWallet] Using Ponder: ${ponderTrades.tradess.items.length} trades`);
         // Filter buy AND remove_lp trades - both create token commitments
         // - buy: user buys tokens, gets a new token commitment
         // - remove_lp: user removes liquidity, gets tokens back as a new commitment
@@ -436,7 +439,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
             // Ponder stores tokenAmount as formatted decimal string (e.g., "10880603.307...")
             // Convert back to wei by parsing as float and multiplying by 10^18
             const tokenAmountWei = BigInt(Math.floor(parseFloat(t.tokenAmount) * 1e18));
-            console.log(`[usePrivateWallet] Trade ${t.type}: tx=${t.transactionHash.slice(0, 10)}, tokens=${t.tokenAmount}`);
+            dbg(`[usePrivateWallet] Trade ${t.type}: tx=${t.transactionHash.slice(0, 10)}, tokens=${t.tokenAmount}`);
             return {
               transactionHash: t.transactionHash,
               // Fake data field with tokenAmount (only tokensOut matters for correlation)
@@ -447,7 +450,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
 
       // Fall back to RPC if Ponder has no data
       if (!commitmentLogs.length) {
-        console.log('[usePrivateWallet] Ponder empty or failed, falling back to RPC');
+        dbg('[usePrivateWallet] Ponder empty or failed, falling back to RPC');
         const RPC_URL = NETWORK.rpcUrl;
 
         // Get current block
@@ -528,9 +531,9 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         const data = log.data.slice(2);
         const tokensOut = BigInt('0x' + data.slice(64, 128));
         txAmounts[log.transactionHash] = tokensOut;
-        console.log(`[usePrivateWallet] Purchase tx ${log.transactionHash.slice(0, 10)}: ${Number(tokensOut) / 1e18} tokens`);
+        dbg(`[usePrivateWallet] Purchase tx ${log.transactionHash.slice(0, 10)}: ${Number(tokensOut) / 1e18} tokens`);
       }
-      console.log(`[usePrivateWallet] Found ${Object.keys(txAmounts).length} purchases to correlate`)
+      dbg(`[usePrivateWallet] Found ${Object.keys(txAmounts).length} purchases to correlate`)
 
       // Get current state for processing (needed for existing secrets lookup)
       // Use stateRef to get latest state without adding to dependencies
@@ -568,7 +571,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
             } catch { /* ignore conversion errors */ }
           }
 
-          console.log(`[usePrivateWallet] Indexed commitment secrets for leafIndex ${c.leafIndex}, amount: ${c.amount}`);
+          dbg(`[usePrivateWallet] Indexed commitment secrets for leafIndex ${c.leafIndex}, amount: ${c.amount}`);
         }
       }
 
@@ -610,7 +613,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
                 spent: byLeafIndex.spent,
                 amount: byLeafIndex.amount,
               };
-              console.log(`[usePrivateWallet] Found matching secrets by leafIndex ${leafIndex}`);
+              dbg(`[usePrivateWallet] Found matching secrets by leafIndex ${leafIndex}`);
             } else {
               console.warn(`[usePrivateWallet] leafIndex ${leafIndex} has different commitment hash, ignoring stored secrets`);
             }
@@ -622,30 +625,30 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         // Without this, scan() would corrupt the amount and break proof generation.
         if (existingData?.amount) {
           amount = BigInt(existingData.amount);
-          console.log(`[usePrivateWallet] Using stored amount for leafIndex ${leafIndex}: ${amount.toString()}`);
+          dbg(`[usePrivateWallet] Using stored amount for leafIndex ${leafIndex}: ${amount.toString()}`);
         }
 
         // Always try to decrypt the encrypted note to get/verify the correct amount
         // This fixes issues where stored amount differs from actual on-chain amount
         if (encryptedNote && encryptedNote.length >= 314) {
           // 157 bytes hex = 314 chars (proper ECDH+AES-GCM encrypted note)
-          console.log(`[usePrivateWallet] Attempting to decrypt note for leafIndex ${leafIndex}, note length: ${encryptedNote.length}`);
+          dbg(`[usePrivateWallet] Attempting to decrypt note for leafIndex ${leafIndex}, note length: ${encryptedNote.length}`);
           try {
             const decrypted = await decryptNote(encryptedNote, viewingKeyBytes);
             if (decrypted) {
               // Success! We own this commitment and recovered the secrets
               const amountChanged = existingData?.amount && existingData.amount !== decrypted.amount.toString();
 
-              console.log(`[usePrivateWallet] ✅ DECRYPTION SUCCESS for leafIndex ${leafIndex}!`);
-              console.log(`[usePrivateWallet]   Recovered amount: ${decrypted.amount.toString()}`);
+              dbg(`[usePrivateWallet] ✅ DECRYPTION SUCCESS for leafIndex ${leafIndex}!`);
+              dbg(`[usePrivateWallet]   Recovered amount: ${decrypted.amount.toString()}`);
               if (amountChanged) {
-                console.log(`[usePrivateWallet]   ⚠️ AMOUNT CORRECTED: was ${existingData?.amount}, now ${decrypted.amount.toString()}`);
+                dbg(`[usePrivateWallet]   ⚠️ AMOUNT CORRECTED: was ${existingData?.amount}, now ${decrypted.amount.toString()}`);
               }
-              console.log(`[usePrivateWallet]   Recovered nullifier: ${decrypted.nullifier.toString().slice(0, 30)}...`);
+              dbg(`[usePrivateWallet]   Recovered nullifier: ${decrypted.nullifier.toString().slice(0, 30)}...`);
 
               // Pre-compute nullifier hash for debugging
               const precomputedHash = hashNullifier(decrypted.nullifier, leafIndex);
-              console.log(`[usePrivateWallet]   Precomputed nullifierHash: ${precomputedHash.toString().slice(0, 30)}...`);
+              dbg(`[usePrivateWallet]   Precomputed nullifierHash: ${precomputedHash.toString().slice(0, 30)}...`);
 
               existingData = {
                 nullifier: decrypted.nullifier.toString(),
@@ -658,15 +661,15 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           } catch (decryptError) {
             // Decryption failed - this commitment doesn't belong to us (expected for others' commitments)
             if (!existingData?.nullifier) {
-              console.log(`[usePrivateWallet] ❌ Decryption failed for leafIndex ${leafIndex}: ${(decryptError as Error).message}`);
+              dbg(`[usePrivateWallet] ❌ Decryption failed for leafIndex ${leafIndex}: ${(decryptError as Error).message}`);
             } else {
-              console.log(`[usePrivateWallet] Using existing secrets for leafIndex ${leafIndex} (decrypt failed but have local data)`);
+              dbg(`[usePrivateWallet] Using existing secrets for leafIndex ${leafIndex} (decrypt failed but have local data)`);
             }
           }
         } else if (existingData?.nullifier) {
-          console.log(`[usePrivateWallet] Using existing secrets for leafIndex ${leafIndex} (no encrypted note to verify)`);
+          dbg(`[usePrivateWallet] Using existing secrets for leafIndex ${leafIndex} (no encrypted note to verify)`);
         } else {
-          console.log(`[usePrivateWallet] No secrets and no/short encrypted note for leafIndex ${leafIndex}, note length: ${encryptedNote?.length || 0}`);
+          dbg(`[usePrivateWallet] No secrets and no/short encrypted note for leafIndex ${leafIndex}, note length: ${encryptedNote?.length || 0}`);
         }
 
         // SECURITY: Don't log secrets - was revealing private commitment ownership
@@ -680,7 +683,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
             const hashString = computedNullifierHash.toString();
             isSpentOnChain = spentNullifiers.has(hashString);
             // Debug: Log nullifier check for troubleshooting
-            console.log(`[usePrivateWallet] Nullifier check for leafIndex ${leafIndex}: hash=${hashString.slice(0, 20)}... spent=${isSpentOnChain}`);
+            dbg(`[usePrivateWallet] Nullifier check for leafIndex ${leafIndex}: hash=${hashString.slice(0, 20)}... spent=${isSpentOnChain}`);
           } catch (err) {
             console.error(`[usePrivateWallet] Failed to compute nullifier hash for leafIndex ${leafIndex}:`, err);
           }
@@ -728,7 +731,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const maxOnChainLeafIndex = commitmentLogs.length > 0
         ? Math.max(...commitmentLogs.map(log => Number(BigInt(log.topics[2] || '0'))))
         : -1;
-      console.log(`[usePrivateWallet] On-chain validation: ${onChainCommitmentHashes.size} commitments, max leafIndex: ${maxOnChainLeafIndex}`);
+      dbg(`[usePrivateWallet] On-chain validation: ${onChainCommitmentHashes.size} commitments, max leafIndex: ${maxOnChainLeafIndex}`);
 
       // SAFEGUARD: Don't wipe local data if Ponder/RPC appears to be empty (likely still syncing)
       const localCommitmentsWithSecrets = currentState.commitments.filter(c => c.nullifier && c.secret);
@@ -772,7 +775,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         }
       }
       if (preservedLocal.length > 0) {
-        console.log(`[usePrivateWallet] Preserved ${preservedLocal.length} local commitment(s) not yet indexed on-chain`);
+        dbg(`[usePrivateWallet] Preserved ${preservedLocal.length} local commitment(s) not yet indexed on-chain`);
       }
 
       const allCommitments = [...foundCommitments, ...preservedLocal].sort((a, b) => a.leafIndex - b.leafIndex);
@@ -786,9 +789,9 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       }
 
       // Debug: Log what we're saving
-      console.log(`[usePrivateWallet] Scan complete. Saving ${allCommitments.length} commitments:`);
+      dbg(`[usePrivateWallet] Scan complete. Saving ${allCommitments.length} commitments:`);
       for (const c of allCommitments) {
-        console.log(`[usePrivateWallet]   leafIndex ${c.leafIndex}: amount=${BigInt(c.amount) / BigInt(1e18)}M, spent=${c.spent}, hasSecrets=${!!c.nullifier && !!c.secret}`);
+        dbg(`[usePrivateWallet]   leafIndex ${c.leafIndex}: amount=${BigInt(c.amount) / BigInt(1e18)}M, spent=${c.spent}, hasSecrets=${!!c.nullifier && !!c.secret}`);
       }
 
       // Calculate total balance from all commitments
@@ -834,7 +837,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
 
   // Mark commitment as spent (called after sell/transfer)
   const spendCommitment = useCallback((commitment: string) => {
-    console.log(`[usePrivateWallet] Marking commitment as spent: ${commitment.slice(0, 20)}...`);
+    dbg(`[usePrivateWallet] Marking commitment as spent: ${commitment.slice(0, 20)}...`);
     setState((s) => {
       const updated = s.commitments.map((c) =>
         c.commitment === commitment ? { ...c, spent: true } : c
@@ -849,7 +852,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
   // Forcefully remove a commitment (used for stale data cleanup)
   // Unlike spendCommitment, this completely removes from storage
   const removeCommitment = useCallback((commitment: string) => {
-    console.log(`[usePrivateWallet] REMOVING stale commitment: ${commitment.slice(0, 20)}...`);
+    dbg(`[usePrivateWallet] REMOVING stale commitment: ${commitment.slice(0, 20)}...`);
     setState((s) => {
       const filtered = s.commitments.filter((c) => c.commitment !== commitment);
       const newBalance = filtered
@@ -865,7 +868,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         };
         const storageKey = getStorageKey(s.publicKey);
         localStorage.setItem(storageKey, JSON.stringify(toSave));
-        console.log(`[usePrivateWallet] Persisted removal. Remaining: ${filtered.length} commitments`);
+        dbg(`[usePrivateWallet] Persisted removal. Remaining: ${filtered.length} commitments`);
       }
 
       return { ...s, commitments: filtered, balance: newBalance };
@@ -923,7 +926,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           };
           const storageKey = getStorageKey(newState.publicKey);
           localStorage.setItem(storageKey, JSON.stringify(toSave));
-          console.log(`[usePrivateWallet] Immediately saved commitment! Total: ${newState.commitments.length} (key: ${storageKey})`);
+          dbg(`[usePrivateWallet] Immediately saved commitment! Total: ${newState.commitments.length} (key: ${storageKey})`);
         }
 
         return newState;
@@ -955,7 +958,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
     // CRITICAL FIX: Always use pairAddress for Ponder/RPC if available, as that's where commitments are.
     // targetAddress might be the Router, which Ponder doesn't index for commitments.
     const addressToUse = pairAddress || targetAddress;
-    console.log(`[fetchAllOnChainCommitments] Fetching for ${addressToUse} (pairAddress: ${pairAddress}, targetAddress: ${targetAddress}, indexerUrl: ${NETWORK.indexerUrl})`);
+    dbg(`[fetchAllOnChainCommitments] Fetching for ${addressToUse} (pairAddress: ${pairAddress}, targetAddress: ${targetAddress}, indexerUrl: ${NETWORK.indexerUrl})`);
 
     if (!addressToUse || addressToUse === '0x...') {
       console.error(`[fetchAllOnChainCommitments] No valid address! pairAddress=${pairAddress}, targetAddress=${targetAddress}`);
@@ -981,19 +984,19 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
     }
 
     try {
-      console.log(`[fetchAllOnChainCommitments] Trying fast path: fetching pre-built tree state for ${addressLower}...`);
+      dbg(`[fetchAllOnChainCommitments] Trying fast path: fetching pre-built tree state for ${addressLower}...`);
       const treeState = await queryPonder<MerkleTreeStateResponse>(MERKLE_TREE_STATE_QUERY, {
         address: addressLower
       });
 
-      console.log(`[fetchAllOnChainCommitments] Fast path response:`, treeState ? `got ${treeState.merkleTreeStates?.items?.length || 0} items` : 'null (queryPonder failed)');
+      dbg(`[fetchAllOnChainCommitments] Fast path response:`, treeState ? `got ${treeState.merkleTreeStates?.items?.length || 0} items` : 'null (queryPonder failed)');
 
       if (treeState?.merkleTreeStates?.items?.length) {
         const treeData = treeState.merkleTreeStates.items[0];
         const leaves: string[] = JSON.parse(treeData.leaves);
         const filledSubtrees: string[] = JSON.parse(treeData.filledSubtrees);
 
-        console.log(`[fetchAllOnChainCommitments] FAST PATH SUCCESS: Got ${leaves.length} leaves + pre-computed tree state`);
+        dbg(`[fetchAllOnChainCommitments] FAST PATH SUCCESS: Got ${leaves.length} leaves + pre-computed tree state`);
 
         return {
           commitments: leaves.map((leaf, i) => ({
@@ -1006,7 +1009,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           }
         };
       } else {
-        console.log(`[fetchAllOnChainCommitments] No pre-built tree state found, falling back to paginated fetch...`);
+        dbg(`[fetchAllOnChainCommitments] No pre-built tree state found, falling back to paginated fetch...`);
       }
     } catch (treeErr) {
       console.error(`[fetchAllOnChainCommitments] Tree state fetch FAILED:`, treeErr);
@@ -1031,7 +1034,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const MAX_PAGES = 20; // Safety limit to prevent infinite loops
       let pageCount = 0;
 
-      console.log(`[fetchAllOnChainCommitments] Starting paginated fetch for ${addressLower}...`);
+      dbg(`[fetchAllOnChainCommitments] Starting paginated fetch for ${addressLower}...`);
       while (hasMore && pageCount < MAX_PAGES) {
         pageCount++;
         const page = await queryPonder<CommitmentsQueryResponse>(COMMITMENTS_QUERY_PAGINATED, {
@@ -1047,13 +1050,13 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           allPonderCommitments.push(...page.commitmentss.items);
           const lastItem = page.commitmentss.items[page.commitmentss.items.length - 1];
           afterLeafIndex = BigInt(lastItem.leafIndex) + 1n;
-          console.log(`[fetchAllOnChainCommitments] Page ${pageCount}: ${page.commitmentss.items.length} items (total: ${allPonderCommitments.length}, nextLeafIndex: ${afterLeafIndex})`);
+          dbg(`[fetchAllOnChainCommitments] Page ${pageCount}: ${page.commitmentss.items.length} items (total: ${allPonderCommitments.length}, nextLeafIndex: ${afterLeafIndex})`);
 
           if (page.commitmentss.items.length < PAGE_SIZE) {
             hasMore = false;
           }
         } else {
-          console.log(`[fetchAllOnChainCommitments] Page ${pageCount}: empty items array, stopping pagination`);
+          dbg(`[fetchAllOnChainCommitments] Page ${pageCount}: empty items array, stopping pagination`);
           hasMore = false;
         }
       }
@@ -1063,7 +1066,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       }
 
       if (allPonderCommitments.length > 0) {
-        console.log(`[fetchAllOnChainCommitments] Using Ponder: ${allPonderCommitments.length} commitments for ${addressLower}`);
+        dbg(`[fetchAllOnChainCommitments] Using Ponder: ${allPonderCommitments.length} commitments for ${addressLower}`);
 
         const maxLeafIndex = allPonderCommitments.reduce((max, c) => Math.max(max, parseInt(c.leafIndex, 10)), 0);
 
@@ -1081,7 +1084,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
           });
         }
 
-        console.log(`[fetchAllOnChainCommitments] Built commitment array: ${result.length} entries (maxLeafIndex: ${maxLeafIndex}, commitments fetched: ${allPonderCommitments.length})`);
+        dbg(`[fetchAllOnChainCommitments] Built commitment array: ${result.length} entries (maxLeafIndex: ${maxLeafIndex}, commitments fetched: ${allPonderCommitments.length})`);
         // No pre-computed tree state available in slow path - will need to rebuild
         return { commitments: result };
       } else {
@@ -1156,7 +1159,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       // Sort by leafIndex to be safe
       commitments.sort((a, b) => a.leafIndex - b.leafIndex);
 
-      console.log(`[fetchAllOnChainCommitments] RPC fallback found ${commitments.length} commitments`);
+      dbg(`[fetchAllOnChainCommitments] RPC fallback found ${commitments.length} commitments`);
       // No pre-computed tree state in RPC fallback
       return { commitments };
     } catch (err) {
@@ -1174,7 +1177,7 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
   useEffect(() => {
     if (seedPhrase && zkAMMAddress && zkAMMAddress !== '0x...' && !hasScanedRef.current) {
       hasScanedRef.current = true;
-      console.log('[usePrivateWallet] Auto-scanning for commitments...');
+      dbg('[usePrivateWallet] Auto-scanning for commitments...');
       scanRef.current();
     }
   }, [seedPhrase, zkAMMAddress]); // Removed scan from deps - using ref instead
@@ -1183,28 +1186,28 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
   const resetWallet = useCallback(() => {
     if (state.publicKey) {
       const storageKey = getStorageKey(state.publicKey);
-      console.log(`[usePrivateWallet] === NUCLEAR WALLET RESET ===`);
-      console.log(`[usePrivateWallet] Storage key: ${storageKey}`);
+      dbg(`[usePrivateWallet] === NUCLEAR WALLET RESET ===`);
+      dbg(`[usePrivateWallet] Storage key: ${storageKey}`);
 
       // DEBUG: Log what we're clearing
       const oldData = localStorage.getItem(storageKey);
       if (oldData) {
         try {
           const parsed = JSON.parse(oldData);
-          console.log(`[usePrivateWallet] CLEARING ${parsed.commitments?.length || 0} commitments:`);
+          dbg(`[usePrivateWallet] CLEARING ${parsed.commitments?.length || 0} commitments:`);
           parsed.commitments?.forEach((c: any) => {
-            console.log(`[usePrivateWallet]   leafIndex ${c.leafIndex}: amount=${c.amount}, spent=${c.spent}, commitment=${c.commitment?.slice(0, 20)}...`);
+            dbg(`[usePrivateWallet]   leafIndex ${c.leafIndex}: amount=${c.amount}, spent=${c.spent}, commitment=${c.commitment?.slice(0, 20)}...`);
           });
         } catch { /* ignore */ }
       }
 
       // Clear ALL r00t-related localStorage keys (also cleans legacy hidemycoin keys)
       const allKeys = Object.keys(localStorage);
-      console.log(`[usePrivateWallet] Checking ${allKeys.length} localStorage keys...`);
+      dbg(`[usePrivateWallet] Checking ${allKeys.length} localStorage keys...`);
 
       allKeys.forEach(k => {
         if (k.includes('r00t_') || k.includes('hidemycoin') || k.includes('wallet_state') || k.includes('lp_positions') || k.includes('shielded_balance')) {
-          console.log(`[usePrivateWallet] REMOVING localStorage key: ${k}`);
+          dbg(`[usePrivateWallet] REMOVING localStorage key: ${k}`);
           localStorage.removeItem(k);
         }
       });
@@ -1213,12 +1216,12 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       const sessionKeys = Object.keys(sessionStorage);
       sessionKeys.forEach(k => {
         if (k.includes('r00t_') || k.includes('hidemycoin') || k.includes('wallet')) {
-          console.log(`[usePrivateWallet] REMOVING sessionStorage key: ${k}`);
+          dbg(`[usePrivateWallet] REMOVING sessionStorage key: ${k}`);
           sessionStorage.removeItem(k);
         }
       });
 
-      console.log(`[usePrivateWallet] Setting state to empty...`);
+      dbg(`[usePrivateWallet] Setting state to empty...`);
       setState(s => ({
         ...s,
         balance: 0n,
@@ -1227,10 +1230,10 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         isScanning: false
       }));
 
-      console.log(`[usePrivateWallet] Reset complete. Will scan in 500ms...`);
+      dbg(`[usePrivateWallet] Reset complete. Will scan in 500ms...`);
       // Longer delay to ensure React state has propagated
       setTimeout(() => {
-        console.log(`[usePrivateWallet] Starting post-reset scan...`);
+        dbg(`[usePrivateWallet] Starting post-reset scan...`);
         scan();
       }, 500);
     }

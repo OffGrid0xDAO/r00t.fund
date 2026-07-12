@@ -59,7 +59,6 @@ export default defineConfig({
     include: [
       'ethers',
       'localforage',
-      'level-js',
       '@railgun-community/shared-models',
       '@railgun-community/wallet',
     ],
