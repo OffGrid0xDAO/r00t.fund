@@ -132,7 +132,7 @@ export const CONTRACTS = {
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
   // The deployed pilot Land (steward: r00t). Pledges route here once set.
-  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x...',
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0xB1195fd631B090CBe989eF10B243FCc34400aADC',
   // LandVault — private plot funding. Pay ETH/USDC (100% to the land treasury) →
   // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully
   // funded) OR the parcel token (upside). Set VITE_LAND_VAULT after deploy
