@@ -31,6 +31,7 @@ const ManifestoPage = lazy(() => import('./components/ManifestoPage').then(m => 
 const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default: m.DocsPage })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
+const ParcelSwapPanel = lazy(() => import('./components/ParcelSwapPanel').then(m => ({ default: m.ParcelSwapPanel })));
 import { ChartModal } from './components/ChartModal';
 
 // Loading fallback — content-aware skeleton with shimmer sweep
@@ -769,6 +770,11 @@ function App() {
                           </Suspense>
                         </div>
                         <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">Fuzzed, non-cadastral geometry — indicative zones, not a legal subdivision. Patronage only — no revenue share.</p>
+                        <div className="rounded-xl border border-[var(--border)] p-4" style={{ background: 'var(--bg-secondary)' }}>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <ParcelSwapPanel />
+                          </Suspense>
+                        </div>
                       </div>
                     )}
                   </motion.div>

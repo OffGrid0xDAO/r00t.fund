@@ -127,21 +127,26 @@ export const CONTRACTS = {
   // Phase-1 parcel funding rail (ParcelLaunchpad) — set after deploy.
   parcelLaunchpad: (import.meta.env.VITE_PARCEL_LAUNCHPAD as string) || '0x...',
   // Multi-tenant land rail (LandFactory) — stewards spin up their own Land.
-  // Robinhood Chain (4663) LandVault chain deploy 2026-07-12.
+  // Robinhood Chain (4663) LandVault+ZkParcelPool chain deploy 2026-07-12.
   landFactory: (import.meta.env.VITE_LAND_FACTORY as string) || '0x70E3432B83a83Caa818a98010DF87AF6daa6AbC9',
+  // Deployed swap/deposit/withdraw verifiers (reused by ZkParcelPool). RH v2.
+  swapVerifier: (import.meta.env.VITE_SWAP_VERIFIER as string) || '0x63B376A158BCaC3e2b5349297E7D3bdbA357A3b6',
+  // Demo parcel (parcelId=1, $OAK) private AMM — trade $OAK↔R00T shielded like R00T.
+  parcelToken: (import.meta.env.VITE_PARCEL_TOKEN as string) || '0x7DE4eA3179cf750b09645e5Cd8885CDc331F7F26',
+  zkParcelPool: (import.meta.env.VITE_ZK_PARCEL_POOL as string) || '0x13Eba5469c60f3C66acFF71f3265936d6658bD85',
   // Uniswap v4 PoolManager — parcel/$R00T pools. Default: Robinhood Chain (4663).
   poolManager: (import.meta.env.VITE_POOL_MANAGER as string) || '0x8366a39CC670B4001A1121B8F6A443A643e40951',
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
-  // The deployed pilot Land (steward: r00t, parcelId=1 "Oak Terrace"/$OAK). LandVault v1 (RH 2026-07-12).
-  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x4F64E3C93CF66e8083fAf9Cb1f56f30D58379417',
-  // LandVault — private plot funding LIVE on RH. Pay ETH (100% to the land treasury) →
-  // shielded commitment claimable to ANY wallet as R00T (OTC floor, once fully funded)
-  // OR the parcel token (upside). Uses the SHARED v2 nullifier registry (no cross-rail
-  // double-spend). 5M R00T reserve, parcel target 100 R00T.
-  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x99e6e42bcbd383C2076F34449281F3d7e2F5ED6a',
+  // The deployed pilot Land (steward: r00t, parcelId=1 "Oak Terrace"/$OAK). LandVault v2 (RH 2026-07-12).
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x985865379b8482C38A8104a2e58fD639E7Cd4DCB',
+  // LandVault — private plot funding LIVE on RH, now with the ZkParcelPool auto-seed hook.
+  // Pay ETH (100% to land treasury) → shielded commitment claimable as R00T (OTC floor,
+  // once fully funded) OR the parcel token. Uses the SHARED v2 nullifier registry (no
+  // cross-rail double-spend). On full-funding the steward seeds a private parcel↔R00T AMM.
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xeF6774fFA84df6578104ae61462e78b10F348536',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
-  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x99e6e42bcbd383C2076F34449281F3d7e2F5ED6a',
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xeF6774fFA84df6578104ae61462e78b10F348536',
   // USDC used for pledges on the target chain.
   usdc: (import.meta.env.VITE_USDC as string) || '0x...',
   tokenPool: FALLBACK.tokenPool,
