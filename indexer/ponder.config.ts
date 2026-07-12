@@ -184,9 +184,11 @@ export default createConfig({
       robinhood: {
         chainId: 4663,
         // ~0.1s blocks; poll every 2s. Use a private RPC (PONDER_RPC_URL_4663) in prod.
-        transport: rateLimit(http(ROBINHOOD_RPC), { requestsPerSecond: 10 }),
+        // 25 rps: Alchemy handles this comfortably and cuts the 637k-block historical
+        // backfill from ~5h to ~30min. Override with PONDER_RPS if the RPC throttles.
+        transport: rateLimit(http(ROBINHOOD_RPC), { requestsPerSecond: Number(process.env.PONDER_RPS) || 25 }),
         pollingInterval: 2_000,
-        maxRequestsPerSecond: 10,
+        maxRequestsPerSecond: Number(process.env.PONDER_RPS) || 25,
       },
     }),
   },

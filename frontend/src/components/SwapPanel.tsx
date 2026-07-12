@@ -675,11 +675,13 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
           return result;
         }
       } else {
-        // Token -> ETH (ROOT only — project token sell disabled)
-        const amountInWithFee = amountIn * 997n;
-        const numerator = amountInWithFee * ethReserve;
-        const denominator = tokenReserve * 1000n + amountInWithFee;
-        const ethOut = numerator / denominator;
+        // Token -> ETH (ROOT only — project token sell disabled).
+        // MUST mirror ZkAMMRouter.sellPrivate EXACTLY: raw AMM output (no fee on the
+        // INPUT) and then the 3% fee (30 protocol + 270 LP bps) taken from the OUTPUT.
+        // The public getAmountOut() applies the fee on the input — a different curve
+        // that over-quotes ~1.4%, which makes minEthOut unreachable → SlippageExceeded.
+        const ethOutRaw = (amountIn * ethReserve) / (tokenReserve + amountIn);
+        const ethOut = ethOutRaw - (ethOutRaw * 300n) / 10000n;
         const result = formatEther(ethOut);
         console.log('[SwapPanel] Sell quote result:', result);
         return result;
@@ -809,10 +811,15 @@ export function SwapPanel({ zkAMMAddress, viewingKey, balance, commitments, avai
       if (!isProverReady) throw new Error(isProverLoading ? 'ZK prover loading...' : proverError || 'ZK prover failed');
       if (!fetchAllOnChainCommitments) throw new Error('Cannot fetch commitments');
 
-      // Use Router for getAmountOut (Pair may have stricter validation)
-      const routerAddress = (CONTRACTS.zkAMMRouter || activeAMMAddress) as `0x${string}`;
-      const estimatedEthOut = await publicClient.readContract({ address: routerAddress, abi: ZKAMM_ABI, functionName: 'getAmountOut', args: [tokenAmount, tokenReserve, ethReserve] });
-      // Apply user-configured slippage tolerance
+      // Compute minEthOut with the EXACT formula ZkAMMRouter.sellPrivate uses on-chain:
+      //   ethOutRaw     = tokenAmount * ethReserve / (tokenReserve + tokenAmount)   (raw, no input fee)
+      //   ethAfterFees  = ethOutRaw - 3% (30 protocol + 270 LP bps), taken on the OUTPUT
+      // Do NOT use the public getAmountOut() here — it applies the fee on the INPUT (a
+      // different curve) and over-quotes ~1.4%, so minEthOut becomes unreachable and the
+      // sell reverts with SlippageExceeded() even on a fresh pool.
+      const ethOutRaw = (tokenAmount * ethReserve) / (tokenReserve + tokenAmount);
+      const estimatedEthOut = ethOutRaw - (ethOutRaw * 300n) / 10000n;
+      // Apply user-configured slippage tolerance on top of the accurate estimate.
       const minEthOut = estimatedEthOut * BigInt(10000 - slippageTolerance) / 10000n;
       // Fetch on-chain commitments with retry (network issues can cause 0 results)
       setSellProgress('Reading the commitment tree…');

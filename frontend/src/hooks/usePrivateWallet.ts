@@ -968,6 +968,23 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
     const addressLower = addressToUse.toLowerCase();
     const ZERO_VALUE = 21663839004416932945382355908790599225266501822907911457504978515578255421292n;
 
+    // Authoritative on-chain leaf count. Used to detect a stale/backfilling indexer so we
+    // never build a merkle tree that's missing the newest leaf. -1 = couldn't determine
+    // (RPC hiccup) → don't block, trust the indexer as before.
+    let onChainNextIndex = -1;
+    try {
+      const tokenPoolAddr = CONTRACTS.tokenPool as string;
+      if (tokenPoolAddr && tokenPoolAddr !== '0x...') {
+        const res = await fetch(NETWORK.rpcUrl, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call',
+            params: [{ to: tokenPoolAddr, data: '0xfc7e9c6f' /* nextIndex() */ }, 'latest'] }),
+        });
+        const j = await res.json();
+        if (j?.result && j.result !== '0x') onChainNextIndex = Number(BigInt(j.result));
+      }
+    } catch { /* unknown — proceed without the guard */ }
+
     // FAST PATH: Try to fetch pre-built Merkle tree state from Ponder
     // This is MUCH faster than rebuilding from individual commitments
     interface MerkleTreeStateResponse {
@@ -996,18 +1013,26 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         const leaves: string[] = JSON.parse(treeData.leaves);
         const filledSubtrees: string[] = JSON.parse(treeData.filledSubtrees);
 
-        dbg(`[fetchAllOnChainCommitments] FAST PATH SUCCESS: Got ${leaves.length} leaves + pre-computed tree state`);
-
-        return {
-          commitments: leaves.map((leaf, i) => ({
-            commitment: BigInt(leaf),
-            leafIndex: i
-          })),
-          treeState: {
-            filledSubtrees: filledSubtrees.map(s => BigInt(s)),
-            root: BigInt(treeData.currentRoot)
-          }
-        };
+        // STALENESS GUARD: the indexer may be mid-backfill (cold start) or briefly behind
+        // after a crash/restart. A partial tree is WORSE than no tree — it silently omits
+        // the newest leaf, so whoever holds the latest commitment builds a wrong merkle
+        // proof and their sell reverts. If the indexer's leaf count is behind the
+        // authoritative on-chain nextIndex, discard the fast path and rebuild from chain.
+        if (onChainNextIndex >= 0 && leaves.length < onChainNextIndex) {
+          dbg(`[fetchAllOnChainCommitments] Indexer STALE (${leaves.length} leaves < on-chain ${onChainNextIndex}). Skipping fast path, rebuilding from chain.`);
+        } else {
+          dbg(`[fetchAllOnChainCommitments] FAST PATH SUCCESS: Got ${leaves.length} leaves + pre-computed tree state (on-chain nextIndex: ${onChainNextIndex})`);
+          return {
+            commitments: leaves.map((leaf, i) => ({
+              commitment: BigInt(leaf),
+              leafIndex: i
+            })),
+            treeState: {
+              filledSubtrees: filledSubtrees.map(s => BigInt(s)),
+              root: BigInt(treeData.currentRoot)
+            }
+          };
+        }
       } else {
         dbg(`[fetchAllOnChainCommitments] No pre-built tree state found, falling back to paginated fetch...`);
       }
@@ -1065,7 +1090,17 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         console.warn(`[fetchAllOnChainCommitments] Hit MAX_PAGES limit (${MAX_PAGES}), may have missed some commitments`);
       }
 
-      if (allPonderCommitments.length > 0) {
+      // Same staleness guard as the fast path: if the indexer returned fewer leaves than
+      // the on-chain tree has, it's mid-backfill — don't trust it, fall through to getLogs.
+      const ponderLeafCount = allPonderCommitments.length > 0
+        ? allPonderCommitments.reduce((max, c) => Math.max(max, parseInt(c.leafIndex, 10)), 0) + 1
+        : 0;
+      const ponderStale = onChainNextIndex >= 0 && ponderLeafCount < onChainNextIndex;
+      if (ponderStale) {
+        dbg(`[fetchAllOnChainCommitments] Slow path indexer STALE (${ponderLeafCount} leaves < on-chain ${onChainNextIndex}). Rebuilding from chain.`);
+      }
+
+      if (allPonderCommitments.length > 0 && !ponderStale) {
         dbg(`[fetchAllOnChainCommitments] Using Ponder: ${allPonderCommitments.length} commitments for ${addressLower}`);
 
         const maxLeafIndex = allPonderCommitments.reduce((max, c) => Math.max(max, parseInt(c.leafIndex, 10)), 0);

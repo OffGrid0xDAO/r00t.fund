@@ -91,8 +91,8 @@ const ARBITRUM_CONTRACTS = {
   zkAMMRouter: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
   zkAMMAdmin: '0x2fF206f68c68b49eBfE5D1c39B26281669bcB851',
   rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T
-  tokenPool: '0x...',
-  lpPool: '0x...',
+  tokenPool: '0xfdF9688A07b586C3ec68b44489567b606B0C959E',   // Pair.tokenPool() — commitment tree (Add-LP root check)
+  lpPool: '0x9A18C53ABD2D9974b3f173b7E98AeaF7BEba5866',       // Pair.lpPool() — LP commitment tree (Remove-LP listing)
   nullifierRegistry: '0x39E35022a8591ad836472Fe234b0FEa8e505D9DD',
   launchpad: '0x...',
   tokenFactory: '0x...',
