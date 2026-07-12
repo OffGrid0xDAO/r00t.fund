@@ -231,6 +231,34 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         lastScannedBlock: loadedLastScannedBlock,
       }));
 
+      // BULLETPROOF PHANTOM PRUNE (runs on every load, before the full scan): the on-chain
+      // tree is the source of truth for what commitments EXIST — a real note's leafIndex is
+      // always < tokenPool.nextIndex() (the contract assigns it on insert). Drop any loaded
+      // note with leafIndex >= nextIndex — it's a phantom from a failed buy or a retired
+      // deployment and can never be spent. localStorage only supplies SECRETS for real notes.
+      if (loadedCommitments.length > 0) {
+        (async () => {
+          try {
+            const tp = CONTRACTS.tokenPool as string;
+            if (!tp || tp === '0x...') return;
+            const r = await fetch(NETWORK.rpcUrl, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: tp, data: '0xfc7e9c6f' /* nextIndex() */ }, 'latest'] }),
+            });
+            const j = await r.json();
+            if (!j?.result || j.result === '0x') return;
+            const nextIndex = Number(BigInt(j.result));
+            setState((s) => {
+              const keep = s.commitments.filter((c) => c.leafIndex < nextIndex);
+              if (keep.length === s.commitments.length) return s;
+              console.warn(`[usePrivateWallet] Pruned ${s.commitments.length - keep.length} phantom note(s) at load (on-chain nextIndex=${nextIndex}).`);
+              const bal = keep.filter((c) => !c.spent).reduce((a, c) => a + BigInt(c.amount || '0'), 0n);
+              return { ...s, commitments: keep, balance: bal };
+            });
+          } catch { /* RPC hiccup — the full scan will reconcile later */ }
+        })();
+      }
+
       // Mark loading complete AFTER setState
       setTimeout(() => {
         isLoadingRef.current = false;
