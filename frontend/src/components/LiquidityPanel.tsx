@@ -257,6 +257,10 @@ export function LiquidityPanel({
 
   // LP lock info per position (commitment -> lock info)
   const [lpLockInfo, setLpLockInfo] = useState<Record<string, LPLockInfo>>({});
+  // Partial-remove: ETH amount the user wants to pull from a position (keyed by commitment).
+  // Empty = remove the full (safe) position. Lets you withdraw just your original add and
+  // leave the rest (e.g. seeded liquidity) in the pool.
+  const [removeEthAmounts, setRemoveEthAmounts] = useState<Record<string, string>>({});
 
   // Current time for countdown (updates every second when locked positions exist)
   const [currentTime, setCurrentTime] = useState(Math.floor(Date.now() / 1000));
@@ -1007,13 +1011,26 @@ export function LiquidityPanel({
         );
       }
 
-      // The AMM permanently locks MIN_LIQUIDITY, so removeLiquidityPrivate reverts
-      // (InsufficientLiquidity) if a withdrawal's ethOut would take the pool below the floor.
-      // A ~100%-owner therefore can't fully exit. Instead of erroring, CAP the withdrawal to
-      // the safe max and let the prover mint a change LP note for the remainder — so the user
-      // gets most of their liquidity out privately, and keeps a small LP note for the rest.
       let withdrawShares = actualCommitmentShares;
       const minEthOut = 0n; // For demo, no slippage protection
+
+      // PARTIAL REMOVE: if the user asked for a specific ETH amount (e.g. just their original
+      // add, leaving seeded liquidity in), convert it to the matching share slice. LP shares
+      // are a claim on the WHOLE pool, so ethTarget/currentValue × positionShares.
+      const requestedEth = removeEthAmounts[position.commitment];
+      if (requestedEth && parseFloat(requestedEth) > 0 && poolInfo.totalShares > 0n) {
+        const targetWei = parseEther(requestedEth);
+        const positionValueEth = (actualCommitmentShares * poolInfo.ethReserve) / poolInfo.totalShares;
+        if (targetWei < positionValueEth) {
+          // shares for the requested ETH = targetWei / ethReserve × totalShares
+          const reqShares = (targetWei * poolInfo.totalShares) / poolInfo.ethReserve;
+          if (reqShares > 0n) withdrawShares = reqShares < actualCommitmentShares ? reqShares : actualCommitmentShares;
+        }
+      }
+
+      // The AMM permanently locks MIN_LIQUIDITY, so removeLiquidityPrivate reverts
+      // (InsufficientLiquidity) if a withdrawal's ethOut would take the pool below the floor.
+      // Cap the withdrawal to the safe max; the prover mints a change LP note for the remainder.
       try {
         const pairAddr = CONTRACTS.zkAMMPair as `0x${string}`;
         const minLiq = await publicClient.readContract({
@@ -1977,6 +1994,25 @@ export function LiquidityPanel({
                           {isLocked ? 'locked' : 'remove'}
                         </GlowButton>
                       </div>
+                      {/* Partial remove: withdraw a specific ETH amount (default = your original
+                          add) and leave the rest (e.g. seeded liquidity) in the pool. Blank = max safe. */}
+                      {!isLocked && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <input
+                            value={removeEthAmounts[pos.commitment] ?? ''}
+                            onChange={(e) => setRemoveEthAmounts((m) => ({ ...m, [pos.commitment]: e.target.value }))}
+                            placeholder={`ETH to remove (e.g. ${pos.ethAmount}) — blank = max`}
+                            className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] font-mono"
+                          />
+                          <button
+                            onClick={() => setRemoveEthAmounts((m) => ({ ...m, [pos.commitment]: pos.ethAmount }))}
+                            className="shrink-0 px-2 py-1.5 rounded-md border border-[var(--border)] text-[10px] font-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            title="Remove just what you originally added"
+                          >
+                            my add
+                          </button>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <p className="text-[var(--text-muted)]">deposited</p>
