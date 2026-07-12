@@ -1,6 +1,5 @@
 import { ponder } from "@/generated";
 import { graphql } from "@ponder/core";
-import { cors } from "hono/cors";
 import * as schema from "../../ponder.schema";
 
 /**
@@ -9,13 +8,18 @@ import * as schema from "../../ponder.schema";
  * NOT stop curl/servers (and the data here is public on-chain data anyway). Its purpose
  * is to stop OTHER websites from using our indexer as free infra. Override the allowlist
  * without a code change via CORS_ORIGINS (comma-separated exact origins).
+ *
+ * Implemented as a POST-handler override rather than hono's cors() because Ponder's
+ * built-in graphql handler sets `access-control-allow-origin: *` itself; we must run
+ * AFTER it (await next()) to force the header to the specific allowed origin, or strip
+ * it entirely for disallowed origins.
  */
 const ENV_ORIGINS = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
-function isAllowedOrigin(origin: string | undefined): string | null {
+function allowedOrigin(origin: string | undefined): string | null {
   if (!origin) return null;
   if (ENV_ORIGINS.includes(origin)) return origin;
   let host: string;
@@ -33,14 +37,33 @@ function isAllowedOrigin(origin: string | undefined): string | null {
   return ok ? origin : null;
 }
 
-ponder.use(
-  cors({
-    origin: (origin) => isAllowedOrigin(origin) ?? "",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
-    maxAge: 86400,
-  })
-);
+ponder.use(async (c, next) => {
+  const origin = c.req.header("origin");
+  const allow = allowedOrigin(origin);
+
+  // Preflight: answer directly so we control the headers precisely.
+  if (c.req.method === "OPTIONS") {
+    const h = new Headers();
+    if (allow) {
+      h.set("Access-Control-Allow-Origin", allow);
+      h.set("Vary", "Origin");
+      h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      h.set("Access-Control-Allow-Headers", "Content-Type");
+      h.set("Access-Control-Max-Age", "86400");
+    }
+    return new Response(null, { status: 204, headers: h });
+  }
+
+  await next();
+
+  // Force the header AFTER the graphql handler (which defaults to "*").
+  if (allow) {
+    c.res.headers.set("Access-Control-Allow-Origin", allow);
+    c.res.headers.set("Vary", "Origin");
+  } else {
+    c.res.headers.delete("Access-Control-Allow-Origin");
+  }
+});
 
 /**
  * GraphQL API - auto-generated from ponder.schema.ts
