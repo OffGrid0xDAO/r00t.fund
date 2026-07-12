@@ -1007,35 +1007,36 @@ export function LiquidityPanel({
         );
       }
 
-      // Use the actual commitment shares for the circuit
-      const withdrawShares = actualCommitmentShares;
+      // The AMM permanently locks MIN_LIQUIDITY, so removeLiquidityPrivate reverts
+      // (InsufficientLiquidity) if a withdrawal's ethOut would take the pool below the floor.
+      // A ~100%-owner therefore can't fully exit. Instead of erroring, CAP the withdrawal to
+      // the safe max and let the prover mint a change LP note for the remainder — so the user
+      // gets most of their liquidity out privately, and keeps a small LP note for the rest.
+      let withdrawShares = actualCommitmentShares;
       const minEthOut = 0n; // For demo, no slippage protection
-
-      // PRE-FLIGHT: the AMM permanently locks MIN_LIQUIDITY, so removeLiquidityPrivate reverts
-      // (InsufficientLiquidity) if this withdrawal's ethOut would take the pool below the floor.
-      // A ~100%-owner therefore can NEVER fully exit. Compute the cap and give a clear, actionable
-      // error instead of a cryptic on-chain revert (#-39000).
       try {
         const pairAddr = CONTRACTS.zkAMMPair as `0x${string}`;
         const minLiq = await publicClient.readContract({
           address: pairAddr, abi: [{ name: 'MIN_LIQUIDITY', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }], functionName: 'MIN_LIQUIDITY',
         }) as bigint;
-        if (poolInfo.totalShares > 0n) {
+        if (poolInfo.totalShares > 0n && poolInfo.ethReserve > minLiq) {
+          const cap = poolInfo.ethReserve - minLiq;
           const ethOut = (withdrawShares * poolInfo.ethReserve) / poolInfo.totalShares;
-          const cap = poolInfo.ethReserve > minLiq ? poolInfo.ethReserve - minLiq : 0n;
           if (ethOut > cap) {
-            const maxShares = poolInfo.ethReserve > 0n ? (cap * poolInfo.totalShares) / poolInfo.ethReserve : 0n;
-            const pct = poolInfo.totalShares > 0n ? Number((maxShares * 10000n) / poolInfo.totalShares) / 100 : 0;
-            throw new Error(
-              `This would drop the pool below its locked minimum (${formatEther(minLiq)} ETH must always stay). ` +
-              `You own ~${(Number((withdrawShares * 10000n) / poolInfo.totalShares) / 100).toFixed(1)}% of the pool; the max removable right now is ~${pct.toFixed(1)}% (${formatEther(maxShares)} shares). ` +
-              `Remove a smaller position, or add more liquidity first.`
-            );
+            // Reduce to the largest share amount whose ethOut stays at/under the floor cap.
+            // 999/1000 safety margin so integer rounding never nudges it back over.
+            const safeShares = (cap * poolInfo.totalShares) / poolInfo.ethReserve * 999n / 1000n;
+            if (safeShares === 0n) {
+              throw new Error(`The pool is at its locked minimum (${formatEther(minLiq)} ETH must always stay) — nothing can be removed right now. Add liquidity first, then remove.`);
+            }
+            withdrawShares = safeShares < actualCommitmentShares ? safeShares : actualCommitmentShares;
+            const pct = Number((withdrawShares * 10000n) / poolInfo.totalShares) / 100;
+            setSuccess({ message: `Removing ~${pct.toFixed(1)}% now (the pool's locked ${formatEther(minLiq)} ETH minimum can't be withdrawn). The rest stays as a small LP note.` });
           }
         }
       } catch (e) {
         if (e instanceof Error && e.message.includes('locked minimum')) throw e;
-        // MIN_LIQUIDITY read failed — let it proceed; the contract still guards it.
+        // MIN_LIQUIDITY read failed — proceed; the contract still guards it.
       }
 
       // Fetch all LP commitments from Ponder indexer
