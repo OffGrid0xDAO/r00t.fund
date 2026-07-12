@@ -142,7 +142,7 @@ const dbg = (...a: unknown[]) => { try { if (localStorage.getItem('r00t_debug') 
 // when the indexer is unavailable. Override with VITE_DEX_DEPLOY_BLOCK.
 const DEX_DEPLOY_BLOCK: bigint = (() => {
   const v = import.meta.env.VITE_DEX_DEPLOY_BLOCK as string | undefined;
-  try { return v ? BigInt(v) : 7139900n; } catch { return 7139900n; }
+  try { return v ? BigInt(v) : 7945000n; } catch { return 7945000n; }
 })();
 
 /**

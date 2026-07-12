@@ -309,9 +309,26 @@ contract R00TShortsTest is Test {
     }
 
     function test_OpenShort_RevertBelowMinimum() public {
+        // Default min is now 0.001 ETH; 0.0005 is below it.
         vm.prank(user1);
         vm.expectRevert(IR00TShorts.PositionTooSmall.selector);
-        shorts.openShort{value: 0.005 ether}(0);
+        shorts.openShort{value: 0.0005 ether}(0);
+    }
+
+    function test_SetMinPositionEth() public {
+        shorts.setMinPositionEth(0.002 ether);
+        assertEq(shorts.MIN_POSITION_ETH(), 0.002 ether);
+        // Below the new min reverts
+        vm.prank(user1);
+        vm.expectRevert(IR00TShorts.PositionTooSmall.selector);
+        shorts.openShort{value: 0.001 ether}(0);
+    }
+
+    function test_SetTwapPeriod() public {
+        shorts.setTwapPeriod(10 minutes);
+        assertEq(shorts.TWAP_PERIOD(), 10 minutes);
+        vm.expectRevert(bytes("range"));
+        shorts.setTwapPeriod(2 hours);
     }
 
     function test_OpenShort_RevertAboveMaximum() public {

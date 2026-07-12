@@ -84,21 +84,23 @@ const TENDERLY_CONTRACTS = {
   compliantPrivateVault: '0x7767DBB69837386202b3cB5204AEE7Ed9bb58f49',
 } as const;
 
-// Robinhood Chain (4663) mainnet addresses — deployed 2026-07-11
+// Robinhood Chain (4663) mainnet addresses — DEX stack v2 (redeployed 2026-07-12)
+// Fresh Pair+Router+Admin+Registry+Shorts: shorts now owner-tunable (5-min TWAP, 0.001 ETH
+// min). Old v1 stack retired (liquidity swept back). New commitment trees start empty.
 const ARBITRUM_CONTRACTS = {
-  zkAMM: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',       // ZkAMMPair (private DEX)
-  zkAMMPair: '0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511',
-  zkAMMRouter: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
-  zkAMMAdmin: '0x2fF206f68c68b49eBfE5D1c39B26281669bcB851',
-  rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T
-  tokenPool: '0xfdF9688A07b586C3ec68b44489567b606B0C959E',   // Pair.tokenPool() — commitment tree (Add-LP root check)
-  lpPool: '0x9A18C53ABD2D9974b3f173b7E98AeaF7BEba5866',       // Pair.lpPool() — LP commitment tree (Remove-LP listing)
-  nullifierRegistry: '0x39E35022a8591ad836472Fe234b0FEa8e505D9DD',
+  zkAMM: '0xCf31Fc47be6D6fed5300a636d086E7FeAb21717e',       // ZkAMMPair (private DEX)
+  zkAMMPair: '0xCf31Fc47be6D6fed5300a636d086E7FeAb21717e',
+  zkAMMRouter: '0xED85FDe30469d95473eA423eff991C748039CBbA',
+  zkAMMAdmin: '0x94f398a6f44E93A321000393376E245c5bd0C5e8',
+  rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T (unchanged)
+  tokenPool: '0x33a8bA8B91b23Ba5629d0731A36446eE3C958413',   // Pair.tokenPool() — commitment tree
+  lpPool: '0x2Ce35681570b8100529da1518507c090D0A3fF6e',       // Pair.lpPool() — LP commitment tree
+  nullifierRegistry: '0x6Ae7adf4Cba5eEAc58a70832998bdb18C6588D4A',
   launchpad: '0x...',
   tokenFactory: '0x...',
   poolFactory: '0x...',
   poolRouter: '0x...',
-  shortsContract: '0x701E5FC2cc9b79E9ccA69e1BA6bec7bc2645f5B6', // R00TShorts on RH (TWAP liquidations)
+  shortsContract: '0xfD0C2f3EA2f001590Dfc96F2683A7b9c4e04A6cf', // R00TShorts v2 (tunable: 5-min TWAP, 0.001 min)
   worldIdGatekeeper: '0x...',
   // CRE Workflow Contracts
   pilotSite: '0x...',

@@ -26,9 +26,10 @@ const TENDERLY_ZKAMM_PAIR_ADDRESS = "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"
 const TENDERLY_RPC = process.env.PONDER_RPC_URL_73571 || "https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1";
 
 // Robinhood Chain (4663) mainnet — deployed 2026-07-11
-const ROBINHOOD_FIRST_BLOCK = 7139981;
-const ROBINHOOD_ZKAMM_ADDRESS = "0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0"; // ZkAMM Router
-const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511"; // ZkAMM Pair
+// DEX stack v2 (redeployed 2026-07-12). Fresh trees start at the v2 deploy block.
+const ROBINHOOD_FIRST_BLOCK = 7945000;
+const ROBINHOOD_ZKAMM_ADDRESS = "0xED85FDe30469d95473eA423eff991C748039CBbA"; // ZkAMM Router v2
+const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0xCf31Fc47be6D6fed5300a636d086E7FeAb21717e"; // ZkAMM Pair v2
 const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.chain.robinhood.com";
 
 // Pledge vault (anonymous plot funding, Phase C). Address + start block are set

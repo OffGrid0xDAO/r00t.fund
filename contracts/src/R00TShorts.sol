@@ -41,8 +41,8 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     /// @notice Liquidation bonus for liquidators (5%)
     uint256 public constant LIQUIDATION_BONUS_BPS = 500;
 
-    /// @notice Minimum position size
-    uint256 public constant MIN_POSITION_ETH = 0.01 ether;
+    /// @notice Minimum position size (owner-tunable; lets tiny test shorts through).
+    uint256 public MIN_POSITION_ETH = 0.001 ether;
 
     /// @notice Maximum position size (anti-whale protection)
     uint256 public constant MAX_POSITION_ETH = 100 ether;
@@ -58,11 +58,13 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
     /// @notice TWAP window for liquidation-eligibility pricing (manipulation resistance).
     /// @dev Liquidation eligibility uses a time-weighted average ETH-per-token price over
-    ///      this window instead of raw spot reserves. A flash / single-block price pump
-    ///      cannot move a 30-min average, so it cannot force-liquidate a healthy short. The
-    ///      actual buyback still executes at spot (it is a real swap), but WHETHER a
-    ///      position is liquidatable is decided by the manipulation-resistant TWAP.
-    uint256 public constant TWAP_PERIOD = 30 minutes;
+    ///      this window instead of raw spot reserves. The FLASH-LOAN defense does NOT depend
+    ///      on the window length: a same-block price move contributes 0 to the current TWAP
+    ///      read (see _updateOracle — the manipulated spot only becomes lastSpotEthPerToken
+    ///      and accrues over 0 elapsed seconds). The window length only trades off resistance
+    ///      to SUSTAINED multi-block manipulation vs. warm-up time / price freshness. 5 min is
+    ///      plenty to defeat flash loans while warming up fast; owner-tunable within bounds.
+    uint256 public TWAP_PERIOD = 5 minutes;
 
     // ============ Immutables ============
 
@@ -410,6 +412,21 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
     function setMaxOpenInterestBps(uint256 _maxOpenInterestBps) external onlyOwner {
         require(_maxOpenInterestBps <= FEE_DENOMINATOR, "Cannot exceed 100%");
         maxOpenInterestBps = _maxOpenInterestBps;
+    }
+
+    /// @notice Set the minimum short size (owner only). Floor prevents pure-dust griefing.
+    /// @param _minPositionEth New minimum collateral in wei (>= 0.0001 ETH, < MAX_POSITION_ETH)
+    function setMinPositionEth(uint256 _minPositionEth) external onlyOwner {
+        require(_minPositionEth >= 0.0001 ether && _minPositionEth < MAX_POSITION_ETH, "range");
+        MIN_POSITION_ETH = _minPositionEth;
+    }
+
+    /// @notice Set the TWAP window (owner only). Bounded so it always defeats flash loans
+    ///         and never becomes an un-warmable/stale oracle.
+    /// @param _twapPeriod New window in seconds (1 min .. 1 hour)
+    function setTwapPeriod(uint256 _twapPeriod) external onlyOwner {
+        require(_twapPeriod >= 1 minutes && _twapPeriod <= 1 hours, "range");
+        TWAP_PERIOD = _twapPeriod;
     }
 
     // ============ View Functions ============

@@ -520,7 +520,7 @@ export function ShortsPanel() {
       let msg = error.message || 'Failed to open short';
       if (msg.includes('User rejected') || msg.includes('User denied')) msg = 'Transaction rejected';
       else if (msg.includes('insufficient funds')) msg = 'Insufficient ETH balance';
-      else if (msg.includes('PositionTooSmall')) msg = 'Minimum collateral is 0.01 ETH';
+      else if (msg.includes('PositionTooSmall')) msg = 'Minimum collateral is 0.001 ETH';
       else if (msg.includes('PositionTooLarge')) msg = 'Maximum collateral is 100 ETH';
       else if (msg.includes('InsufficientReserves')) msg = 'Short too large for current liquidity — try a smaller size';
       else if (msg.includes('InsufficientLiquidity')) msg = 'Pool too shallow for this short right now — try a smaller size';
@@ -720,7 +720,7 @@ export function ShortsPanel() {
             />
           </div>
           <p className="text-xs text-[var(--text-muted)] mt-2">
-            Min: 0.01 ETH | Max: 100 ETH
+            Min: 0.001 ETH | Max: 100 ETH
           </p>
         </div>
 
