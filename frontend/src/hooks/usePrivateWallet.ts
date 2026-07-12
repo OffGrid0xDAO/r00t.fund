@@ -736,7 +736,30 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
       // SAFEGUARD: Don't wipe local data if Ponder/RPC appears to be empty (likely still syncing)
       const localCommitmentsWithSecrets = currentState.commitments.filter(c => c.nullifier && c.secret);
       if (commitmentLogs.length === 0 && localCommitmentsWithSecrets.length > 0) {
-        console.warn(`[usePrivateWallet] ⚠️ Ponder/RPC returned 0 commitments but we have ${localCommitmentsWithSecrets.length} locally. Indexer may be syncing - keeping local data.`);
+        // Before assuming "indexer lagging, keep local data", ask the chain directly: is the
+        // tree ACTUALLY empty? If tokenPool.nextIndex()==0 there are provably zero commitments
+        // on this pool, so every local note is a PHANTOM (failed buy / retired deployment) —
+        // clear them so the wallet doesn't show un-sellable R00T. Only keep-and-wait if we
+        // genuinely can't tell (RPC read failed).
+        let emptyOnChain = false;
+        try {
+          const tp = CONTRACTS.tokenPool as string;
+          if (tp && tp !== '0x...') {
+            const r = await fetch(NETWORK.rpcUrl, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: tp, data: '0xfc7e9c6f' /* nextIndex() */ }, 'latest'] }),
+            });
+            const j = await r.json();
+            if (j?.result && j.result !== '0x') emptyOnChain = Number(BigInt(j.result)) === 0;
+          }
+        } catch { /* unknown */ }
+
+        if (emptyOnChain) {
+          console.warn(`[usePrivateWallet] On-chain tree is EMPTY (nextIndex=0) — clearing ${localCommitmentsWithSecrets.length} phantom local note(s) that can never be spent here.`);
+          setState((s) => ({ ...s, commitments: [], balance: 0n, isScanning: false }));
+          return;
+        }
+        console.warn(`[usePrivateWallet] ⚠️ Ponder/RPC returned 0 commitments but we have ${localCommitmentsWithSecrets.length} locally and the on-chain tree is non-empty/unknown. Indexer may be syncing - keeping local data.`);
         setState((s) => ({ ...s, isScanning: false }));
         return;
       }
@@ -758,12 +781,35 @@ export function usePrivateWallet(zkAMMAddress: string, pairAddress: string, seed
         onChainLeafToCommitment.set(leafIdx, commitHash);
       }
 
+      // Authoritative on-chain tree size. A REAL note always has leafIndex < nextIndex
+      // (the contract assigns the index when it inserts the commitment), so any local note
+      // whose leafIndex >= nextIndex provably never landed on-chain — it's a PHANTOM from a
+      // failed buy (saved before the receipt-status gate) or a retired deployment. Drop those
+      // instead of "preserving" them forever. -1 = couldn't read → fall back to old behavior.
+      let onChainNextIndex = -1;
+      try {
+        const tp = CONTRACTS.tokenPool as string;
+        if (tp && tp !== '0x...') {
+          const r = await fetch(NETWORK.rpcUrl, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: tp, data: '0xfc7e9c6f' /* nextIndex() */ }, 'latest'] }),
+          });
+          const j = await r.json();
+          if (j?.result && j.result !== '0x') onChainNextIndex = Number(BigInt(j.result));
+        }
+      } catch { /* unknown — don't prune */ }
+
       const preservedLocal: typeof foundCommitments = [];
       for (const c of localCommitmentsWithSecrets) {
         const localHash = c.commitment.startsWith('0x')
           ? BigInt(c.commitment).toString()
           : c.commitment;
         if (!foundCommitmentHashes.has(localHash)) {
+          // PHANTOM guard: leaf provably beyond the on-chain tree → the buy never landed.
+          if (onChainNextIndex >= 0 && c.leafIndex >= onChainNextIndex) {
+            console.warn(`[usePrivateWallet] ⚠️ REMOVING phantom local commitment at leafIndex ${c.leafIndex} — beyond on-chain tree size ${onChainNextIndex} (failed buy or retired deployment)`);
+            continue;
+          }
           // Check if this leaf index is occupied by a different on-chain commitment
           const onChainHash = onChainLeafToCommitment.get(c.leafIndex);
           if (onChainHash && onChainHash !== localHash) {
