@@ -29,11 +29,18 @@ contract DeployRobinhood is Script {
         address root = vm.envAddress("ROOT_TOKEN");
         address treasury = vm.envOr("PROTOCOL_TREASURY", deployer);
         address gov = vm.envOr("GOVERNANCE", deployer);
-        // Emergency signers must be distinct + non-zero. Default to deployer-derived
-        // distinct addresses; SET REAL ONES via env for production and rotate later.
-        address s0 = vm.envOr("EMERGENCY_SIGNER_0", deployer);
-        address s1 = vm.envOr("EMERGENCY_SIGNER_1", address(uint160(deployer) ^ uint160(1)));
-        address s2 = vm.envOr("EMERGENCY_SIGNER_2", address(uint160(deployer) ^ uint160(2)));
+        // Emergency signers: 3 DISTINCT addresses you actually control (2-of-3 threshold).
+        // NEVER auto-derive them (the old `deployer XOR 1/2` default minted phantom addresses
+        // with no private key → the emergency multisig could never reach 2 approvals, and
+        // setEmergencySigner is itself 2-of-3 → funds gated behind it were unrecoverable).
+        // Note: fund recovery does NOT depend on this multisig — Pair.rescueETH/rescueTokens
+        // are single-owner — but a broken emergency multisig is still dead weight, so we now
+        // REQUIRE real signers via env and fail loudly if they're missing/duplicated.
+        address s0 = vm.envAddress("EMERGENCY_SIGNER_0");
+        address s1 = vm.envAddress("EMERGENCY_SIGNER_1");
+        address s2 = vm.envAddress("EMERGENCY_SIGNER_2");
+        require(s0 != address(0) && s1 != address(0) && s2 != address(0), "emergency signers required");
+        require(s0 != s1 && s1 != s2 && s0 != s2, "emergency signers must be distinct");
 
         // Swap fee to restore after bootstrap. Default 3% total, preserving the canonical
         // 3:7 protocol:LP split (90 + 210 = 300 bps). Override via env for a different rate.
