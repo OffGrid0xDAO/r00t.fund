@@ -5,7 +5,6 @@ import { formatUnits, parseEther, isAddress } from 'viem';
 import { usePrivateWallet } from '../hooks/usePrivateWallet';
 import { useZkProver } from '../hooks/useZkProver';
 import type { WalletSession } from '../hooks/useWalletSession';
-import { LiquidityPanel } from './LiquidityPanel';
 import { PrivatePledges } from './portfolio/PrivatePledges';
 import { GlowButton } from './ui/GlowButton';
 import { AnimatedTabs } from './ui/AnimatedTabs';
@@ -30,7 +29,7 @@ const ERC20_ABI = [
   },
 ] as const;
 
-type PortfolioTab = 'overview' | 'transfer' | 'withdraw' | 'consolidate' | 'liquidity' | 'pledges';
+type PortfolioTab = 'overview' | 'transfer' | 'withdraw' | 'consolidate' | 'pledges';
 
 const ZKAMM_ABI = [
   {
@@ -276,13 +275,6 @@ export function PortfolioPanel({
       id: 'consolidate' as const, label: '_merge', icon: (
         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-      )
-    },
-    {
-      id: 'liquidity' as const, label: '_lp', icon: (
-        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
         </svg>
       )
     },
@@ -1784,26 +1776,7 @@ export function PortfolioPanel({
           </motion.div>
         )}
 
-        {/* Liquidity Tab */}
-        {activeTab === 'liquidity' && (
-          <motion.div
-            key="liquidity"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <LiquidityPanel
-              zkAMMAddress={zkAMMAddress}
-              viewingKey={session.viewingKey}
-              tokenCommitments={commitments}
-              onCommitmentSpent={spendCommitment}
-              onStoreCommitment={storeCommitment}
-              onRefreshBalance={scan}
-              fetchAllOnChainCommitments={fetchAllOnChainCommitments}
-            />
-          </motion.div>
-        )}
+        {/* Liquidity moved to the main Trade card (Trade / Short / Liquidity segmented control). */}
 
         {/* Private Pledges Tab — claim anonymous plot pledges to any wallet */}
         {activeTab === 'pledges' && (

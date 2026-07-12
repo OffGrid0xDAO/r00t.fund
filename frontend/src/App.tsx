@@ -32,6 +32,7 @@ const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
 const ParcelSwapPanel = lazy(() => import('./components/ParcelSwapPanel').then(m => ({ default: m.ParcelSwapPanel })));
+const LiquidityPanel = lazy(() => import('./components/LiquidityPanel').then(m => ({ default: m.LiquidityPanel })));
 import { ChartModal } from './components/ChartModal';
 
 // Loading fallback — content-aware skeleton with shimmer sweep
@@ -260,7 +261,7 @@ function TradingCard({ children, className = '' }: { children: React.ReactNode; 
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('_swap');
-  const [swapMode, setSwapMode] = useState<'trade' | 'short'>('trade');
+  const [swapMode, setSwapMode] = useState<'trade' | 'short' | 'liquidity'>('trade');
   const [showManifesto, setShowManifesto] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const [showLanding, setShowLanding] = useState(() => {
@@ -698,12 +699,33 @@ function App() {
                                 short
                               </span>
                             </motion.button>
+                            <motion.button
+                              onClick={() => setSwapMode('liquidity')}
+                              className={`relative px-5 py-2 rounded-md text-sm font-medium transition-colors ${
+                                swapMode === 'liquidity' ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                              }`}
+                              whileTap={{ scale: 0.97 }}
+                            >
+                              {swapMode === 'liquidity' && (
+                                <motion.div
+                                  layoutId="swapModeTab"
+                                  className="absolute inset-0 rounded-md bg-[var(--accent)]"
+                                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                              )}
+                              <span className="relative z-10 flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                liquidity
+                              </span>
+                            </motion.button>
                           </div>
                         </motion.div>
 
-                        {/* Conditionally render Trade or Short panel */}
+                        {/* Conditionally render Trade / Short / Liquidity panel */}
                         <AnimatePresence mode="wait">
-                          {swapMode === 'trade' ? (
+                          {swapMode === 'trade' && (
                             <motion.div
                               key="trade"
                               initial={{ opacity: 0, x: -20 }}
@@ -728,7 +750,8 @@ function App() {
                                 scan={scan}
                               />
                             </motion.div>
-                          ) : (
+                          )}
+                          {swapMode === 'short' && (
                             <motion.div
                               key="short"
                               initial={{ opacity: 0, x: 20 }}
@@ -737,6 +760,27 @@ function App() {
                               transition={{ duration: 0.2 }}
                             >
                               <ShortsPanel />
+                            </motion.div>
+                          )}
+                          {swapMode === 'liquidity' && (
+                            <motion.div
+                              key="liquidity"
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Suspense fallback={<PanelSkeleton />}>
+                                <LiquidityPanel
+                                  zkAMMAddress={CONTRACTS.zkAMM}
+                                  viewingKey={session.viewingKey}
+                                  tokenCommitments={commitments}
+                                  onCommitmentSpent={spendCommitment}
+                                  onStoreCommitment={storeCommitment}
+                                  onRefreshBalance={scan}
+                                  fetchAllOnChainCommitments={fetchAllOnChainCommitments}
+                                />
+                              </Suspense>
                             </motion.div>
                           )}
                         </AnimatePresence>
