@@ -81,3 +81,5 @@ scripts/.bootstrap-lp.json
 
 # circuit wasm must ship for browser proof-gen (overrides *.wasm ignore)
 !frontend/public/circuits/**/*.wasm
+.vercel
+.env*
