@@ -98,7 +98,7 @@ export function LandsPanel({ onOpenMap }: { onOpenMap?: () => void }) {
                 {/* action — gated by launch status */}
                 {t.tradable ? (
                   <a href={uniswapUrl(ROOT_ADDR)} target="_blank" rel="noopener noreferrer"
-                     className="block text-center py-2 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity" style={{ background: color }}>
+                     className="block text-center py-2 rounded-lg text-[var(--accent-ink)] font-medium text-sm hover:opacity-90 transition-opacity" style={{ background: color }}>
                     Trade ${t.ticker} ↗
                   </a>
                 ) : (

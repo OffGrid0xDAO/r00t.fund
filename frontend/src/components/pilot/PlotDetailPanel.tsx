@@ -89,7 +89,7 @@ export function PlotDetailPanel({
               <button
                 onClick={() => { onRename(nameInput); setNameInput(''); }}
                 disabled={!nameInput.trim()}
-                className="shrink-0 px-3 py-2 rounded-lg text-white font-medium text-sm disabled:opacity-50"
+                className="shrink-0 px-3 py-2 rounded-lg text-[var(--accent-ink)] font-medium text-sm disabled:opacity-50"
                 style={{ background: color }}
               >
                 Claim

@@ -117,18 +117,18 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
           <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-muted)]">Patron this plot · anonymously</p>
           <div className="inline-flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px] font-mono">
             {(['eth', 'usdc'] as const).map((a) => (
-              <button key={a} onClick={() => setPay(a)} className={`px-2.5 py-1 ${pay === a ? 'text-white' : 'text-[var(--text-muted)]'}`} style={pay === a ? { background: color } : undefined}>{a.toUpperCase()}</button>
+              <button key={a} onClick={() => setPay(a)} className={`px-2.5 py-1 ${pay === a ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)]'}`} style={pay === a ? { background: color } : undefined}>{a.toUpperCase()}</button>
             ))}
           </div>
         </div>
         <div className="flex gap-2 mb-2">
           {ETH_PRESETS_USD.map((v) => (
-            <button key={v} onClick={() => setUsdAmt(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium ${usdAmt === v ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)]'}`} style={usdAmt === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
+            <button key={v} onClick={() => setUsdAmt(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium ${usdAmt === v ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)]'}`} style={usdAmt === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
           ))}
           <input type="number" min={1} value={usdAmt} onChange={(e) => setUsdAmt(Math.max(1, Number(e.target.value) || 0))}
             className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono" />
         </div>
-        <button onClick={doFund} disabled={busy} className="w-full py-3 rounded-lg text-white font-medium text-sm disabled:opacity-60 hover:opacity-90" style={{ background: color }}>
+        <button onClick={doFund} disabled={busy} className="w-full py-3 rounded-lg text-[var(--accent-ink)] font-medium text-sm disabled:opacity-60 hover:opacity-90" style={{ background: color }}>
           {busy ? 'Funding privately…' : `Patron ${pay === 'eth' ? `${Number(formatEther(ethCost)).toFixed(4)} ETH` : `${(Number(usdcCost) / 1e6).toFixed(2)} USDC`} → private note`}
         </button>
         <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
@@ -148,7 +148,7 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
               <div key={n.id} className="rounded-lg border border-[var(--border)] p-2.5" style={{ background: 'var(--bg-secondary)' }}>
                 <div className="flex gap-1.5 mb-2">
                   {(['root', 'parcel'] as const).map((k) => (
-                    <button key={k} onClick={() => setKinds((s) => ({ ...s, [n.id]: k }))} className={`flex-1 py-1 rounded-md border text-[10px] font-medium ${kind === k ? 'text-white border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)]'}`} style={kind === k ? { background: color } : undefined}>
+                    <button key={k} onClick={() => setKinds((s) => ({ ...s, [n.id]: k }))} className={`flex-1 py-1 rounded-md border text-[10px] font-medium ${kind === k ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)]'}`} style={kind === k ? { background: color } : undefined}>
                       {k === 'root' ? '$R00T (floor)' : `$${ticker}`}
                     </button>
                   ))}
@@ -157,7 +157,7 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
                   <input value={recipients[n.id] || ''} onChange={(e) => setRecipients((r) => ({ ...r, [n.id]: e.target.value }))}
                     placeholder={`wallet… (default ${(address || '0x…').slice(0, 6)}…)`}
                     className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] text-[11px] text-[var(--text-primary)] font-mono" />
-                  <button onClick={() => doClaim(n)} disabled={claimingId === n.id} className="shrink-0 px-2.5 py-1.5 rounded-md text-white text-[11px] font-medium disabled:opacity-60" style={{ background: color }}>
+                  <button onClick={() => doClaim(n)} disabled={claimingId === n.id} className="shrink-0 px-2.5 py-1.5 rounded-md text-[var(--accent-ink)] text-[11px] font-medium disabled:opacity-60" style={{ background: color }}>
                     {claimingId === n.id ? '…' : 'Claim'}
                   </button>
                 </div>
