@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePilotState } from './usePilotState';
 import { useLandBackend } from '../../hooks/useLandBackend';
+import { useParcelFunding } from '../../hooks/useParcelFunding';
 import { TYPE_COLOR, usd, pct, greenLevel, parcelHeat, recentEur, regenIndex, tickerFromName, landValueR00T, fmtR00T } from './ui';
 import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
@@ -93,16 +94,33 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   // Real Land pledges when the pilot Land is deployed + wallet connected; mock otherwise.
   const { backend, onChain } = useLandBackend();
   const state = usePilotState(initialPlots, backend);
-  const { plots, machines, pending, totals } = state;
+  const { plots: rawPlots, machines, pending } = state;
+
+  // Merge REAL on-chain funding (raised/target per parcel) into the map so nothing is imagined.
+  const { funding: onChainFunding } = useParcelFunding();
+  const plots = useMemo(() => rawPlots.map((p) => {
+    const tk = p.ticker ?? tickerFromName(p.name);
+    const f = onChainFunding[tk];
+    return f && f.targetUsd > 0 ? { ...p, fundedEur: f.fundedUsd, targetEur: f.targetUsd } : { ...p, fundedEur: 0 };
+  }), [rawPlots, onChainFunding]);
+
+  // Real totals from the merged plots (funded/target on-chain; backers ≈ funded parcels).
+  const totals = useMemo(() => ({
+    funded: plots.reduce((a, p) => a + p.fundedEur, 0),
+    target: plots.reduce((a, p) => a + p.targetEur, 0),
+    backers: plots.filter((p) => p.fundedEur > 0).length,
+    verified: plots.filter((p) => p.targetEur > 0 && p.fundedEur >= p.targetEur).length,
+    plots: plots.length,
+  }), [plots]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showMachines, setShowMachines] = useState(false);
 
-  // ── live momentum: a clock tick + a pledge simulator so heat feels alive ──
-  // 5s cadence (heat decays slowly): the old 1s tick re-rendered the whole map SVG every
-  // second, which read as a visible flicker/glitch. 5s keeps it alive without the churn.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t); }, []);
+  // ── heat is computed once at mount ──
+  // The old timer-driven `now` re-rendered the ENTIRE map SVG on an interval, which read as
+  // a flicker/hydration glitch. Funding %s update from the on-chain poll (useParcelFunding),
+  // not a clock, so there's no need to tick `now` — freeze it and the churn disappears.
+  const [now] = useState(() => Date.now());
 
   const [feed, setFeed] = useState<{ id: string; who: string; amt: number; parcel: string }[]>([]);
   const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;
