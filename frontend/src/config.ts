@@ -88,13 +88,13 @@ const TENDERLY_CONTRACTS = {
 // Fresh Pair+Router+Admin+Registry+Shorts: shorts now owner-tunable (5-min TWAP, 0.001 ETH
 // min). Old v1 stack retired (liquidity swept back). New commitment trees start empty.
 const ARBITRUM_CONTRACTS = {
-  zkAMM: '0x2cDa2AA6C4a927D0Ec8D506eD23a60d6cF49F416',       // ZkAMMPair (private DEX)
-  zkAMMPair: '0x2cDa2AA6C4a927D0Ec8D506eD23a60d6cF49F416',
-  zkAMMRouter: '0xDc91cE6F7d3Aa7cF1d2427C250dDce4E78982A7b',
-  zkAMMAdmin: '0x1B1ecd4853Bd143aab682a4D068394d018c4236C',
+  zkAMM: '0x73651d7c9E4469145B034e2607395529aBcFb082',       // ZkAMMPair (private DEX)
+  zkAMMPair: '0x73651d7c9E4469145B034e2607395529aBcFb082',
+  zkAMMRouter: '0xB0b80C77dd4b9E70B8cBF0b2f4338f89514Bd5e2',
+  zkAMMAdmin: '0x8Cef614494D8Ea69398A9a1Cc355b76A277d7d4D',
   rootToken: '0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022',   // $R00T (unchanged)
-  tokenPool: '0xdc8528fe3eF1c462cC479A31969AD7AC5508B963',   // Pair.tokenPool() — commitment tree
-  lpPool: '0x477DdB9288F3Cc821e1A2804EfE5D923c00d030C',       // Pair.lpPool() — LP commitment tree
+  tokenPool: '0xdc29296BB87DF49a53ab900e2ED014caBB29cE3C',   // Pair.tokenPool() — commitment tree
+  lpPool: '0xee8EB9013527c1124Bf531624E2aBA4FcF99F459',       // Pair.lpPool() — LP commitment tree
   nullifierRegistry: '0x6Ae7adf4Cba5eEAc58a70832998bdb18C6588D4A',
   launchpad: '0x...',
   tokenFactory: '0x...',
