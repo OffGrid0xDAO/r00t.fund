@@ -19,6 +19,8 @@ import {TestRootToken} from "../src/TestRootToken.sol";
 /// Env: PRIVATE_KEY, ROOT_TOKEN, USDC_ADDRESS, [POOL_MANAGER]
 contract DeployLandVault is Script {
     address constant RH_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
+    // Chainlink ETH/USD Data Feed on Robinhood Chain (8 decimals, 24h heartbeat). Override via env.
+    address constant RH_ETH_USD_FEED = 0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9;
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
@@ -35,9 +37,12 @@ contract DeployLandVault is Script {
         // fits the deployer's remaining balance (default 3M for the demo).
         uint256 vaultReserve = vm.envOr("VAULT_RESERVE", uint256(3_000_000e18));
         uint256 rootPriceE6 = 100000;     // $0.10 / R00T
-        uint256 ethPriceE6 = 3000_000000; // $3000 / ETH
+        uint256 ethPriceE6 = 1800_000000; // MANUAL fallback only — the live Chainlink feed overrides
+        address ethFeed = vm.envOr("ETH_USD_FEED", RH_ETH_USD_FEED);
+        // All 10 map parcels. names/symbols/targets index-aligned; parcelId = i+1.
+        string[10] memory pNames = ["Native oak","Sweet chestnut","Carrot","Turnip","Potato","Vine & berry","Cactus","Upper Terrace & Access","Tool Barn & Track","Spring Swale"];
+        string[10] memory pSymbols = ["OAK","NUT","CARROT","TURNIP","SPUD","BERRY","CACTUS","ROCK","HAY","DRIP"];
         bytes32 parcelId = bytes32(uint256(1));
-        uint256 parcelTarget = 100e18;    // R00T-equiv to "fully fund" the demo parcel
 
         vm.startBroadcast(pk);
 
@@ -70,9 +75,15 @@ contract DeployLandVault is Script {
         }));
         Land land = Land(landAddr);
 
-        // 3. Validate (deployer is the validator) + create a parcel
+        // 3. Validate (deployer is the validator) + wire the live Chainlink ETH/USD feed (no
+        //    L2 sequencer feed exists on RH yet → address(0) skips that check; heartbeat 25h
+        //    covers the feed's 24h heartbeat). After this, ethPriceE6() reads the market on-chain.
         land.validate();
-        land.createParcel(parcelId, "Oak Terrace", "OAK");
+        land.setEthFeed(ethFeed, address(0), 90000);
+        // create all 10 map parcels (id = i+1)
+        for (uint256 i = 0; i < 10; i++) {
+            land.createParcel(bytes32(uint256(i + 1)), pNames[i], pSymbols[i]);
+        }
 
         // 4. Verifiers + SHARED nullifier registry + vault.
         //    Use the SAME registry the v2 zkAMM router uses (deployer is its governance), so a
@@ -93,10 +104,12 @@ contract DeployLandVault is Script {
         land.setLandVault(address(vault));
         reg.setPoolAuthorization(address(vault), true);
 
-        // 6. Steward bonds the vault reserve + sets the parcel target
+        // 6. Steward bonds the vault reserve + sets each parcel target (P1 demo=100, rest=1000)
         IERC20(root).approve(address(vault), vaultReserve);
         vault.fundReserve(vaultReserve);
-        vault.setParcelTarget(parcelId, parcelTarget);
+        for (uint256 i = 0; i < 10; i++) {
+            vault.setParcelTarget(bytes32(uint256(i + 1)), i == 0 ? 100e18 : 1000e18);
+        }
 
         vm.stopBroadcast();
 
@@ -108,8 +121,9 @@ contract DeployLandVault is Script {
         console.log("  NullifierRegistry:", address(reg));
         console.log("  landDepositVerif :", depositV);
         console.log("  claimVerifier    :", claimV);
-        console.log("  parcelId (uint)  :", uint256(parcelId));
-        console.log("  parcelTarget R00T:", parcelTarget);
+        console.log("  parcels created  : 10 (ids 1-10)");
+        console.log("  ethUsdFeed       :", ethFeed);
+        console.log("  ethPriceE6 (live):", land.ethPriceE6());
         console.log("  vault reserve    :", vaultReserve);
     }
 }
