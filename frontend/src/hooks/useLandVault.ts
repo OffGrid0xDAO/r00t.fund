@@ -158,6 +158,36 @@ export function useLandVault(viewingKey: string | null) {
     return { hash, note };
   }, [isReady, walletClient, vault, persist]);
 
+  /** Fund a parcel with USDC/USDG (6dp). Approves the vault, then calls otcFundUSDC. */
+  const fundUSDC = useCallback(async (parcelIdHex: string, rootOut: bigint, usdcNeeded: bigint, usdc: string) => {
+    if (!isReady || !walletClient || !publicClient) throw new Error('wallet/vault not ready');
+    const parcelId = BigInt(parcelIdHex);
+    const nullifier = randField(), secret = randField();
+    const commitment = poseidon4([nullifier, secret, parcelId, rootOut]);
+    const binding = poseidon3([parcelId, rootOut, commitment]);
+    // approve USDC to the vault (it pulls via safeTransferFrom to the land treasury)
+    const erc20 = [{ name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] }] as const;
+    const ah = await walletClient.writeContract({ address: usdc as `0x${string}`, abi: erc20, functionName: 'approve', args: [vault, usdcNeeded] });
+    await publicClient.waitForTransactionReceipt({ hash: ah });
+    const dep = await fullProve(
+      { parcelId: parcelId.toString(), amount: rootOut.toString(), commitment: commitment.toString(), nullifier: nullifier.toString(), secret: secret.toString() },
+      WASM('landdeposit'), ZKEY('landdeposit')
+    );
+    const proof = packProof(dep.proof);
+    const hash = await walletClient.writeContract({
+      address: vault, abi: landVaultAbi, functionName: 'otcFundUSDC',
+      args: [parcelIdHex as `0x${string}`, rootOut, commitment, binding, proof as any, '0x'],
+    });
+    const note: LandNote = {
+      id: `${Date.now()}_${Math.random().toString(16).slice(2, 10)}`,
+      parcelId: parcelIdHex, rootOut: rootOut.toString(),
+      nullifier: nullifier.toString(), secret: secret.toString(), commitment: commitment.toString(),
+      leafIndex: null, createdAt: Date.now(), claimed: false,
+    };
+    persist([...notesRef.current, note]);
+    return { hash, note };
+  }, [isReady, walletClient, publicClient, vault, persist]);
+
   /** Claim a note to ANY wallet as R00T or the parcel token. One irreversible choice. */
   const claim = useCallback(async (note: LandNote, recipient: string, kind: 'root' | 'parcel') => {
     if (!isReady || !walletClient) throw new Error('wallet/vault not ready');
@@ -227,5 +257,5 @@ export function useLandVault(viewingKey: string | null) {
     return hash;
   }, [isReady, walletClient, vault, vaultLower, persist, publicClient]);
 
-  return { isReady, vault, notes, fundETH, claim };
+  return { isReady, vault, notes, fundETH, fundUSDC, claim };
 }

@@ -99,8 +99,10 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   const [showMachines, setShowMachines] = useState(false);
 
   // ── live momentum: a clock tick + a pledge simulator so heat feels alive ──
+  // 5s cadence (heat decays slowly): the old 1s tick re-rendered the whole map SVG every
+  // second, which read as a visible flicker/glitch. 5s keeps it alive without the churn.
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t); }, []);
 
   const [feed, setFeed] = useState<{ id: string; who: string; amt: number; parcel: string }[]>([]);
   const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;

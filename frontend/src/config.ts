@@ -150,8 +150,12 @@ export const CONTRACTS = {
   landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
   pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
-  // USDC used for pledges on the target chain.
-  usdc: (import.meta.env.VITE_USDC as string) || '0x...',
+  // USDC/USDG used for pledges (the LandVault's stablecoin). RH demo = mock USDC minted with the vault.
+  usdc: (import.meta.env.VITE_USDC as string) || '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
+  // The demo parcel id + its $0.10/R00T + $3000/ETH OTC pricing (from the deployed Land).
+  pilotParcelId: (import.meta.env.VITE_PILOT_PARCEL_ID as string) || '0x0000000000000000000000000000000000000000000000000000000000000001',
+  rootPriceE6: 100000n,   // $0.10 per R00T-equiv (E6)
+  ethPriceE6: 3000000000n, // $3000 per ETH (E6)
   tokenPool: FALLBACK.tokenPool,
   lpPool: FALLBACK.lpPool,
   nullifierRegistry: FALLBACK.nullifierRegistry,

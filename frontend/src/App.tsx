@@ -31,7 +31,7 @@ const ManifestoPage = lazy(() => import('./components/ManifestoPage').then(m => 
 const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default: m.DocsPage })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
-const ParcelSwapPanel = lazy(() => import('./components/ParcelSwapPanel').then(m => ({ default: m.ParcelSwapPanel })));
+const ParcelFundPanel = lazy(() => import('./components/ParcelFundPanel').then(m => ({ default: m.ParcelFundPanel })));
 const LiquidityPanel = lazy(() => import('./components/LiquidityPanel').then(m => ({ default: m.LiquidityPanel })));
 import { ChartModal } from './components/ChartModal';
 
@@ -816,7 +816,7 @@ function App() {
                         <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">Fuzzed, non-cadastral geometry — indicative zones, not a legal subdivision. Patronage only — no revenue share.</p>
                         <div className="rounded-xl border border-[var(--border)] p-4" style={{ background: 'var(--bg-secondary)' }}>
                           <Suspense fallback={<PanelSkeleton />}>
-                            <ParcelSwapPanel />
+                            <ParcelFundPanel />
                           </Suspense>
                         </div>
                       </div>
