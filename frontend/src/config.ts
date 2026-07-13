@@ -155,7 +155,7 @@ export const CONTRACTS = {
   // The demo parcel id + OTC pricing. rootPrice is the steward anchor; ethPrice is read LIVE
   // from Chainlink on-chain (these are first-paint fallbacks only).
   pilotParcelId: (import.meta.env.VITE_PILOT_PARCEL_ID as string) || '0x0000000000000000000000000000000000000000000000000000000000000001',
-  rootPriceE6: 100000n,   // $0.10 per R00T-equiv (E6) — steward anchor
+  rootPriceE6: 10000n,   // $0.01 per R00T (E6) — seed round: 69M FDV = $690k, 10% sold for $69k
   ethPriceE6: 1800000000n, // ~$1800 per ETH (E6) — first paint only; Land.ethPriceE6() reads Chainlink live
   // Every map plot is a REAL on-chain parcel (createParcel'd on the Land). Ticker → parcelId
   // so the plot modal funds the right parcel via the LandVault anon-commit flow.

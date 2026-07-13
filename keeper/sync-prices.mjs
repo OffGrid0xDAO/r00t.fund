@@ -53,7 +53,7 @@ const ROOT_SOURCE       = (process.env.ROOT_SOURCE || 'ref').toLowerCase(); // '
 const ROOT_REF_USD      = process.env.ROOT_REF_USD ? Number(process.env.ROOT_REF_USD) : null;
 // Hard floor on the OTC price (USD). Protects the reserve while R00T's market is below it: the
 // thin pool prices R00T ~$0.000001, so "5% below market" only takes over once market > floor.
-const ROOT_FLOOR_USD    = Number(process.env.ROOT_FLOOR_USD ?? '0.10');
+const ROOT_FLOOR_USD    = Number(process.env.ROOT_FLOOR_USD ?? '0.01');
 const DISCOUNT_BPS      = BigInt(process.env.DISCOUNT_BPS      ?? '1000'); // 10%
 const MAX_DEVIATION_BPS = Number(process.env.MAX_DEVIATION_BPS ?? '500'); // 5%/tick
 const EMA_ALPHA         = Number(process.env.EMA_ALPHA         ?? '0.3');
