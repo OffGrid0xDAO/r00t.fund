@@ -18,6 +18,14 @@ import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {FullMath} from "v4-core/libraries/FullMath.sol";
 
+/// @notice Minimal Chainlink AggregatorV3 read surface (ETH/USD + L2 sequencer uptime).
+interface IAggregatorV3 {
+    function decimals() external view returns (uint8);
+    function latestRoundData() external view returns (
+        uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound
+    );
+}
+
 /// @title Land
 /// @notice One steward's land. It is, economically, an OTC sale of the steward's
 ///         $R00T to the crowd: the steward locks $R00T at creation as the seed
@@ -52,8 +60,15 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     address public treasury;          // receives pledges (regeneration capital)
     address public landVault;       // LandVault: private fund + dual-claim rail (mints parcel tokens on claim)
     address public protocolTreasury;  // receives the protocol's 30% of pool fees
-    uint256 public ethPriceE6;        // USD/ETH, 6dp (Chainlink feed or owner-set)
-    uint256 public rootPriceE6;       // USD/$R00T, 6dp (steward-set OTC price)
+    uint256 public ethPriceE6Manual;  // USD/ETH, 6dp — fallback used only when no oracle is set
+    uint256 public rootPriceE6;       // USD/$R00T, 6dp (steward-set OTC price; R00T has no oracle)
+
+    // ── ETH/USD oracle (Chainlink Data Feed on Robinhood Chain). When set, ethPriceE6() reads
+    //    it LIVE per tx — no keeper. Unset (address 0) → falls back to ethPriceE6Manual (testnet).
+    IAggregatorV3 public ethUsdFeed;          // Chainlink ETH/USD proxy
+    IAggregatorV3 public sequencerUptimeFeed; // L2 sequencer uptime feed (0 = skip the check)
+    uint256 public ethFeedHeartbeat = 3600;   // max staleness of the ETH/USD answer, seconds
+    uint256 public constant SEQ_GRACE = 3600; // wait after a sequencer restart before trusting prices
     uint256 public mintRateE18 = 1e18; // parcel tokens minted per 1 R00T-equivalent (18dp). Steward-set OTC rate.
     uint256 public bonusBps = 15000;  // early-bird multiplier — applies to reward POINTS only, never token mint
     uint256 public round;
@@ -124,8 +139,13 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     error InsufficientReserve();
     error NoParcel();
     error NotVault();
+    error SequencerDown();
+    error SequencerGracePeriod();
+    error StaleOraclePrice();
+    error BadOraclePrice();
 
     event LandVaultSet(address indexed vault);
+    event EthFeedSet(address indexed feed, address indexed sequencer, uint256 heartbeat);
 
     modifier onlySteward() { if (msg.sender != steward) revert NotSteward(); _; }
     modifier onlyValidated() { if (!validated) revert NotValidated(); _; }
@@ -141,7 +161,7 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
         protocolTreasury = p.protocolTreasury;
         poolFee = p.poolFee;
         tickSpacing = p.tickSpacing;
-        ethPriceE6 = p.ethPriceE6;
+        ethPriceE6Manual = p.ethPriceE6;
         rootPriceE6 = p.rootPriceE6;
         name = p.name; region = p.region;
         boundaryHash = p.boundaryHash; topoHash = p.topoHash; cid = p.cid;
@@ -242,7 +262,7 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
     {
         if (block.timestamp > deadline) revert Expired();
         if (msg.value == 0) revert ZeroAmount();
-        uint256 usd6 = (msg.value * ethPriceE6) / 1e18;
+        uint256 usd6 = (msg.value * ethPriceE6()) / 1e18;
         _record(parcelId, address(0), msg.value, usd6, minParcelOut);
         (bool ok, ) = treasury.call{value: msg.value}("");
         if (!ok) revert EthTransferFailed();
@@ -367,8 +387,43 @@ contract Land is ReentrancyGuard, Pausable, IUnlockCallback {
         emit RoundAdvanced(round, newBonusBps);
     }
     function setTreasury(address t) external onlySteward { require(t != address(0), "0"); treasury = t; }
-    function setEthPrice(uint256 pE6) external onlySteward { ethPriceE6 = pE6; }
+    /// @notice Sets the MANUAL ETH price — only used when no oracle feed is configured (testnet).
+    function setEthPrice(uint256 pE6) external onlySteward { ethPriceE6Manual = pE6; }
     function setRootPrice(uint256 pE6) external onlySteward { require(pE6 > 0, "0"); rootPriceE6 = pE6; }
+
+    /// @notice Wire the Chainlink ETH/USD feed (+ optional L2 sequencer uptime feed). Once set,
+    ///         ethPriceE6() reads the live market every tx — the price keeper becomes unnecessary.
+    function setEthFeed(address feed, address sequencer, uint256 heartbeat) external onlySteward {
+        require(heartbeat > 0, "hb");
+        ethUsdFeed = IAggregatorV3(feed);
+        sequencerUptimeFeed = IAggregatorV3(sequencer);
+        ethFeedHeartbeat = heartbeat;
+        emit EthFeedSet(feed, sequencer, heartbeat);
+    }
+
+    /// @notice Live USD/ETH price, 6dp. Reads Chainlink when a feed is set (with L2 sequencer +
+    ///         staleness guards so a down/stale oracle fails safe rather than mispricing); else
+    ///         returns the steward's manual fallback. Consumed by pledgeETH + LandVault.otcFundETH.
+    function ethPriceE6() public view returns (uint256) {
+        IAggregatorV3 feed = ethUsdFeed;
+        if (address(feed) == address(0)) return ethPriceE6Manual; // no oracle → manual fallback
+
+        IAggregatorV3 seq = sequencerUptimeFeed;
+        if (address(seq) != address(0)) {
+            (, int256 up, uint256 seqStarted, , ) = seq.latestRoundData();
+            if (up != 0) revert SequencerDown();                       // 0 = up, 1 = down
+            if (block.timestamp - seqStarted <= SEQ_GRACE) revert SequencerGracePeriod();
+        }
+        (, int256 answer, , uint256 updatedAt, ) = feed.latestRoundData();
+        if (answer <= 0) revert BadOraclePrice();
+        if (block.timestamp - updatedAt > ethFeedHeartbeat) revert StaleOraclePrice();
+
+        uint256 a = uint256(answer);
+        uint8 dec = feed.decimals();                                    // scale feed dp → 6dp
+        if (dec > 6) return a / (10 ** (dec - 6));
+        if (dec < 6) return a * (10 ** (6 - dec));
+        return a;
+    }
     /// @notice OTC mint rate: parcel tokens minted per 1 R00T-equivalent of pledge (18dp).
     function setMintRate(uint256 rateE18) external onlySteward { require(rateE18 > 0, "0"); mintRateE18 = rateE18; }
     function pause() external onlySteward { _pause(); }
