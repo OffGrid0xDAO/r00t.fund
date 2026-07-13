@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useConnect, useChainId, useSwitchChain, usePublicClient } from 'wagmi';
 import { SwapPanel, TokenOption } from './components/SwapPanel';
 import { ShortsPanel } from './components/ShortsPanel';
@@ -376,10 +376,6 @@ function App() {
   const expectedChainId = NETWORK.chainId;
   const isWrongNetwork = isConnected && chainId !== expectedChainId;
 
-  // Scroll animations
-  const { scrollY } = useScroll();
-  const headerOpacity = useTransform(scrollY, [0, 100], [1, 0.95]);
-
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
@@ -444,9 +440,9 @@ function App() {
       {/* Background with animated root SVG */}
       <AppBackground />
 
-      {/* Header */}
-      <motion.header
-        style={{ opacity: headerOpacity }}
+      {/* Header — static opacity so the backdrop-blur isn't re-composited on every scroll
+          frame (that was the on-scroll nav glitch). */}
+      <header
         className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-md bg-[var(--bg-primary)]/80"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -511,7 +507,7 @@ function App() {
             )}
           </div>
         </div>
-      </motion.header>
+      </header>
 
       {/* Main Content */}
       <main className="relative z-10 pt-32 pb-20 px-4">
