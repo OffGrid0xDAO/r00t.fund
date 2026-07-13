@@ -101,13 +101,11 @@ contract ZkAMMDepositBindingTest is Test {
         // Past the pool-authorization cooldown so the Router can mark nullifiers.
         vm.warp(block.timestamp + 61);
 
-        // Bootstrap ETH liquidity so the curve is priced.
-        router.bootstrapLiquidity{value: 1 ether}(uint256(12345), 0, block.timestamp + 1 hours, hex"01");
-
-        // Seed the TOKEN side the real-AMM way: setReserves deposits real R00T and sets
-        // tokenReserve = deposited (so tokenReserve == real balance; no born-insolvency).
+        // Seed the pool the real-AMM way: setReserves from EMPTY deposits real ETH + R00T,
+        // sets tokenReserve == real balance, and mints the steward's (burned) LP shares.
+        // No launchpad bootstrap needed.
         root.approve(address(pair), 1_000_000e18);
-        pair.setReserves(1 ether, 1_000_000e18); // ethReserve already 1 (bootstrap) → no ETH delta
+        pair.setReserves{value: 1 ether}(1 ether, 1_000_000e18);
     }
 
     // ---- helpers ----
@@ -149,14 +147,49 @@ contract ZkAMMDepositBindingTest is Test {
         router.bootstrapLiquidity{value: 1 ether}(uint256(999), 0, block.timestamp + 1 hours, hex"02");
     }
 
-    /// @notice setReserves adds real liquidity: depositing more R00T raises tokenReserve 1:1 and
-    ///         keeps reserve == real balance (the "add liquidity later" path).
-    function test_setReserves_addsLiquidity_staysSolvent() public {
-        uint256 tr0 = pair.tokenReserve();
-        root.approve(address(pair), 500_000e18);
-        pair.setReserves(pair.ethReserve(), tr0 + 500_000e18); // add 500k R00T at same ETH
-        assertEq(pair.tokenReserve(), tr0 + 500_000e18);
-        assertEq(pair.tokenReserve(), root.balanceOf(address(pair)), "still solvent after top-up");
+    /// @notice The seed's shares are all the steward's (burned/ownerless) — fees route to treasury,
+    ///         and they can't be redeemed by third parties.
+    function test_seed_sharesAreStewardBurned() public view {
+        assertEq(pair.totalLPShares(), pair.burnedLPShares(), "seed shares must all be burned/steward");
+        assertGt(pair.totalLPShares(), 0, "seed must mint liquidity shares");
+    }
+
+    /// @notice CRITICAL: a third-party LP's claim on the reserves is IDENTICAL before/after the
+    ///         steward adds liquidity via setReserves. No dilution, no drain. Owned shares untouched.
+    function test_setReserves_preservesThirdPartyLPClaim() public {
+        // simulate a third-party LP owning 20% (router mints owned shares on addLiquidity)
+        uint256 owned = pair.totalLPShares() / 4;
+        vm.prank(address(router));
+        pair.addLPShares(owned); // increases totalLPShares, NOT burnedLPShares
+        uint256 total0 = pair.totalLPShares();
+        assertEq(total0 - pair.burnedLPShares(), owned, "owned = total - burned");
+
+        uint256 ethClaim0 = (owned * pair.ethReserve()) / total0;
+        uint256 tokClaim0 = (owned * pair.tokenReserve()) / total0;
+
+        // steward DOUBLES liquidity via setReserves (same price)
+        uint256 e = pair.ethReserve(); uint256 t = pair.tokenReserve();
+        root.approve(address(pair), t);
+        pair.setReserves{value: e}(e * 2, t * 2);
+
+        // owned share count untouched; its claim on the larger reserves is identical
+        uint256 ownedAfter = pair.totalLPShares() - pair.burnedLPShares();
+        assertEq(ownedAfter, owned, "setReserves must not change owned LP shares");
+        uint256 ethClaim1 = (ownedAfter * pair.ethReserve()) / pair.totalLPShares();
+        uint256 tokClaim1 = (ownedAfter * pair.tokenReserve()) / pair.totalLPShares();
+        assertApproxEqRel(ethClaim1, ethClaim0, 1e12, "LP ETH claim must be preserved");
+        assertApproxEqRel(tokClaim1, tokClaim0, 1e12, "LP token claim must be preserved");
+    }
+
+    /// @notice CRITICAL: the steward CANNOT use setReserves to remove third-party LP liquidity.
+    function test_setReserves_cannotDrainThirdPartyLP() public {
+        uint256 half = pair.totalLPShares();
+        vm.prank(address(router));
+        pair.addLPShares(half); // third party now owns half the pool
+        uint256 targetEth = pair.ethReserve() / 100 + pair.MIN_LIQUIDITY();
+        // steward tries to yank almost all liquidity out → would burn more than its own shares
+        vm.expectRevert(ZkAMMPair.RemovesThirdPartyLiquidity.selector);
+        pair.setReserves(targetEth, 1);
     }
 
     // =====================================================================================

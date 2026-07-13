@@ -183,6 +183,7 @@ contract ZkAMMPair is ReentrancyGuard {
     error CommitmentBindingAlreadyUsed();
     error InvalidScalarField();
     error InvalidDepositorBinding();
+    error RemovesThirdPartyLiquidity();
 
     // ============ Modifiers ============
 
@@ -764,27 +765,64 @@ contract ZkAMMPair is ReentrancyGuard {
     ///         equal-ratio deltas (only safe when there are no in-flight trades).
     event ReservesSet(uint256 ethReserve, uint256 tokenReserve);
     function setReserves(uint256 newEth, uint256 newTokens) external payable onlyAdminOwner nonReentrant {
-        // ── ETH side ──
-        if (newEth > ethReserve) {
-            require(msg.value == newEth - ethReserve, "eth delta");
+        uint256 oldEth = ethReserve;
+        uint256 oldTokens = tokenReserve;
+
+        // ── CHECKS: LP share accounting + drain guard FIRST, before any transfer (CEI). ──
+        // Shares track pool liquidity L = sqrt(eth*tokens). Scaling totalLPShares by newL/oldL keeps
+        // every existing (third-party, owned) share's claim on the reserves EXACTLY invariant, so
+        // steward liquidity added/removed here can never dilute or drain real LPs. The share DELTA is
+        // the steward's own liquidity, booked as burnedLPShares (ownerless; fees sweep to treasury)
+        // and reclaimable only by the steward via a later setReserves decrease.
+        uint256 newL = _sqrt(newEth * newTokens);
+        uint256 newTotalShares;
+        uint256 newBurned;
+        if (totalLPShares == 0) {
+            newTotalShares = newL;   // first seed from empty: all shares are the steward's (burned)
+            newBurned = newL;
         } else {
-            require(msg.value == 0, "no eth expected");
-            uint256 out = ethReserve - newEth;
-            if (out > 0) { (bool ok, ) = payable(msg.sender).call{value: out}(""); require(ok, "eth send"); }
+            uint256 oldL = _sqrt(oldEth * oldTokens);
+            require(oldL > 0, "seed via setReserves from empty");
+            newTotalShares = (totalLPShares * newL) / oldL;
+            if (newTotalShares >= totalLPShares) {
+                newBurned = burnedLPShares + (newTotalShares - totalLPShares);   // steward ADDS
+            } else {
+                uint256 reduction = totalLPShares - newTotalShares;              // steward REMOVES
+                if (reduction > burnedLPShares) revert RemovesThirdPartyLiquidity(); // never drain LPs
+                newBurned = burnedLPShares - reduction;
+            }
         }
+        if (newEth > oldEth) require(msg.value == newEth - oldEth, "eth delta");
+        else require(msg.value == 0, "no eth expected");
+
+        // ── EFFECTS ──
         ethReserve = newEth;
-        // ── ROOT side (owner must approve R00T to the pair for increases) ──
-        if (newTokens > tokenReserve) {
-            rootToken.safeTransferFrom(msg.sender, address(this), newTokens - tokenReserve);
-        } else if (newTokens < tokenReserve) {
-            rootToken.safeTransfer(msg.sender, tokenReserve - newTokens);
-        }
         tokenReserve = newTokens;
-        // Seeding here makes the pool live and locks out the obsolete launchpad `bootstrap`
-        // (router.bootstrapLiquidity checks `pair.bootstrapped()`), so a third party can't add
-        // stray ETH + mint themselves LP shares on top of a steward-seeded pool.
-        bootstrapped = true;
+        totalLPShares = newTotalShares;
+        burnedLPShares = newBurned;
+        bootstrapped = true; // makes the pool live + locks out the obsolete launchpad bootstrap
         emit ReservesSet(newEth, newTokens);
+
+        // ── INTERACTIONS: move the ETH + R00T deltas last. ──
+        if (newEth < oldEth) {
+            (bool ok, ) = payable(msg.sender).call{value: oldEth - newEth}(""); require(ok, "eth send");
+        }
+        if (newTokens > oldTokens) {
+            rootToken.safeTransferFrom(msg.sender, address(this), newTokens - oldTokens);
+        } else if (newTokens < oldTokens) {
+            rootToken.safeTransfer(msg.sender, oldTokens - newTokens);
+        }
+    }
+
+    /// @dev Babylonian integer sqrt (for LP-share liquidity scaling in setReserves).
+    function _sqrt(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) { z = x; x = (y / x + x) / 2; }
+        } else if (y != 0) {
+            z = 1;
+        }
     }
 
     function setTokenPoolAuthorizedCaller(address caller, bool authorized) external onlyRouterOrAdmin {
