@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAccount, usePublicClient } from 'wagmi';
 import { formatEther, isAddress, parseAbi } from 'viem';
 import { useLandVault, type LandNote } from '../../hooks/useLandVault';
+import { useLandPricing } from '../../hooks/useLandPricing';
 import { CONTRACTS, getExplorerTxUrl } from '../../config';
 
 const ETH_PRESETS_USD = [10, 25, 100];
@@ -19,15 +20,16 @@ const vaultReadAbi = parseAbi([
 
 const usd = (n: number) => `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 function pidHex(id: number): `0x${string}` { return ('0x' + id.toString(16).padStart(64, '0')) as `0x${string}`; }
-// USD → R00T-equiv (18dp) at $0.10/R00T
-function usdToRootOut(u: number): bigint { return u > 0 ? (BigInt(Math.floor(u * 1e6)) * 10n ** 18n) / CONTRACTS.rootPriceE6 : 0n; }
-function rootOutToEth(r: bigint): bigint { const n = r * CONTRACTS.rootPriceE6; return (n + CONTRACTS.ethPriceE6 - 1n) / CONTRACTS.ethPriceE6; }
-function rootOutToUsdc(r: bigint): bigint { const n = r * CONTRACTS.rootPriceE6; return (n + 10n ** 18n - 1n) / 10n ** 18n; }
+// USD → R00T-equiv (18dp) at the LIVE OTC price. usdToRootOut(u, rootPriceE6)
+function usdToRootOut(u: number, rootPriceE6: bigint): bigint { return u > 0 ? (BigInt(Math.floor(u * 1e6)) * 10n ** 18n) / rootPriceE6 : 0n; }
+function rootOutToEth(r: bigint, rootPriceE6: bigint, ethPriceE6: bigint): bigint { const n = r * rootPriceE6; return (n + ethPriceE6 - 1n) / ethPriceE6; }
+function rootOutToUsdc(r: bigint, rootPriceE6: bigint): bigint { const n = r * rootPriceE6; return (n + 10n ** 18n - 1n) / 10n ** 18n; }
 
 export function PlotFundSection({ ticker, color }: { ticker: string; color: string }) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const vault = useLandVault(null);
+  const pricing = useLandPricing();
 
   const parcelId = CONTRACTS.parcelIdByTicker[ticker];
   const parcelIdHex = parcelId ? pidHex(parcelId) : null;
@@ -56,12 +58,12 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
   }, [publicClient, parcelIdHex, vault.isReady, vault.vault]);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const rootOut = usdToRootOut(usdAmt);
-  const ethCost = rootOutToEth(rootOut);
-  const usdcCost = rootOutToUsdc(rootOut);
-  // real $ progress (R00T × $0.10)
-  const raisedUsd = raised != null ? Number(formatEther(raised)) * 0.1 : null;
-  const targetUsd = target != null ? Number(formatEther(target)) * 0.1 : null;
+  const rootOut = usdToRootOut(usdAmt, pricing.rootPriceE6);
+  const ethCost = rootOutToEth(rootOut, pricing.rootPriceE6, pricing.ethPriceE6);
+  const usdcCost = rootOutToUsdc(rootOut, pricing.rootPriceE6);
+  // real $ progress (R00T-equiv × the LIVE OTC price — tracks the steward's price)
+  const raisedUsd = raised != null ? Number(formatEther(raised)) * pricing.rootPriceUsd : null;
+  const targetUsd = target != null ? Number(formatEther(target)) * pricing.rootPriceUsd : null;
   const progress = raisedUsd != null && targetUsd ? Math.min(100, (raisedUsd / targetUsd) * 100) : 0;
 
   const notes = vault.notes.filter((n) => parcelIdHex && n.parcelId.toLowerCase() === parcelIdHex.toLowerCase());

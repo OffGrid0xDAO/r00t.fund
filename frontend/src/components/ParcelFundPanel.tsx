@@ -10,28 +10,28 @@ import { useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { formatEther, isAddress } from 'viem';
 import { useLandVault, type LandNote } from '../hooks/useLandVault';
+import { useLandPricing } from '../hooks/useLandPricing';
 import { CONTRACTS, getExplorerTxUrl } from '../config';
 
-// USD → R00T-equiv (18dp): rootOut = usd/ (rootPriceE6/1e6). At $0.10/R00T, $10 → 100 R00T.
-function usdToRootOut(usd: number): bigint {
+// USD → R00T-equiv (18dp) at the LIVE OTC price.
+function usdToRootOut(usd: number, rootPriceE6: bigint): bigint {
   if (!usd || usd <= 0) return 0n;
   const usdE6 = BigInt(Math.floor(usd * 1e6));
-  return (usdE6 * 10n ** 18n) / CONTRACTS.rootPriceE6;
+  return (usdE6 * 10n ** 18n) / rootPriceE6;
 }
-// ethNeeded = rootOut * rootPriceE6 / ethPriceE6 (round up)
-function rootOutToEth(rootOut: bigint): bigint {
-  const num = rootOut * CONTRACTS.rootPriceE6;
-  return (num + CONTRACTS.ethPriceE6 - 1n) / CONTRACTS.ethPriceE6;
+function rootOutToEth(rootOut: bigint, rootPriceE6: bigint, ethPriceE6: bigint): bigint {
+  const num = rootOut * rootPriceE6;
+  return (num + ethPriceE6 - 1n) / ethPriceE6;
 }
-// usdcNeeded (6dp) = rootOut * rootPriceE6 / 1e18 (round up)
-function rootOutToUsdc(rootOut: bigint): bigint {
-  const num = rootOut * CONTRACTS.rootPriceE6;
+function rootOutToUsdc(rootOut: bigint, rootPriceE6: bigint): bigint {
+  const num = rootOut * rootPriceE6;
   return (num + 10n ** 18n - 1n) / 10n ** 18n;
 }
 
 export function ParcelFundPanel() {
   const { address } = useAccount();
   const vault = useLandVault(null);
+  const pricing = useLandPricing();
   const [usd, setUsd] = useState('5');
   const [payWith, setPayWith] = useState<'eth' | 'usdc'>('eth');
   const [busy, setBusy] = useState(false);
@@ -45,9 +45,9 @@ export function ParcelFundPanel() {
   const [claimErr, setClaimErr] = useState<Record<string, string>>({});
 
   const parcelId = CONTRACTS.pilotParcelId;
-  const rootOut = useMemo(() => usdToRootOut(parseFloat(usd || '0')), [usd]);
-  const ethCost = useMemo(() => rootOutToEth(rootOut), [rootOut]);
-  const usdcCost = useMemo(() => rootOutToUsdc(rootOut), [rootOut]);
+  const rootOut = useMemo(() => usdToRootOut(parseFloat(usd || '0'), pricing.rootPriceE6), [usd, pricing.rootPriceE6]);
+  const ethCost = useMemo(() => rootOutToEth(rootOut, pricing.rootPriceE6, pricing.ethPriceE6), [rootOut, pricing.rootPriceE6, pricing.ethPriceE6]);
+  const usdcCost = useMemo(() => rootOutToUsdc(rootOut, pricing.rootPriceE6), [rootOut, pricing.rootPriceE6]);
 
   const claimable = vault.notes.filter((n) => !n.claimed);
   const claimed = vault.notes.filter((n) => n.claimed);
