@@ -87,14 +87,14 @@ contract DeployRobinhood is Script {
         admin.setVerifierInitial("merge", mergeV);
         admin.setVerifierInitial("deposit", depositV); // PHASE B: CRITICAL-1 deposit-binding
 
-        // 7) global nullifier registry (double-spend guard, SHARED with the pledge rail).
-        //    Governance authorizes pools. If the deployer is governance we authorize the
-        //    Router now; otherwise the real governance must call setPoolAuthorization(router,true).
-        NullifierRegistry nreg = new NullifierRegistry(gov);
+        // 7) nullifier registry (double-spend guard, SHARED across all rails). Prefer an EXISTING
+        //    shared registry via REGISTRY env (so the zkAMM, LandVault + ZkParcelPool all mark the
+        //    one global set); else deploy a fresh one. Governance authorizes the Router (deployer
+        //    must be governance of the shared registry, which it is on RH).
+        address existingReg = vm.envOr("REGISTRY", address(0));
+        NullifierRegistry nreg = existingReg == address(0) ? new NullifierRegistry(gov) : NullifierRegistry(existingReg);
         router.setNullifierRegistry(address(nreg));
-        if (gov == deployer) {
-            nreg.setPoolAuthorization(address(router), true);
-        }
+        nreg.setPoolAuthorization(address(router), true); // deployer = governance on RH shared reg
 
         // 8) restore the trading fee (bootstrapLiquidity doesn't touch it; deployer is owner).
         router.setFees(protocolBps, lpBps);
