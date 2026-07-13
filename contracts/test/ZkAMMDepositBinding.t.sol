@@ -104,8 +104,10 @@ contract ZkAMMDepositBindingTest is Test {
         // Bootstrap ETH liquidity so the curve is priced.
         router.bootstrapLiquidity{value: 1 ether}(uint256(12345), 0, block.timestamp + 1 hours, hex"01");
 
-        // Give the Pair real ROOT so withdrawals can pay out.
-        root.transfer(address(pair), 1_000_000e18);
+        // Seed the TOKEN side the real-AMM way: setReserves deposits real R00T and sets
+        // tokenReserve = deposited (so tokenReserve == real balance; no born-insolvency).
+        root.approve(address(pair), 1_000_000e18);
+        pair.setReserves(1 ether, 1_000_000e18); // ethReserve already 1 (bootstrap) → no ETH delta
     }
 
     // ---- helpers ----
@@ -116,6 +118,46 @@ contract ZkAMMDepositBindingTest is Test {
         return depositV.binding(amt, commitment);
     }
     function _emptyProof() internal pure returns (uint256[8] memory p) {}
+
+    // =====================================================================================
+    // SEED-FIX — the pool is a real AMM: reserves == real balances (never born-insolvent)
+    // =====================================================================================
+
+    /// @notice After the setReserves seed, accounting reserves EQUAL the real custodied balances.
+    ///         This is the invariant whose violation ("tokenReserve = TOTAL_SUPPLY" with only a
+    ///         fraction deposited) caused the born-insolvent pool.
+    function test_seed_reservesEqualRealBalances() public view {
+        assertEq(pair.tokenReserve(), root.balanceOf(address(pair)), "tokenReserve != real R00T");
+        assertEq(pair.ethReserve(), address(pair).balance, "ethReserve != real ETH");
+    }
+
+    /// @notice A fresh pair starts EMPTY (no phantom TOTAL_SUPPLY on the books).
+    function test_constructor_startsEmpty() public {
+        ZkAMMAdmin a2 = new ZkAMMAdmin(
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1),
+            address(new MockSellVerifier()), address(new MockTransferVerifier()),
+            address(new MockWithdrawVerifier()), makeAddr("t"), makeAddr("a"), makeAddr("b"), makeAddr("c")
+        );
+        ZkAMMPair p2 = new ZkAMMPair(address(a2), address(root), "x", "y");
+        assertEq(p2.tokenReserve(), 0, "fresh pool must start with 0 token reserve");
+    }
+
+    /// @notice setReserves locks out the obsolete launchpad bootstrap (no stray-LP griefing).
+    function test_bootstrap_disabledAfterSeed() public {
+        assertTrue(pair.bootstrapped(), "seed must mark bootstrapped");
+        vm.expectRevert();
+        router.bootstrapLiquidity{value: 1 ether}(uint256(999), 0, block.timestamp + 1 hours, hex"02");
+    }
+
+    /// @notice setReserves adds real liquidity: depositing more R00T raises tokenReserve 1:1 and
+    ///         keeps reserve == real balance (the "add liquidity later" path).
+    function test_setReserves_addsLiquidity_staysSolvent() public {
+        uint256 tr0 = pair.tokenReserve();
+        root.approve(address(pair), 500_000e18);
+        pair.setReserves(pair.ethReserve(), tr0 + 500_000e18); // add 500k R00T at same ETH
+        assertEq(pair.tokenReserve(), tr0 + 500_000e18);
+        assertEq(pair.tokenReserve(), root.balanceOf(address(pair)), "still solvent after top-up");
+    }
 
     // =====================================================================================
     // CRITICAL-1 — depositPublic value binding

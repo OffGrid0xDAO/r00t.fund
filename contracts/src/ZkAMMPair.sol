@@ -237,8 +237,13 @@ contract ZkAMMPair is ReentrancyGuard {
         tokenPool = new TokenPool(poseidonAddr);
         lpPool = new TokenPool(poseidonAddr);
 
-        // Initialize reserves
-        tokenReserve = TOTAL_SUPPLY;
+        // Initialize reserves EMPTY. This is a real constant-product AMM: the reserves are seeded
+        // from ACTUAL deposits (setReserves), so `tokenReserve == real R00T balance` and the pool
+        // can never be "born insolvent". (Previously `tokenReserve = TOTAL_SUPPLY` put the whole
+        // 69M on the books without depositing it — a launchpad model that mispriced the pool and
+        // could not deliver tokens on large buys. TOTAL_SUPPLY is now only used by the informational
+        // getTokensInCirculation view, which no critical path reads.)
+        tokenReserve = 0;
         ethReserve = msg.value;
 
         // Initialize fee epoch
@@ -775,6 +780,10 @@ contract ZkAMMPair is ReentrancyGuard {
             rootToken.safeTransfer(msg.sender, tokenReserve - newTokens);
         }
         tokenReserve = newTokens;
+        // Seeding here makes the pool live and locks out the obsolete launchpad `bootstrap`
+        // (router.bootstrapLiquidity checks `pair.bootstrapped()`), so a third party can't add
+        // stray ETH + mint themselves LP shares on top of a steward-seeded pool.
+        bootstrapped = true;
         emit ReservesSet(newEth, newTokens);
     }
 
