@@ -79,12 +79,26 @@ contract LandVault is ReentrancyGuard, Pausable {
     mapping(bytes32 => uint256) public parcelTargetR00T;    // steward-set full-funding target
     mapping(uint256 => bool) public knownCommitment;        // dup guard
 
+    // ── anti-arb vesting on the R00T claim ──
+    // A discount with instant liquidity is risk-free arb (buy OTC cheap → dump on the pool).
+    // So a claim releases `instantClaimBps` immediately (≈ par → dumping it is break-even) and
+    // vests the rest linearly over `vestDuration` (≈ the discount, earned by holding). The
+    // vested R00T stays in the vault (already debited from reserveR00T at claim) until withdrawn.
+    // One vesting schedule per recipient (claims go to fresh wallets in the anonymity model).
+    // A repeat claim to the same wallet accumulates into `total` and keeps the original start.
+    struct Vest { uint128 total; uint128 withdrawn; uint64 start; uint64 duration; }
+    mapping(address => Vest) private _vest;
+    uint256 public vestDuration = 7 days;     // steward-tunable (0 = no vesting)
+    uint256 public instantClaimBps = 9000;    // 90% liquid now, ~10% (the discount) vests
+
     // ── events (indexer) ──
     event ReserveFunded(uint256 amount, uint256 reserveR00T);
     event ReserveWithdrawn(address indexed to, uint256 amount, uint256 reserveR00T);
     event ParcelTargetSet(bytes32 indexed parcelId, uint256 targetR00T);
     event Funded(uint256 indexed commitment, uint256 indexed leafIndex, bytes32 parcelId, uint256 rootOut, uint256 paid, address payToken, bytes note);
     event ClaimedR00T(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 amount);
+    event R00tVested(address indexed recipient, uint256 instant, uint256 vested, uint256 unlockEnd);
+    event VestedWithdrawn(address indexed recipient, uint256 amount);
     event ClaimedParcelToken(uint256 indexed nullifierHash, address indexed recipient, bytes32 parcelId, uint256 parcelOut);
 
     error NotSteward();
@@ -100,6 +114,7 @@ contract LandVault is ReentrancyGuard, Pausable {
     error PaymentFailed();
     error RecipientMismatch();
     error NotFullyFunded();
+    error NothingVested();
     error OverCommitted();
     error TargetLocked();
 
@@ -309,9 +324,40 @@ contract LandVault is ReentrancyGuard, Pausable {
         committedR00T -= amount;
         reserveR00T -= amount;
 
-        // ── Interactions ──
-        root.safeTransfer(recipient, amount);
+        // ── Interactions: instant fraction now, discount fraction vests (anti-arb) ──
+        uint256 instant = (amount * instantClaimBps) / 10000;
+        uint256 vested = amount - instant;
+        if (instant > 0) root.safeTransfer(recipient, instant);
+        // vestDuration==0 is only allowed when instantClaimBps==10000 (see setVesting), so a
+        // non-zero `vested` here always means vesting is on — no stranded-remainder branch needed.
+        if (vested > 0) {
+            Vest storage v = _vest[recipient];
+            v.total = uint128(uint256(v.total) + vested);
+            if (v.start == 0) { v.start = uint64(block.timestamp); v.duration = uint64(vestDuration); }
+            emit R00tVested(recipient, instant, vested, uint256(v.start) + v.duration);
+        }
         emit ClaimedR00T(nullifierHash, recipient, parcelId, amount);
+    }
+
+    /// @notice Withdraw the linearly-unlocked portion of your vested R00T claim. Also serves as
+    ///         the claimable read: call statically to see the amount (reverts if nothing yet).
+    function withdrawVestedR00T() external nonReentrant returns (uint256 payout) {
+        Vest storage v = _vest[msg.sender];
+        uint256 unlocked = v.duration == 0 ? v.total
+            : (block.timestamp - v.start >= v.duration ? v.total : (uint256(v.total) * (block.timestamp - v.start)) / v.duration);
+        payout = unlocked - v.withdrawn;
+        if (payout == 0) revert NothingVested();
+        v.withdrawn = uint128(uint256(v.withdrawn) + payout);
+        root.safeTransfer(msg.sender, payout);
+        emit VestedWithdrawn(msg.sender, payout);
+    }
+
+    /// @notice Steward tunes the anti-arb vesting: instant fraction (bps) + vest window.
+    ///         vestDuration==0 requires instantClaimBps==10000 (nothing left to vest).
+    function setVesting(uint256 bps, uint256 dur) external onlySteward {
+        if (bps > 10000 || dur > 365 days || (dur == 0 && bps != 10000)) revert FieldRange();
+        instantClaimBps = bps;
+        vestDuration = dur;
     }
 
     /// @notice Claim the parcel token instead of R00T (upside path; no full-funding gate).

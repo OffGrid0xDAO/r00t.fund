@@ -257,5 +257,12 @@ export function useLandVault(viewingKey: string | null) {
     return hash;
   }, [isReady, walletClient, vault, vaultLower, persist, publicClient]);
 
-  return { isReady, vault, notes, fundETH, fundUSDC, claim };
+  /** Withdraw the linearly-unlocked portion of an anti-arb R00T vest (from a prior claimR00T). */
+  const withdrawVested = useCallback(async () => {
+    if (!isReady || !walletClient) throw new Error('wallet/vault not ready');
+    const abi = [{ name: 'withdrawVestedR00T', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [{ type: 'uint256' }] }] as const;
+    return walletClient.writeContract({ address: vault, abi, functionName: 'withdrawVestedR00T' });
+  }, [isReady, walletClient, vault]);
+
+  return { isReady, vault, notes, fundETH, fundUSDC, claim, withdrawVested };
 }

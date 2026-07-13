@@ -132,8 +132,8 @@ export const CONTRACTS = {
   // Deployed swap/deposit/withdraw verifiers (reused by ZkParcelPool). RH v2.
   swapVerifier: (import.meta.env.VITE_SWAP_VERIFIER as string) || '0x63B376A158BCaC3e2b5349297E7D3bdbA357A3b6',
   // Demo parcel (parcelId=1, $OAK) private AMM — trade $OAK↔R00T shielded like R00T.
-  // v2 (2026-07-12): output-forgery fixed (deposit-pin binds note value to the curve).
-  parcelToken: (import.meta.env.VITE_PARCEL_TOKEN as string) || '0x8298EE52BdA92932eAF3956aA654816C2B489bc0',
+  // v3 (2026-07-13): anti-arb vesting on R00T claim (90% instant, 10% vests 7d).
+  parcelToken: (import.meta.env.VITE_PARCEL_TOKEN as string) || '0xf008CBfa615b302B47c9a65F6c18439236Cc96a5',
   zkParcelPool: (import.meta.env.VITE_ZK_PARCEL_POOL as string) || '0x443740f65780014843dDfe35eb722547A1409fbE',
   // deposit verifier (reused by the pool for shield + output-pin) + withdraw verifier.
   depositVerifier: (import.meta.env.VITE_DEPOSIT_VERIFIER as string) || '0x3B80AABD8c8d52b272Ce836737396186Dc87105c',
@@ -142,14 +142,14 @@ export const CONTRACTS = {
   // Uniswap v4 StateView — live pool-price reads. Default: Robinhood Chain (4663).
   stateView: (import.meta.env.VITE_STATE_VIEW as string) || '0xf3334192D15450cDD385C8B70e03f9A6bD9E673b',
   // The deployed pilot Land (steward: r00t, parcelId=1 "Oak Terrace"/$OAK). LandVault v2 (RH 2026-07-12).
-  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0x24c5cD6DEE4361769787D65cc2971bb67c3D0D75',
+  pilotLand: (import.meta.env.VITE_PILOT_LAND as string) || '0xFcb786b9d0b50f001D468DC3B36cCdfFaf711139',
   // LandVault — private plot funding LIVE on RH, now with the ZkParcelPool auto-seed hook.
   // Pay ETH (100% to land treasury) → shielded commitment claimable as R00T (OTC floor,
   // once fully funded) OR the parcel token. Uses the SHARED v2 nullifier registry (no
   // cross-rail double-spend). On full-funding the steward seeds a private parcel↔R00T AMM.
-  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
+  landVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xcd9F1023B86664D4727066b5ce5E676011D3f4a0',
   // Back-compat alias for Phase-D panels that referenced pledgeVault.
-  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0x2c703bF5c5DD02B19BCB3E7B77191505f90FC28F',
+  pledgeVault: (import.meta.env.VITE_LAND_VAULT as string) || '0xcd9F1023B86664D4727066b5ce5E676011D3f4a0',
   // USDC/USDG used for pledges (the LandVault's stablecoin). RH demo = mock USDC minted with the vault.
   usdc: (import.meta.env.VITE_USDC as string) || '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
   // The demo parcel id + its $0.10/R00T + $3000/ETH OTC pricing (from the deployed Land).

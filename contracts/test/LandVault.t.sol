@@ -6,7 +6,7 @@ import {LandVault} from "../src/LandVault.sol";
 import {ILandDepositVerifier, IClaimVerifier} from "../src/interfaces/IVerifier.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// ── mocks ─────────────────────────────────────────────────────────────────────
+//  mocks 
 contract MockRoot is ERC20 {
     constructor() ERC20("Root", "R00T") {}
     function mint(address to, uint256 a) external { _mint(to, a); }
@@ -119,7 +119,7 @@ contract LandVaultTest is Test {
         vault.otcFundETH{value: ethNeeded + 1}(PARCEL, rootOut, commitment, 1, PROOF, "");
     }
 
-    // ── happy paths ────────────────────────────────────────────────────────────
+    //  happy paths 
     function test_fund_routesEthToTreasury_reservesR00T() public {
         uint256 rootOut = 1000e18;
         uint256 tBefore = treasury.balance;
@@ -147,9 +147,44 @@ contract LandVaultTest is Test {
         vm.prank(claimWallet);
         vault.claimR00T(PROOF, _claimPub(mroot, 7, PARCEL, rootOut, claimWallet), claimWallet);
 
-        assertEq(root.balanceOf(claimWallet), rootOut, "R00T paid to unlinked wallet");
+        // ANTI-ARB VESTING: default 90% liquid now, 10% vests over 7 days.
+        assertEq(root.balanceOf(claimWallet), rootOut * 9000 / 10000, "90% instant to unlinked wallet");
         assertEq(vault.committedR00T(), 0, "liability cleared");
-        assertEq(vault.reserveR00T(), 1_000_000e18 - rootOut, "reserve debited");
+        assertEq(vault.reserveR00T(), 1_000_000e18 - rootOut, "reserve debited by full claim");
+        vm.prank(claimWallet); vm.expectRevert(LandVault.NothingVested.selector); vault.withdrawVestedR00T();
+    }
+
+    function test_vesting_linearRelease_thenFull() public {
+        uint256 rootOut = 1000e18;
+        _fundETH(rootOut, 55);
+        uint256 mroot = vault.pledgeRoot();
+        vm.prank(claimWallet);
+        vault.claimR00T(PROOF, _claimPub(mroot, 71, PARCEL, rootOut, claimWallet), claimWallet);
+
+        uint256 vestAmt = rootOut * 1000 / 10000; // 100 R00T vesting
+        // halfway through the 7-day vest -> ~50% claimable
+        vm.warp(block.timestamp + 3.5 days);
+        uint256 before = root.balanceOf(claimWallet);
+        vm.prank(claimWallet);
+        vault.withdrawVestedR00T();
+        assertApproxEqAbs(root.balanceOf(claimWallet) - before, vestAmt / 2, 1e15, "withdrew ~50pct at half time");
+
+        // after full duration -> the rest
+        vm.warp(block.timestamp + 4 days);
+        vm.prank(claimWallet);
+        vault.withdrawVestedR00T();
+        assertEq(root.balanceOf(claimWallet), rootOut, "eventually receives 100% of the claim");
+    }
+
+    function test_vesting_disabled_paysFull() public {
+        vm.prank(steward);
+        vault.setVesting(10000, 0); // 100% instant, no vesting
+        uint256 rootOut = 1000e18;
+        _fundETH(rootOut, 66);
+        uint256 mroot = vault.pledgeRoot();
+        vm.prank(claimWallet);
+        vault.claimR00T(PROOF, _claimPub(mroot, 72, PARCEL, rootOut, claimWallet), claimWallet);
+        assertEq(root.balanceOf(claimWallet), rootOut, "no vesting -> full instant");
     }
 
     function test_claimParcelToken_mintsAtRate_freesReserve() public {
@@ -164,7 +199,7 @@ contract LandVaultTest is Test {
         assertEq(vault.reserveR00T(), 1_000_000e18, "reserve untouched (freed R00T stays)");
     }
 
-    // ── attack cases (must REVERT) ───────────────────────────────────────────────
+    //  attack cases (must REVERT) 
     function test_doubleClaim_REJECTED_sharedNullifier() public {
         _fundETH(1000e18, 555);
         uint256 mroot = vault.pledgeRoot();
@@ -185,7 +220,7 @@ contract LandVaultTest is Test {
     }
 
     function test_setParcelTarget_lockedAfterFunding_REJECTED() public {
-        _fundETH(100e18, 6661); // funding started → target frozen
+        _fundETH(100e18, 6661); // funding started -> target frozen
         vm.prank(steward);
         vm.expectRevert(LandVault.TargetLocked.selector);
         vault.setParcelTarget(PARCEL, 9999e18);
@@ -198,7 +233,7 @@ contract LandVaultTest is Test {
         uint256 mroot = vault.pledgeRoot();
         vm.prank(claimWallet);
         vault.claimR00T(PROOF, _claimPub(mroot, 6663, PARCEL, 1000e18, claimWallet), claimWallet);
-        assertEq(root.balanceOf(claimWallet), 1000e18, "claim works despite pause");
+        assertEq(root.balanceOf(claimWallet), 1000e18 * 9000 / 10000, "claim works despite pause (90% instant)");
     }
 
     function test_overCommit_beyondReserve_REJECTED() public {
@@ -270,7 +305,7 @@ contract LandVaultTest is Test {
         vault.claimR00T(PROOF, p, claimWallet);
     }
 
-    // ── reserve solvency / withdrawal guard ──────────────────────────────────────
+    //  reserve solvency / withdrawal guard 
     function test_withdrawReserve_cannotTouchCommitted() public {
         _fundETH(1000e18, 1006); // commits 1000e18
         uint256 free = vault.reserveR00T() - vault.committedR00T();
@@ -283,7 +318,7 @@ contract LandVaultTest is Test {
         assertEq(vault.reserveR00T(), vault.committedR00T(), "only committed remains");
     }
 
-    // ── access control ───────────────────────────────────────────────────────────
+    //  access control 
     function test_onlySteward_guards() public {
         vm.startPrank(backer);
         vm.expectRevert(LandVault.NotSteward.selector); vault.fundReserve(1);

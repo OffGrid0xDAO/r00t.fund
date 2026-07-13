@@ -95,6 +95,12 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
     finally { setClaimingId(null); }
   };
 
+  const doWithdrawVested = async () => {
+    setErr(null);
+    try { await vault.withdrawVested(); }
+    catch (e) { setErr((e as Error).message?.includes('NothingVested') ? 'Nothing vested to withdraw yet — it unlocks over ~7 days.' : (e as Error).message?.slice(0, 150) || 'Withdraw failed.'); }
+  };
+
   if (!parcelIdHex) {
     return <p className="text-[11px] font-mono text-[var(--text-muted)] py-2">This plot isn't fundable yet.</p>;
   }
@@ -136,6 +142,9 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
         <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
           you get a shielded note · claim it to <span style={{ color }}>any wallet</span> as $R00T or ${ticker}
         </p>
+        <p className="mt-1 text-[9px] font-mono text-[var(--text-muted)] text-center opacity-70">
+          $R00T claims: 90% liquid now, the ~10% OTC discount vests over 7 days (anti-dump)
+        </p>
         {err && <p className="mt-1 text-[11px] text-[var(--error,#e05555)] break-words">{err}</p>}
         {tx && <p className="mt-1 text-[11px] text-[var(--text-muted)]">funded · <a href={getExplorerTxUrl(tx)} target="_blank" rel="noreferrer" className="underline">tx ↗</a></p>}
       </div>
@@ -168,6 +177,12 @@ export function PlotFundSection({ ticker, color }: { ticker: string; color: stri
           })}
         </div>
       )}
+
+      {/* withdraw vested R00T (the ~10% discount portion that unlocks over 7 days) */}
+      <button onClick={doWithdrawVested}
+        className="w-full py-2 rounded-lg border border-[var(--border)] text-[11px] font-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)]/40">
+        withdraw vested R00T →
+      </button>
     </div>
   );
 }
