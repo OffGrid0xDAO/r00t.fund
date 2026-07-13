@@ -51,6 +51,9 @@ const PAIR  = process.env.PAIR && norm(process.env.PAIR, 'PAIR');
 const PK    = process.env.KEEPER_PK;
 const ROOT_SOURCE       = (process.env.ROOT_SOURCE || 'ref').toLowerCase(); // 'ref' | 'pool'
 const ROOT_REF_USD      = process.env.ROOT_REF_USD ? Number(process.env.ROOT_REF_USD) : null;
+// Hard floor on the OTC price (USD). Protects the reserve while R00T's market is below it: the
+// thin pool prices R00T ~$0.000001, so "5% below market" only takes over once market > floor.
+const ROOT_FLOOR_USD    = Number(process.env.ROOT_FLOOR_USD ?? '0.10');
 const DISCOUNT_BPS      = BigInt(process.env.DISCOUNT_BPS      ?? '1000'); // 10%
 const MAX_DEVIATION_BPS = Number(process.env.MAX_DEVIATION_BPS ?? '500'); // 5%/tick
 const EMA_ALPHA         = Number(process.env.EMA_ALPHA         ?? '0.3');
@@ -127,8 +130,11 @@ async function main() {
     rootValuation = ROOT_REF_USD ?? (Number(prevRoot) / 1e6) / (Number(10000n - DISCOUNT_BPS) / 10000);
   }
 
-  // apply the discount → target OTC price, in E6
-  const otcTargetE6 = BigInt(Math.round(rootValuation * 1e6 * Number(10000n - DISCOUNT_BPS) / 10000));
+  // apply the discount → target OTC price, then floor it (reserve protection while market < floor)
+  const otcRaw = rootValuation * Number(10000n - DISCOUNT_BPS) / 10000; // 0.95 × market (at 5% disc)
+  const otcFloored = Math.max(otcRaw, ROOT_FLOOR_USD);
+  const flooredBind = otcFloored > otcRaw;
+  const otcTargetE6 = BigInt(Math.round(otcFloored * 1e6));
   const ethTargetE6 = BigInt(Math.round(ethPrice * 1e6));
 
   // clamp per-tick move (bounds a poisoned read or a fat-fingered ref)
@@ -138,6 +144,7 @@ async function main() {
   console.log(JSON.stringify({
     source: ROOT_SOURCE, ethUsd: ethPrice, rootSpot: rootSpot && +rootSpot.toFixed(8),
     rootValuation: +rootValuation.toFixed(6), discountBps: Number(DISCOUNT_BPS),
+    floorUsd: ROOT_FLOOR_USD, floorBinds: flooredBind,
     rootPrev: (Number(prevRoot)/1e6).toFixed(6), rootNext: (Number(rootE6)/1e6).toFixed(6),
     ethPrev: (Number(prevEth)/1e6).toFixed(2), ethNext: (Number(ethE6)/1e6).toFixed(2),
     clampedRoot: rootE6 !== otcTargetE6, clampedEth: ethE6 !== ethTargetE6, dry: DRY,
