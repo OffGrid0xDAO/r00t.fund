@@ -30,12 +30,15 @@ export function useParcelFunding(): { funding: Record<string, ParcelFunding>; re
   const refresh = useCallback(async () => {
     if (!publicClient || !isReady) return;
     const entries = Object.entries(CONTRACTS.parcelIdByTicker);
-    // live OTC price from the Land so $ values track the steward's price (not hardcoded)
+    // Parcel VALUE = R00T pledged × the steward's R00T valuation (rootPriceE6). We do NOT use
+    // the pool spot as the price: the R00T pool is near-empty (~$140 depth) and prices R00T at
+    // ~$0.000001, which would show every parcel as ~$0. The steward valuation is the real anchor
+    // and rises whenever the keeper/steward raises it (tracking ETH + a discount).
     let rootUsd = Number(CONTRACTS.rootPriceE6) / 1e6;
     try {
       const rp = await publicClient.readContract({ address: CONTRACTS.pilotLand as `0x${string}`, abi: landPriceAbi, functionName: 'rootPriceE6' });
       rootUsd = Number(rp as bigint) / 1e6;
-    } catch { /* keep fallback */ }
+    } catch { /* keep hardcoded fallback */ }
     try {
       const results = await Promise.all(entries.map(async ([ticker, id]) => {
         try {

@@ -1,0 +1,14 @@
+{
+  "name": "r00t-price-keeper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OTC price keeper — steward sets only a discount %; keeper pushes market ETH/USD + R00T-market×(1-discount) on-chain with TWAP + per-tick clamp.",
+  "scripts": {
+    "sync": "node sync-prices.mjs",
+    "dry": "DRY_RUN=1 node sync-prices.mjs"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  }
+}
