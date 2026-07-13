@@ -148,4 +148,17 @@ async function main() {
   if (rootE6 !== prevRoot){ const h = await wal.writeContract({ address: LAND, abi: landAbi, functionName: 'setRootPrice', args: [rootE6] }); console.log('setRootPrice', h); }
 }
 
-main().catch((e) => { console.error('keeper error:', e.message); process.exit(1); });
+// LOOP mode: run forever, tick every INTERVAL_SEC (default 120s). This is the production shape
+// on Railway — a normal always-on worker with a restart policy — no external cron needed. A
+// single tick error is logged and retried next tick (doesn't kill the process). Set INTERVAL_SEC=0
+// for a one-shot run (cron/manual).
+const INTERVAL_SEC = Number(process.env.INTERVAL_SEC ?? '120');
+
+if (INTERVAL_SEC > 0) {
+  console.log(`keeper: loop mode, tick every ${INTERVAL_SEC}s · source=${ROOT_SOURCE} · discount=${Number(DISCOUNT_BPS)/100}% · dry=${DRY}`);
+  const tick = () => main().catch((e) => console.error(`[${new Date().toISOString()}] tick error:`, e.message));
+  await tick();
+  setInterval(tick, INTERVAL_SEC * 1000);
+} else {
+  main().catch((e) => { console.error('keeper error:', e.message); process.exit(1); });
+}

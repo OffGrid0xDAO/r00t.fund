@@ -5,9 +5,11 @@
   "type": "module",
   "description": "OTC price keeper — steward sets only a discount %; keeper pushes market ETH/USD + R00T-market×(1-discount) on-chain with TWAP + per-tick clamp.",
   "scripts": {
-    "sync": "node sync-prices.mjs",
-    "dry": "DRY_RUN=1 node sync-prices.mjs"
+    "start": "node sync-prices.mjs",
+    "once": "INTERVAL_SEC=0 node sync-prices.mjs",
+    "dry": "DRY_RUN=1 INTERVAL_SEC=0 node sync-prices.mjs"
   },
+  "engines": { "node": ">=20" },
   "dependencies": {
     "viem": "^2.21.0"
   }
