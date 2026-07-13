@@ -4,47 +4,33 @@
  * bridged verification attestation.
  */
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
-import type { PledgePay } from './patronage';
-import { FundPrivatelyPanel } from './FundPrivatelyPanel';
 import { CROPS } from './data';
-import { TYPE_COLOR, REWARD_LABEL, usd, pct, tickerFromName, tokenPriceR00T, landValueR00T, allocationFor, fmtR00T, fmtPrice, fmtCompact, ETH_USD, fmtEth } from './ui';
-
-const ETH_PRESETS = [0.01, 0.05, 0.25];
-const USDC_PRESETS = [25, 100, 500];
+import { PlotFundSection } from './PlotFundSection';
+import { TYPE_COLOR, REWARD_LABEL, usd, tickerFromName, tokenPriceR00T, landValueR00T, fmtR00T, fmtPrice } from './ui';
 
 export function PlotDetailPanel({
-  plot, busy, verifying, onClose, onFund, onChooseCrop, onPlant, onVerify, onRename,
+  plot, verifying, onClose, onChooseCrop, onPlant, onVerify, onRename,
 }: {
   plot: Plot;
   busy: boolean;
   verifying: boolean;
   onClose: () => void;
-  onFund: (amountUsd: number, pay: PledgePay) => void;
   onChooseCrop: (cropId: string) => void;
   onPlant: () => void;
   onVerify: () => void;
   onRename?: (name: string) => void;
 }) {
-  const [asset, setAsset] = useState<'ETH' | 'USDC'>('ETH');
-  const [showFundPrivately, setShowFundPrivately] = useState(false);
-  const [usdcAmount, setUsdcAmount] = useState(100);
-  const [ethAmount, setEthAmount] = useState(0.05);
-  const amountUsd = asset === 'ETH' ? ethAmount * ETH_USD : usdcAmount;
   const [nameInput, setNameInput] = useState('');
   const color = TYPE_COLOR[plot.type];
-  const progress = pct(plot.fundedEur, plot.targetEur);
-  const remaining = Math.max(0, plot.targetEur - plot.fundedEur);
   const isSyntropic = plot.type === 'syntropic';
   const statusIdx = STATUS_ORDER.indexOf(plot.status);
   const ticker = plot.ticker ?? tickerFromName(plot.name);
   const crop = plot.chosenCropId ? CROPS.find(c => c.id === plot.chosenCropId) : undefined;
   const price = tokenPriceR00T(plot);
   const landValue = landValueR00T(plot);
-  const alloc = allocationFor(amountUsd, plot);
-  const doFund = () => onFund(amountUsd, asset === 'ETH' ? { asset: 'ETH', ethAmount } : { asset: 'USDC' });
 
   return (
     <motion.div
@@ -125,19 +111,9 @@ export function PlotDetailPanel({
           ))}
         </div>
 
-        {/* funding progress */}
-        <div className="rounded-xl border border-[var(--border)] p-4 mb-4" style={{ background: 'var(--bg-secondary)' }}>
-          <div className="flex items-baseline justify-between mb-2">
-            <span className="font-display text-lg text-[var(--text-primary)]">{usd(plot.fundedEur)}</span>
-            <span className="text-xs font-mono text-[var(--text-muted)]">of {usd(plot.targetEur)}</span>
-          </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-            <motion.div className="h-full rounded-full" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />
-          </div>
-          <div className="flex items-center justify-between mt-2 text-[11px] font-mono text-[var(--text-muted)]">
-            <span>{plot.contributions.length} backers</span>
-            <span>{remaining > 0 ? `${usd(remaining)} to go` : 'fully backed'}</span>
-          </div>
+        {/* REAL on-chain funding: per-plot anonymous patronage (ETH/USDC → private note → claim anywhere) */}
+        <div className="mb-4">
+          <PlotFundSection ticker={ticker} color={color} />
         </div>
 
         {/* choose what grows (syntropic only) */}
@@ -164,66 +140,6 @@ export function PlotDetailPanel({
             </div>
           </div>
         )}
-
-        {/* fund controls */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-muted)]">Back this plot</p>
-            {/* pay-with toggle — ETH primary, USDC optional */}
-            <div className="inline-flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px] font-mono">
-              {(['ETH', 'USDC'] as const).map((a) => (
-                <button key={a} onClick={() => setAsset(a)}
-                  className={`px-2.5 py-1 transition-colors ${asset === a ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
-                  style={asset === a ? { background: color } : undefined}>{a}</button>
-              ))}
-            </div>
-          </div>
-
-          {asset === 'ETH' ? (
-            <div className="flex gap-2 mb-2">
-              {ETH_PRESETS.map((v) => (
-                <button key={v} onClick={() => setEthAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${ethAmount === v ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={ethAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{v} Ξ</button>
-              ))}
-              <input
-                type="number" min={0} step={0.01} value={ethAmount}
-                onChange={(e) => setEthAmount(Math.max(0, Number(e.target.value) || 0))}
-                className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono"
-              />
-            </div>
-          ) : (
-            <div className="flex gap-2 mb-2">
-              {USDC_PRESETS.map((v) => (
-                <button key={v} onClick={() => setUsdcAmount(v)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${usdcAmount === v ? 'text-[var(--accent-ink)] border-transparent' : 'text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'}`} style={usdcAmount === v ? { background: color } : { background: 'var(--bg-elevated)' }}>{usd(v)}</button>
-              ))}
-              <input
-                type="number" min={1} value={usdcAmount}
-                onChange={(e) => setUsdcAmount(Math.max(1, Number(e.target.value) || 0))}
-                className="w-20 px-2 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-sm text-[var(--text-primary)] text-center font-mono"
-              />
-            </div>
-          )}
-
-          <button
-            onClick={doFund}
-            disabled={busy}
-            className="w-full py-3 rounded-lg text-white font-medium text-sm transition-opacity disabled:opacity-60 hover:opacity-90"
-            style={{ background: color }}
-          >
-            {busy ? 'Pledging…' : `Back ${asset === 'ETH' ? fmtEth(ethAmount) : usd(usdcAmount)} → ${fmtCompact(alloc)} $${ticker}`}
-          </button>
-          <p className="mt-1.5 text-[10px] font-mono text-[var(--text-muted)] text-center">
-            ⚡ live price {fmtPrice(price)} · 100% funds the land · ${ticker} mints to you now
-          </p>
-
-          {/* fund privately — shield R00T then pledge, unlinkable from a later claim */}
-          <button
-            onClick={() => setShowFundPrivately(true)}
-            className="mt-2 w-full py-2.5 rounded-lg border border-dashed text-sm font-medium transition-colors hover:bg-[var(--bg-secondary)]"
-            style={{ borderColor: `color-mix(in srgb, ${color} 50%, var(--border))`, color }}
-          >
-            🕶️ Fund privately with R00T
-          </button>
-        </div>
 
         {/* lifecycle actions */}
         {(plot.status === 'funded' || plot.status === 'planted') && (
@@ -274,12 +190,6 @@ export function PlotDetailPanel({
           </div>
         )}
       </div>
-
-      <AnimatePresence>
-        {showFundPrivately && (
-          <FundPrivatelyPanel plot={plot} onClose={() => setShowFundPrivately(false)} />
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }

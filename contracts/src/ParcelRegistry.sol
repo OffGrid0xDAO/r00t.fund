@@ -54,6 +54,7 @@ contract ParcelRegistry is ReentrancyGuard {
     error InsufficientOffer();
     error BadOffer();
     error NotAParcel();
+    error ExceedsMaxCost(); // AUDIT FIX (M-02): buyer slippage / reprice front-run guard
 
     constructor(address _root, address _treasury, uint256 _minBond) {
         if (_root == address(0) || _treasury == address(0)) revert ZeroAddress();
@@ -132,7 +133,10 @@ contract ParcelRegistry is ReentrancyGuard {
     /// @notice Buy `amount` of a listed parcel from a specific offer. Pays the seller's
     ///         R00T price; the parcel is released from escrow to the buyer.
     ///         Requires prior approve() of the R00T cost to this registry.
-    function buy(uint256 offerId, uint256 amount) external nonReentrant {
+    /// @param maxRootCost AUDIT FIX (M-02): maximum R00T the buyer will pay. Without this a
+    ///        seller could front-run the buy with reprice() and, against a non-exact (e.g.
+    ///        unlimited) allowance, drain far more R00T than quoted. Pass the quoted cost.
+    function buy(uint256 offerId, uint256 amount, uint256 maxRootCost) external nonReentrant {
         Offer storage o = offers[offerId];
         if (o.seller == address(0) || o.parcel == address(0)) revert BadOffer();
         if (amount == 0) revert ZeroAmount();
@@ -140,6 +144,7 @@ contract ParcelRegistry is ReentrancyGuard {
 
         // R00T cost = amount * price / 1e18, rounded up (favor the seller).
         uint256 cost = (amount * o.priceRootPerUnitE18 + 1e18 - 1) / 1e18;
+        if (cost > maxRootCost) revert ExceedsMaxCost();
 
         // Effects
         o.amount -= amount;

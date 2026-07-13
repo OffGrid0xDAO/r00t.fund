@@ -612,9 +612,15 @@ contract ZkAMMRouter is ReentrancyGuard {
         (, , , bool isWithdrawn, ) = pair.getLPCommitmentInfo(lpCommitment);
 
         _spendNullifier(nullifierHash);
-        pair.addProtocolFees(protocolFee);
+        // AUDIT FIX (L-01): credit the ETH to the reserve BEFORE booking protocol fees.
+        // addProtocolFees() enforces the M-4 invariant (accumulatedProtocolFees +
+        // accumulatedLPFees <= ethReserve) and silently clamps the fee to fit the CURRENT
+        // ethReserve. If booked first, the not-yet-credited ethAfterFee makes the cap too
+        // low and the protocol loses fee. Every other flow (buy/sell/swap) credits the
+        // reserve first — align add-liquidity with that ordering.
         pair.updateReserves(ethAfterFee, 0, true);    // ETH goes into pool
         pair.updateReserves(0, tokenAmount, false);   // Tokens go into pool (from user's commitment)
+        pair.addProtocolFees(protocolFee);
         pair.addLPShares(userLpShares); // Use user's value, not calculated
         pair.recordLPCommitment(lpCommitment, userLpShares, isWithdrawn); // Store user's value
         pair.insertLPCommitment(lpCommitment, userLpShares, lpNote); // Store user's value

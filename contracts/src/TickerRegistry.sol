@@ -54,6 +54,7 @@ contract TickerRegistry is ReentrancyGuard {
     error NotLauncher();
     error NotReserved();
     error ZeroAddress();
+    error ExceedsMaxPrice(); // AUDIT FIX (M-02): buyer slippage / setBuyoutPrice front-run guard
 
     modifier onlyOwner() { if (msg.sender != owner) revert NotOwner(); _; }
 
@@ -105,13 +106,16 @@ contract TickerRegistry is ReentrancyGuard {
     /// @notice Buy an unlaunched ticker at the holder's self-assessed price. A permanent
     ///         royalty goes to the OG creator; the rest to the current holder. Requires prior
     ///         approve() of `buyoutPrice` $R00T. "Gives it back to the OG."
-    function buy(string calldata symbol) external nonReentrant {
+    /// @param maxPrice AUDIT FIX (M-02): max R00T the buyer will pay. Blocks a holder from
+    ///        front-running the buy with setBuyoutPrice() to drain a non-exact allowance.
+    function buy(string calldata symbol, uint256 maxPrice) external nonReentrant {
         bytes32 k = _key(symbol);
         Ticker storage t = _tickers[k];
         if (t.ogCreator == address(0)) revert NotReserved();
         if (t.launched) revert Launched_();
         uint256 price = t.buyoutPrice;
         if (price == 0) revert NotForSale();
+        if (price > maxPrice) revert ExceedsMaxPrice();
 
         address prevHolder = t.holder;
         address og = t.ogCreator;

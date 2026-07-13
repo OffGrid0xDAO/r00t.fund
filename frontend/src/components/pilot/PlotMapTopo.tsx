@@ -108,7 +108,8 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;
   const plotsRef = useRef(plots); plotsRef.current = plots;
   useEffect(() => {
-    if (onChain) return; // never fire simulated pledges as real on-chain txs
+    return; // simulated pledges disabled — funding is REAL on-chain via the plot modal now
+    // eslint-disable-next-line no-unreachable
     const names = ['0xF3…a1', 'degen.eth', 'anon·moon', 'ser.eth', 'wagmi', 'anon·7b2', 'pleb.eth', 'apemaxi', '0x9c…d4'];
     const t = setInterval(() => {
       const open = plotsRef.current.filter(p => p.fundedEur < p.targetEur);
@@ -361,7 +362,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
       <AnimatePresence>
         {selected && (
           <PlotDetailPanel plot={selected} busy={!!pending[selected.id]} verifying={!!pending[selected.id + ':verify']}
-            onClose={() => setSelectedId(null)} onFund={(amt, pay) => state.fundPlot(selected.id, amt, 'you', pay)}
+            onClose={() => setSelectedId(null)}
             onChooseCrop={(cid) => state.chooseCrop(selected.id, cid)} onPlant={() => state.plantPlot(selected.id)} onVerify={() => state.verifyPlot(selected.id)}
             onRename={(name) => state.renamePlot(selected.id, name)} />
         )}

@@ -54,7 +54,7 @@ contract ParcelRegistryTest is Test {
         uint256 aliceRootBefore = root.balanceOf(alice);
         vm.startPrank(bob);
         root.approve(address(reg), 10_000e18);
-        reg.buy(offerId, 5_000e18);
+        reg.buy(offerId, 5_000e18, 10_000e18);
         vm.stopPrank();
 
         assertEq(ParcelCoin(carrot).balanceOf(bob), 5_000e18, "bob got carrot");
@@ -70,7 +70,7 @@ contract ParcelRegistryTest is Test {
         vm.stopPrank();
         vm.startPrank(bob);
         root.approve(address(reg), 3000e18);
-        reg.buy(id, 1000e18);
+        reg.buy(id, 1000e18, 3000e18);
         vm.stopPrank();
         assertEq(root.balanceOf(alice), 10_000e18 - 100e18 + 3000e18, "sold at repriced 3 R00T");
     }
@@ -114,7 +114,7 @@ contract ParcelRegistryTest is Test {
         vm.startPrank(bob);
         root.approve(address(reg), 5000e18);
         vm.expectRevert(ParcelRegistry.InsufficientOffer.selector);
-        reg.buy(id, 2000e18);
+        reg.buy(id, 2000e18, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -140,6 +140,21 @@ contract ParcelRegistryTest is Test {
         reg.cancel(id);
     }
 
+    // AUDIT FIX (M-02): buyer is protected from a reprice front-run via maxRootCost.
+    function test_buy_repriceFrontRun_REJECTED() public {
+        address carrot = _createCarrot(alice, 1_000_000e18, 100e18);
+        vm.startPrank(alice);
+        ParcelCoin(carrot).approve(address(reg), 1000e18);
+        uint256 id = reg.listForSale(carrot, 1000e18, 1e18); // quoted 1 R00T/unit
+        reg.reprice(id, 100e18); // malicious jump to 100 R00T/unit before buy lands
+        vm.stopPrank();
+        vm.startPrank(bob);
+        root.approve(address(reg), type(uint256).max); // buyer gave a broad allowance
+        vm.expectRevert(ParcelRegistry.ExceedsMaxCost.selector);
+        reg.buy(id, 1000e18, 1000e18); // will only pay up to the 1000 R00T they quoted
+        vm.stopPrank();
+    }
+
     function test_parcelToken_isFixedSupply_noMint() public {
         address carrot = _createCarrot(alice, 1_000_000e18, 100e18);
         // no mint function exists on ParcelCoin beyond the constructor genesis
@@ -154,10 +169,10 @@ contract ParcelRegistryTest is Test {
         vm.stopPrank();
         vm.startPrank(bob);
         root.approve(address(reg), 1000e18);
-        reg.buy(id, 600e18);
-        reg.buy(id, 400e18);
+        reg.buy(id, 600e18, type(uint256).max);
+        reg.buy(id, 400e18, type(uint256).max);
         vm.expectRevert(ParcelRegistry.ZeroAmount.selector);
-        reg.buy(id, 0);
+        reg.buy(id, 0, type(uint256).max);
         vm.stopPrank();
         assertEq(ParcelCoin(carrot).balanceOf(bob), 1000e18, "fully drained across fills");
     }

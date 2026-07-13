@@ -156,6 +156,11 @@ export const CONTRACTS = {
   pilotParcelId: (import.meta.env.VITE_PILOT_PARCEL_ID as string) || '0x0000000000000000000000000000000000000000000000000000000000000001',
   rootPriceE6: 100000n,   // $0.10 per R00T-equiv (E6)
   ethPriceE6: 3000000000n, // $3000 per ETH (E6)
+  // Every map plot is a REAL on-chain parcel (createParcel'd on the Land). Ticker → parcelId
+  // so the plot modal funds the right parcel via the LandVault anon-commit flow.
+  parcelIdByTicker: {
+    OAK: 1, NUT: 2, CARROT: 3, TURNIP: 4, SPUD: 5, BERRY: 6, CACTUS: 7, ROCK: 8, HAY: 9, DRIP: 10,
+  } as Record<string, number>,
   tokenPool: FALLBACK.tokenPool,
   lpPool: FALLBACK.lpPool,
   nullifierRegistry: FALLBACK.nullifierRegistry,

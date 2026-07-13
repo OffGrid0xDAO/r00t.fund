@@ -44,7 +44,7 @@ contract TickerRegistryTest is Test {
         reg.setBuyoutPrice("OAK", 1000e18);
         vm.startPrank(buyer);
         root.approve(address(reg), 1000e18);
-        reg.buy("OAK");
+        reg.buy("OAK", type(uint256).max);
         vm.stopPrank();
         // OG gets 10% royalty AND is the previous holder (gets the other 90%) → full 1000 here
         assertEq(root.balanceOf(og), 1000e18, "OG (also prev holder) received full price");
@@ -55,13 +55,13 @@ contract TickerRegistryTest is Test {
     function test_buyout_royaltyToOG_afterResale() public {
         // og lists, buyer buys → buyer holds; buyer lists, a third party buys → OG still gets royalty
         vm.prank(og); reg.setBuyoutPrice("OAK", 1000e18);
-        vm.startPrank(buyer); root.approve(address(reg), 1000e18); reg.buy("OAK"); vm.stopPrank();
+        vm.startPrank(buyer); root.approve(address(reg), 1000e18); reg.buy("OAK", type(uint256).max); vm.stopPrank();
 
         address third = address(0xC3); root.mint(third, 100_000e18);
         vm.prank(buyer); reg.setBuyoutPrice("OAK", 2000e18);
         uint256 ogBefore = root.balanceOf(og);
         uint256 buyerBefore = root.balanceOf(buyer);
-        vm.startPrank(third); root.approve(address(reg), 2000e18); reg.buy("OAK"); vm.stopPrank();
+        vm.startPrank(third); root.approve(address(reg), 2000e18); reg.buy("OAK", type(uint256).max); vm.stopPrank();
 
         assertEq(root.balanceOf(og) - ogBefore, 200e18, "OG royalty 10% of 2000 on resale");
         assertEq(root.balanceOf(buyer) - buyerBefore, 1800e18, "prev holder gets 90%");
@@ -69,11 +69,24 @@ contract TickerRegistryTest is Test {
         assertEq(holder, third);
     }
 
+    // AUDIT FIX (M-02): buyer is protected from a setBuyoutPrice front-run via maxPrice.
+    function test_buy_priceFrontRun_REJECTED() public {
+        vm.prank(og);
+        reg.setBuyoutPrice("OAK", 1000e18); // quoted 1000
+        vm.prank(og);
+        reg.setBuyoutPrice("OAK", 50_000e18); // OG jumps the price before buy lands
+        vm.startPrank(buyer);
+        root.approve(address(reg), type(uint256).max); // broad allowance
+        vm.expectRevert(TickerRegistry.ExceedsMaxPrice.selector);
+        reg.buy("OAK", 1000e18); // buyer caps at their quote
+        vm.stopPrank();
+    }
+
     function test_buy_notForSale_REJECTED() public {
         vm.startPrank(buyer);
         root.approve(address(reg), 1000e18);
         vm.expectRevert(TickerRegistry.NotForSale.selector);
-        reg.buy("OAK");
+        reg.buy("OAK", type(uint256).max);
         vm.stopPrank();
     }
 
@@ -111,7 +124,7 @@ contract TickerRegistryTest is Test {
         vm.prank(launcher); reg.markLaunched("OAK", og, address(0xDEAD));
         vm.startPrank(buyer); root.approve(address(reg), 1000e18);
         vm.expectRevert(TickerRegistry.Launched_.selector);
-        reg.buy("OAK");
+        reg.buy("OAK", type(uint256).max);
         vm.stopPrank();
     }
 }
