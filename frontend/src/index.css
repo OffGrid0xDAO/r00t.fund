@@ -58,6 +58,7 @@ input:focus {
   --border-focus: #A8CC2E;
 
   --success: #2D5A3D;
+  --chart-up: #6E9A1E;   /* muted lime — chart up-candles / positive (on-theme, not neon) */
   --warning: #B8860B;
   --error: #A63D2F;
 
@@ -106,6 +107,7 @@ input:focus {
   --border-focus: #D6FE51;
 
   --success: #5DA870;
+  --chart-up: #A8CC2E;   /* muted lime — chart up-candles / positive (on-theme, not neon) */
   --warning: #D4A84B;
   --error: #C45D4D;
 

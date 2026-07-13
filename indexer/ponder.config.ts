@@ -25,11 +25,12 @@ const TENDERLY_ZKAMM_ADDRESS = "0x79D52AB5EdaCFdC868c53DF8dd685f309cA20884"; // 
 const TENDERLY_ZKAMM_PAIR_ADDRESS = "0xE9D2De4bfEadC1923B90B09C3c8b197Ae5eE979d"; // ZkAMM Pair
 const TENDERLY_RPC = process.env.PONDER_RPC_URL_73571 || "https://virtual.sepolia.eu.rpc.tenderly.co/39fe020c-836e-4173-8786-5e726d0b3ba1";
 
-// Robinhood Chain (4663) mainnet — deployed 2026-07-11
-// DEX stack v2 (redeployed 2026-07-12). Fresh trees start at the v2 deploy block.
-const ROBINHOOD_FIRST_BLOCK = 7945000;
-const ROBINHOOD_ZKAMM_ADDRESS = "0xED85FDe30469d95473eA423eff991C748039CBbA"; // ZkAMM Router v2
-const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0xCf31Fc47be6D6fed5300a636d086E7FeAb21717e"; // ZkAMM Pair v2
+// Robinhood Chain (4663) mainnet — DEX stack v3 (real-AMM seed fix, redeployed 2026-07-13).
+// Fresh pair/router with a corrected seed model + LP-accounted setReserves; commitment trees
+// start empty at the v3 deploy block, so the indexer drops all pre-v3 (old-pair) trades.
+const ROBINHOOD_FIRST_BLOCK = 8930000;
+const ROBINHOOD_ZKAMM_ADDRESS = "0xB0b80C77dd4b9E70B8cBF0b2f4338f89514Bd5e2"; // ZkAMM Router v3
+const ROBINHOOD_ZKAMM_PAIR_ADDRESS = "0x73651d7c9E4469145B034e2607395529aBcFb082"; // ZkAMM Pair v3
 const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.chain.robinhood.com";
 
 // Pledge vault (anonymous plot funding, Phase C). Address + start block are set

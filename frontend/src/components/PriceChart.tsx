@@ -60,7 +60,7 @@ function StatCard({
 
 // Trade type colors and labels
 const TRADE_TYPE_CONFIG: Record<string, { color: string; label: string; icon: string }> = {
-  buy: { color: 'var(--success)', label: 'buy', icon: '+' },
+  buy: { color: 'var(--chart-up)', label: 'buy', icon: '+' },
   sell: { color: 'var(--error)', label: 'sell', icon: '-' },
   add_lp: { color: 'var(--accent)', label: 'add_lp', icon: '+' },
   remove_lp: { color: '#FF8C00', label: 'rem_lp', icon: '-' },
@@ -390,7 +390,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
             transition={{ duration: 0.3 }}
             className="text-sm font-mono"
             style={{
-              color: isPositive ? 'var(--success)' : 'var(--error)',
+              color: isPositive ? 'var(--chart-up)' : 'var(--error)',
             }}
           >
             {isPositive ? '+' : ''}
@@ -434,7 +434,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
             <div
               className="absolute inset-0 opacity-30 pointer-events-none"
               style={{
-                background: `radial-gradient(ellipse at 70% 30%, ${isPositive ? 'var(--success)' : 'var(--error)'}15 0%, transparent 60%)`,
+                background: `radial-gradient(ellipse at 70% 30%, ${isPositive ? 'var(--chart-up)' : 'var(--error)'}15 0%, transparent 60%)`,
               }}
             />
 
@@ -485,26 +485,26 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
                       <linearGradient id="areaGradientNew" x1="0" y1="0" x2="0" y2="1">
                         <stop
                           offset="0%"
-                          stopColor={isPositive ? 'var(--success)' : 'var(--error)'}
+                          stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'}
                           stopOpacity="0.4"
                         />
                         <stop
                           offset="50%"
-                          stopColor={isPositive ? 'var(--success)' : 'var(--error)'}
+                          stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'}
                           stopOpacity="0.15"
                         />
                         <stop
                           offset="100%"
-                          stopColor={isPositive ? 'var(--success)' : 'var(--error)'}
+                          stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'}
                           stopOpacity="0"
                         />
                       </linearGradient>
 
                       {/* Line glow gradient */}
                       <linearGradient id="lineGlow" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={isPositive ? 'var(--success)' : 'var(--error)'} stopOpacity="0.5" />
-                        <stop offset="50%" stopColor={isPositive ? 'var(--success)' : 'var(--error)'} stopOpacity="1" />
-                        <stop offset="100%" stopColor={isPositive ? 'var(--success)' : 'var(--error)'} stopOpacity="1" />
+                        <stop offset="0%" stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'} stopOpacity="0.5" />
+                        <stop offset="50%" stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'} stopOpacity="1" />
+                        <stop offset="100%" stopColor={isPositive ? 'var(--chart-up)' : 'var(--error)'} stopOpacity="1" />
                       </linearGradient>
 
                       {/* Edge fade mask */}
@@ -563,7 +563,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
                           cy={lastPoint.y}
                           r="3"
                           fill="none"
-                          stroke={isPositive ? 'var(--success)' : 'var(--error)'}
+                          stroke={isPositive ? 'var(--chart-up)' : 'var(--error)'}
                           strokeWidth="1"
                           initial={{ scale: 0, opacity: 0 }}
                           animate={{
@@ -582,7 +582,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
                           cx={lastPoint.x}
                           cy={lastPoint.y}
                           r="2.5"
-                          fill={isPositive ? 'var(--success)' : 'var(--error)'}
+                          fill={isPositive ? 'var(--chart-up)' : 'var(--error)'}
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{
@@ -592,7 +592,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
                             delay: 1,
                           }}
                           style={{
-                            filter: `drop-shadow(0 0 4px ${isPositive ? 'var(--success)' : 'var(--error)'})`,
+                            filter: `drop-shadow(0 0 4px ${isPositive ? 'var(--chart-up)' : 'var(--error)'})`,
                           }}
                         />
                       </g>
@@ -740,8 +740,8 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
                 }}
                 className="w-2 h-2 rounded-full"
                 style={{
-                  background: isConnected ? 'var(--success)' : 'var(--warning)',
-                  boxShadow: isConnected ? '0 0 8px var(--success)' : 'none',
+                  background: isConnected ? 'var(--chart-up)' : 'var(--warning)',
+                  boxShadow: isConnected ? '0 0 8px var(--chart-up)' : 'none',
                 }}
               />
               <span className="text-[10px] text-[var(--text-muted)] font-mono">

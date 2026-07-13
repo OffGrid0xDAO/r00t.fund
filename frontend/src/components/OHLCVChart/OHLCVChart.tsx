@@ -443,7 +443,7 @@ export function OHLCVChart({
       <div
         className="absolute inset-0 opacity-20 pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse at 70% 30%, ${isPositive ? 'var(--success)' : 'var(--error)'}15 0%, transparent 60%)`,
+          background: `radial-gradient(ellipse at 70% 30%, ${isPositive ? 'var(--chart-up)' : 'var(--error)'}15 0%, transparent 60%)`,
         }}
       />
 
@@ -466,8 +466,8 @@ export function OHLCVChart({
         <defs>
           {/* Bullish candle gradient (green) */}
           <linearGradient id="bullishGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--success)" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="var(--success)" stopOpacity="0.7" />
+            <stop offset="0%" stopColor="var(--chart-up)" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="var(--chart-up)" stopOpacity="0.7" />
           </linearGradient>
 
           {/* Bearish candle gradient (red) */}
@@ -478,8 +478,8 @@ export function OHLCVChart({
 
           {/* Volume bullish gradient */}
           <linearGradient id="volumeBullish" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--success)" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="var(--success)" stopOpacity="0.1" />
+            <stop offset="0%" stopColor="var(--chart-up)" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="var(--chart-up)" stopOpacity="0.1" />
           </linearGradient>
 
           {/* Volume bearish gradient */}
@@ -596,7 +596,7 @@ export function OHLCVChart({
                   y1={wickTop}
                   x2={x + candleWidth / 2}
                   y2={wickBottom}
-                  stroke={isBullish ? 'var(--success)' : 'var(--error)'}
+                  stroke={isBullish ? 'var(--chart-up)' : 'var(--error)'}
                   strokeWidth={WICK_WIDTH}
                 />
 
@@ -611,7 +611,7 @@ export function OHLCVChart({
                     width={candleWidth}
                     height={bodyHeight}
                     fill={isBullish ? 'url(#bullishGradient)' : 'url(#bearishGradient)'}
-                    stroke={isBullish ? 'var(--success)' : 'var(--error)'}
+                    stroke={isBullish ? 'var(--chart-up)' : 'var(--error)'}
                     strokeWidth="0.5"
                     rx="1"
                     style={{ transformOrigin: `${x + candleWidth / 2}px ${bodyTop + bodyHeight / 2}px` }}
@@ -623,7 +623,7 @@ export function OHLCVChart({
                     width={candleWidth}
                     height={bodyHeight}
                     fill={isBullish ? 'url(#bullishGradient)' : 'url(#bearishGradient)'}
-                    stroke={isBullish ? 'var(--success)' : 'var(--error)'}
+                    stroke={isBullish ? 'var(--chart-up)' : 'var(--error)'}
                     strokeWidth="0.5"
                     rx="1"
                     className="transition-all duration-200"
@@ -670,7 +670,7 @@ export function OHLCVChart({
               y1={currentPriceY}
               x2={chartWidth}
               y2={currentPriceY}
-              stroke={isPositive ? 'var(--success)' : 'var(--error)'}
+              stroke={isPositive ? 'var(--chart-up)' : 'var(--error)'}
               strokeWidth="1"
               strokeDasharray="4 2"
               opacity="0.7"
@@ -681,7 +681,7 @@ export function OHLCVChart({
               y={currentPriceY - 8}
               width="50"
               height="16"
-              fill={isPositive ? 'var(--success)' : 'var(--error)'}
+              fill={isPositive ? 'var(--chart-up)' : 'var(--error)'}
               rx="2"
               opacity="0.9"
             />
