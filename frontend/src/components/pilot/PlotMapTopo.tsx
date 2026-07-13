@@ -92,7 +92,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   river: number[][] | null;
 }) {
   // Real Land pledges when the pilot Land is deployed + wallet connected; mock otherwise.
-  const { backend, onChain } = useLandBackend();
+  const { backend } = useLandBackend();
   const state = usePilotState(initialPlots, backend);
   const { plots: rawPlots, machines, pending } = state;
 
@@ -112,6 +112,30 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
     verified: plots.filter((p) => p.targetEur > 0 && p.fundedEur >= p.targetEur).length,
     plots: plots.length,
   }), [plots]);
+
+  // ── ALIVE, but REAL: pulse a parcel when its on-chain funding actually increases ──
+  // Diff each funding poll against the previous snapshot; a real donation → celebratory ring
+  // + a live-feed line. No fake timer, no imagined pledges — only real on-chain deltas.
+  const prevFundedRef = useRef<Record<string, number>>({});
+  const [pulseAt, setPulseAt] = useState<Record<string, number>>({}); // plot.id → ts of last real donation
+  const [liveFeed, setLiveFeed] = useState<{ id: string; ticker: string; deltaUsd: number }[]>([]);
+  useEffect(() => {
+    const prev = prevFundedRef.current;
+    const next: Record<string, number> = {};
+    let firstSnapshot = Object.keys(prev).length === 0;
+    for (const p of plots) {
+      next[p.id] = p.fundedEur;
+      const before = prev[p.id];
+      if (!firstSnapshot && before != null && p.fundedEur > before + 1e-9) {
+        const delta = p.fundedEur - before;
+        setPulseAt((s) => ({ ...s, [p.id]: Date.now() }));
+        const tk = p.ticker ?? tickerFromName(p.name);
+        setLiveFeed((f) => [{ id: `${Date.now()}-${p.id}`, ticker: tk, deltaUsd: delta }, ...f].slice(0, 3));
+        setTimeout(() => setPulseAt((s) => { const c = { ...s }; delete c[p.id]; return c; }), 3200);
+      }
+    }
+    prevFundedRef.current = next;
+  }, [plots]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showMachines, setShowMachines] = useState(false);
@@ -121,26 +145,8 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   // a flicker/hydration glitch. Funding %s update from the on-chain poll (useParcelFunding),
   // not a clock, so there's no need to tick `now` — freeze it and the churn disappears.
   const [now] = useState(() => Date.now());
-
-  const [feed, setFeed] = useState<{ id: string; who: string; amt: number; parcel: string }[]>([]);
-  const fundRef = useRef(state.fundPlot); fundRef.current = state.fundPlot;
-  const plotsRef = useRef(plots); plotsRef.current = plots;
-  useEffect(() => {
-    return; // simulated pledges disabled — funding is REAL on-chain via the plot modal now
-    // eslint-disable-next-line no-unreachable
-    const names = ['0xF3…a1', 'degen.eth', 'anon·moon', 'ser.eth', 'wagmi', 'anon·7b2', 'pleb.eth', 'apemaxi', '0x9c…d4'];
-    const t = setInterval(() => {
-      const open = plotsRef.current.filter(p => p.fundedEur < p.targetEur);
-      if (!open.length) return;
-      // bias toward already-hot parcels — momentum begets momentum
-      const p = open[Math.floor(Math.random() * open.length)];
-      const amt = 20 + Math.floor(Math.random() * 12) * 20;
-      const who = names[Math.floor(Math.random() * names.length)];
-      fundRef.current(p.id, amt, who);
-      setFeed(f => [{ id: `${Date.now()}-${p.id}`, who, amt, parcel: p.name }, ...f].slice(0, 4));
-    }, 3200);
-    return () => clearInterval(t);
-  }, [onChain]);
+  // (simulated pledge feed removed — the live feed + parcel pulses are driven by REAL
+  //  on-chain funding deltas from useParcelFunding, see the pulse effect above.)
 
   const heats = plots.map(p => parcelHeat(p, now));
   const maxHeat = Math.max(1, ...heats);
@@ -241,6 +247,13 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
                   strokeWidth={4 + 5 * hn}
                   animate={{ strokeOpacity: [0.15 * hn + 0.1, 0.5 * hn + 0.15, 0.15 * hn + 0.1] }}
                   transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />
+              )}
+              {/* REAL donation pulse — fires once when this parcel's on-chain funding increases */}
+              {pulseAt[p.id] && (
+                <motion.path key={pulseAt[p.id]} d={d} fill="none" stroke={color} strokeLinejoin="round"
+                  initial={{ strokeOpacity: 0.9, strokeWidth: 2 }}
+                  animate={{ strokeOpacity: 0, strokeWidth: 16 }}
+                  transition={{ duration: 1.4, ease: 'easeOut' }} />
               )}
               {/* fully-funded parcels get a solid saturated fill + glow ring;
                   still-seeking parcels stay faint & dashed */}
@@ -358,19 +371,19 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
         <p className="text-[9px] font-mono text-[var(--text-muted)] mt-1">{totals.backers} backers · {totals.verified}/{totals.plots} verified · {revivalPct}% revived</p>
       </div>
 
-      {/* live pledge feed — momentum FOMO */}
+      {/* live feed — REAL on-chain donations only (anonymous; we only know the amount + parcel) */}
       <div className="pointer-events-none absolute right-3 bottom-3 z-20 flex flex-col-reverse gap-1.5 items-end">
         <AnimatePresence initial={false}>
-          {feed.slice(0, 3).map((f) => (
+          {liveFeed.map((f) => (
             <motion.div key={f.id}
               initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 320, damping: 26 }}
               className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] pl-2.5 pr-3 py-1.5 backdrop-blur-md text-[11px] font-mono"
               style={{ background: 'color-mix(in srgb, var(--bg-elevated) 90%, transparent)', boxShadow: 'var(--shadow-md)' }}>
               <span>🌱</span>
-              <span className="text-[var(--text-secondary)]">{f.who}</span>
-              <span className="text-[var(--accent-on-bg)] font-medium">+{usd(f.amt)}</span>
-              <span className="text-[var(--text-muted)] max-w-[120px] truncate">→ {f.parcel}</span>
+              <span className="text-[var(--text-secondary)]">anon patron</span>
+              <span className="text-[var(--accent-on-bg)] font-medium">+{usd(f.deltaUsd)}</span>
+              <span className="text-[var(--text-muted)] max-w-[120px] truncate">→ ${f.ticker}</span>
             </motion.div>
           ))}
         </AnimatePresence>
