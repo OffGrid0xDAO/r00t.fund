@@ -218,6 +218,45 @@ async function updateCommitmentTree(
 }
 
 // Reusable handler for NewCommitment events (from Pair or Router)
+// Record a PRICE POINT for a shielded (private) buy/sell into the `trades` time-series the chart
+// reads. Amounts are cryptographically hidden, so we log the pool SPOT price (from the public
+// reserves AT THE TRADE'S BLOCK) with zero volume — enough for candles to move on private trades.
+// Reading at the event block keeps it accurate even during a re-sync (RH RPC serves recent
+// historical state); unarchived/failed reads fall through the catch and are simply skipped.
+async function recordShieldedTrade(context: any, type: "buy" | "sell", event: any) {
+  const { db, client } = context;
+  try {
+    const abi = context.contracts.ZkAMMWithToken.abi;
+    const addr = PAIR_ADDRESS as `0x${string}`;
+    const [ethReserve, tokenReserve] = await Promise.all([
+      client.readContract({ abi, address: addr, functionName: "ethReserve", blockNumber: event.block.number }),
+      client.readContract({ abi, address: addr, functionName: "tokenReserve", blockNumber: event.block.number }),
+    ]);
+    const er = ethReserve as bigint, tr = tokenReserve as bigint;
+    const ethR = Number(formatEther(er)), tokR = Number(formatUnits(tr, 18));
+    if (ethR <= 0 || tokR <= 0) return;
+    const price = (tokR / ethR).toString(); // tokens per ETH (pool spot after the trade)
+
+    await db.insert(trades).values({
+      id: event.log.id, type, ethAmount: "0", tokenAmount: "0", price,
+      blockNumber: event.block.number, timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash, address: event.log.address.toLowerCase(),
+    });
+
+    const s = await db.find(stats, { id: "global" });
+    if (s) await db.update(stats, { id: "global" }).set({ totalTrades: s.totalTrades + 1, lastPrice: price, updatedAt: event.block.timestamp });
+    else await db.insert(stats).values({ id: "global", totalVolume: "0", totalTrades: 1, lastPrice: price, updatedAt: event.block.timestamp });
+
+    const tokenPrice = er > 0n ? (tr * (10n ** 18n)) / er : 0n;
+    const pv = { ethReserve: er.toString(), tokenReserve: tr.toString(), tokenPrice: tokenPrice.toString(), blockNumber: event.block.number, timestamp: event.block.timestamp };
+    const ep = await db.find(poolState, { id: PAIR_ADDRESS });
+    if (ep) await db.update(poolState, { id: PAIR_ADDRESS }).set(pv);
+    else await db.insert(poolState).values({ id: PAIR_ADDRESS, ...pv });
+  } catch (err) {
+    // block not archived / read failed — skip this price point
+  }
+}
+
 async function handleNewCommitment({ event, context }: any) {
   await initPoseidon();
   const { db } = context;
@@ -239,9 +278,9 @@ async function handleNewCommitment({ event, context }: any) {
 
   await updateCommitmentTree(db, contractAddress, commitment, leafIndex, event.block.number, event.block.timestamp);
 
-  // A private BUY inserts a token commitment (amount hidden). Snapshot the public reserves so the
-  // live price feed moves on shielded trades — not just public shorts trades.
-  await updatePoolState(context, contractAddress, event.block.number, event.block.timestamp);
+  // A private BUY inserts a token commitment (amount hidden) — record a price point so the chart
+  // (which reads the `trades` series) moves on shielded trades, not just public shorts trades.
+  await recordShieldedTrade(context, "buy", event);
 }
 
 // Pledge vault (anonymous plot funding, Phase C) — maintains its own commitment
@@ -424,8 +463,8 @@ ponder.on("ZkAMMPair:PublicWithdrawal", async ({ event, context }) => {
     address: event.log.address.toLowerCase(),
   });
 
-  // A private SELL withdraws ETH (public leg). Snapshot reserves so the feed catches sells too.
-  await updatePoolState(context, event.log.address.toLowerCase(), event.block.number, event.block.timestamp);
+  // A private SELL withdraws ETH (public leg) — record a price point so the chart catches sells too.
+  await recordShieldedTrade(context, "sell", event);
 });
 
 ponder.on("ZkAMMWithToken:LiquidityAddedPrivate", async ({ event, context }) => {
