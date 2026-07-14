@@ -95,7 +95,7 @@ async function updatePoolState(context: any, _eventAddress: string, blockNumber:
   const readAddress = PAIR_ADDRESS as `0x${string}`;
 
   try {
-    const [ethReserve, tokenReserve, tokenPrice] = await Promise.all([
+    const [ethReserve, tokenReserve] = await Promise.all([
       client.readContract({
         abi: context.contracts.ZkAMMWithToken.abi,
         address: readAddress,
@@ -106,12 +106,14 @@ async function updatePoolState(context: any, _eventAddress: string, blockNumber:
         address: readAddress,
         functionName: "tokenReserve",
       }),
-      client.readContract({
-        abi: context.contracts.ZkAMMWithToken.abi,
-        address: readAddress,
-        functionName: "getTokenPrice",
-      }),
     ]);
+    // ZkAMMPair (Robinhood) has NO getTokenPrice() — calling it reverted and (silently) killed
+    // every pool-state snapshot, so shielded buys/sells never moved the feed. Derive
+    // tokens-per-ETH (1e18-scaled) from the public reserves instead — the only price signal for
+    // shielded trades (their amounts are hidden).
+    const tokenPrice = (ethReserve as bigint) > 0n
+      ? ((tokenReserve as bigint) * (10n ** 18n)) / (ethReserve as bigint)
+      : 0n;
 
     // Store under Pair address (frontend queries by Pair address)
     const existingPoolState = await db.find(poolState, { id: PAIR_ADDRESS });
@@ -236,6 +238,10 @@ async function handleNewCommitment({ event, context }: any) {
   });
 
   await updateCommitmentTree(db, contractAddress, commitment, leafIndex, event.block.number, event.block.timestamp);
+
+  // A private BUY inserts a token commitment (amount hidden). Snapshot the public reserves so the
+  // live price feed moves on shielded trades — not just public shorts trades.
+  await updatePoolState(context, contractAddress, event.block.number, event.block.timestamp);
 }
 
 // Pledge vault (anonymous plot funding, Phase C) — maintains its own commitment
@@ -417,6 +423,9 @@ ponder.on("ZkAMMPair:PublicWithdrawal", async ({ event, context }) => {
     transactionHash: event.transaction.hash,
     address: event.log.address.toLowerCase(),
   });
+
+  // A private SELL withdraws ETH (public leg). Snapshot reserves so the feed catches sells too.
+  await updatePoolState(context, event.log.address.toLowerCase(), event.block.number, event.block.timestamp);
 });
 
 ponder.on("ZkAMMWithToken:LiquidityAddedPrivate", async ({ event, context }) => {
