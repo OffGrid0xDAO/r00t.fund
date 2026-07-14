@@ -100,7 +100,7 @@ const ARBITRUM_CONTRACTS = {
   tokenFactory: '0x...',
   poolFactory: '0x...',
   poolRouter: '0x...',
-  shortsContract: '0xfD0C2f3EA2f001590Dfc96F2683A7b9c4e04A6cf', // R00TShorts v2 (tunable: 5-min TWAP, 0.001 min)
+  shortsContract: '0xf703f0f88d7Ad8272e8399DbD55D627f18Ec5b88', // R00TShorts v2 (tunable: 5-min TWAP, 0.001 min)
   worldIdGatekeeper: '0x...',
   // CRE Workflow Contracts
   pilotSite: '0x...',

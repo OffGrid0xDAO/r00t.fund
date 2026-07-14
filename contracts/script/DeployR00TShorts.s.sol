@@ -14,18 +14,16 @@ interface IZkAMMAdminShorts {
 }
 
 contract DeployR00TShortsScript is Script {
-    // Robinhood Chain (4663) live addresses.
-    address constant PAIR = 0xbd34EF73b3Cb1b8Bb0fFba47a42AFdbA90Ccf511;
     address constant ROOT_TOKEN = 0x7d0bfc2145327CF98f882De2CB71f8F1D7b8f022;
-    address constant ADMIN = 0x2fF206f68c68b49eBfE5D1c39B26281669bcB851;
-
-    // Seed the shorts contract with ROOT to sell when positions open (1M = ~1.45% of supply).
-    uint256 constant SHORTS_TOKEN_ALLOCATION = 1_000_000 * 1e18;
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(pk);
         address treasury = deployer;
+        // env-driven so a zkAMM redeploy just re-runs this with new PAIR/ADMIN (no code edit).
+        address PAIR = vm.envAddress("PAIR");
+        address ADMIN = vm.envAddress("ADMIN");
+        uint256 SHORTS_TOKEN_ALLOCATION = vm.envOr("SHORTS_SEED", uint256(1_000_000 * 1e18));
 
         console.log("Deployer:", deployer);
         console.log("Balance (ETH):", deployer.balance / 1e18);

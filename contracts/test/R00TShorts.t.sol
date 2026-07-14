@@ -227,6 +227,34 @@ contract R00TShortsTest is Test {
         vm.deal(liquidator, 10 ether);
     }
 
+    // ============ setPair — owner migration (no shorts redeploy on zkAMM redeploy) ============
+
+    function test_setPair_onlyOwner() public {
+        MockPair pair2 = new MockPair{value: INITIAL_ETH}(INITIAL_ETH, INITIAL_TOKENS, address(rootToken));
+        vm.prank(user1);
+        vm.expectRevert();
+        shorts.setPair(address(pair2));
+    }
+
+    function test_setPair_zeroReverts() public {
+        vm.expectRevert();
+        shorts.setPair(address(0));
+    }
+
+    function test_setPair_worksWhenNoPositions() public {
+        MockPair pair2 = new MockPair{value: INITIAL_ETH}(INITIAL_ETH, INITIAL_TOKENS, address(rootToken));
+        shorts.setPair(address(pair2));
+        assertEq(address(shorts.pair()), address(pair2), "pair should migrate");
+    }
+
+    function test_setPair_revertsWithOpenPositions() public {
+        vm.prank(user1);
+        shorts.openShort{value: 0.01 ether}(0);           // now totalOpenInterest > 0
+        MockPair pair2 = new MockPair{value: INITIAL_ETH}(INITIAL_ETH, INITIAL_TOKENS, address(rootToken));
+        vm.expectRevert(R00TShorts.OpenPositionsExist.selector);
+        shorts.setPair(address(pair2));
+    }
+
     // ============ TWAP test helpers ============
 
     /// @dev Set the pool price and let it PERSIST long enough for the TWAP to converge to it.

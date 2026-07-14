@@ -68,8 +68,14 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
     // ============ Immutables ============
 
-    /// @notice ZkAMMPair contract for actual swaps
-    IZkAMMPairForShorts public immutable pair;
+    /// @notice ZkAMMPair contract for actual swaps. Owner-settable (only while there are no open
+    ///         positions) so a zkAMM redeploy doesn't force a shorts redeploy.
+    IZkAMMPairForShorts public pair;
+
+    /// @notice Emitted when the owner re-points shorts at a new (migrated) pair.
+    event PairUpdated(address indexed oldPair, address indexed newPair);
+    /// @notice setPair attempted while positions are open (would reprice/rug them).
+    error OpenPositionsExist();
 
     /// @notice ROOT token for shorting
     IERC20 public immutable rootToken;
@@ -150,6 +156,27 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         lastSpotEthPerToken = _spotEthPerToken();
 
         // Note: ROOT token approval to pair is done per-operation for safety
+    }
+
+    /// @notice Re-point shorts at a migrated pair (e.g. after a zkAMM redeploy). Only allowed when
+    ///         NO positions are open — a new pair has different reserves/price, so migrating with
+    ///         open positions would silently reprice/liquidate them. Resets the TWAP oracle to the
+    ///         new pair's spot so liquidations wait for a fresh full window (no cross-pair carryover).
+    /// @dev The new pair must be wired to accept this contract as its shorts (pair.setShortsContract)
+    ///      and be funded with R00T before opening positions.
+    function setPair(address _pair) external onlyOwner {
+        if (_pair == address(0)) revert ZeroAddress();
+        if (totalOpenInterest != 0 || openPositionCount != 0) revert OpenPositionsExist();
+        address old = address(pair);
+        pair = IZkAMMPairForShorts(_pair);
+        // fresh TWAP window on the new pair
+        priceCumulative = 0;
+        observationCumulative = 0;
+        twapEthPerToken = 0;
+        priceCumulativeTs = block.timestamp;
+        observationTs = block.timestamp;
+        lastSpotEthPerToken = _spotEthPerToken();
+        emit PairUpdated(old, _pair);
     }
 
     // ============ External Functions ============

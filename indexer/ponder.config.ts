@@ -37,8 +37,8 @@ const ROBINHOOD_RPC = process.env.PONDER_RPC_URL_4663 || "https://rpc.mainnet.ch
 // after Phase C deploys — wire via PONDER_PLEDGE_ADDRESS / PONDER_PLEDGE_START_BLOCK
 // (or paste below). The contract only registers when a real (non-placeholder)
 // address is provided, so the indexer boots today against the frozen ABIs.
-const PLEDGE_ADDRESS = process.env.PONDER_PLEDGE_ADDRESS || ""; // e.g. 0x… after Phase C
-const PLEDGE_START_BLOCK = Number(process.env.PONDER_PLEDGE_START_BLOCK || ROBINHOOD_FIRST_BLOCK);
+const PLEDGE_ADDRESS = process.env.PONDER_PLEDGE_ADDRESS || "0xD9D0D2E070502c1107c7f82744881564E035BB95"; // RH LandVault (funding rail)
+const PLEDGE_START_BLOCK = Number(process.env.PONDER_PLEDGE_START_BLOCK || 8800000);
 const PLEDGE_ENABLED = /^0x[0-9a-fA-F]{40}$/.test(PLEDGE_ADDRESS);
 
 // ABI for Pair events (NewCommitment AND NewLPCommitment come from Pair, NOT TokenPool/LPPool)
