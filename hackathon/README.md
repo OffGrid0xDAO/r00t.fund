@@ -11,7 +11,7 @@ judges can verify exactly what was built at the event. Continuity Track (r00t.fu
 ## What's new (built at the event)
 | Piece | File | Prize |
 |---|---|---|
-| **RegenArbHook** — v4 hook: real cross-pool arb (Uniswap ↔ zkAMM), spread → regen treasury | [`contracts/src/RegenArbHook.sol`](contracts/src/RegenArbHook.sol) · [DESIGN.md](DESIGN.md) | 🦄 Uniswap **Stack Contribution** |
+| **RegenArbHook** — v4 hook: real cross-pool arb (Uniswap ↔ zkAMM), spread → regen treasury | [`contracts/src/hackathon/RegenArbHook.sol`](contracts/src/hackathon/RegenArbHook.sol) · [DESIGN.md](DESIGN.md) | 🦄 Uniswap **Stack Contribution** |
 | **Uniswap API** trade/LP execution against the hooked parcel pools | `frontend/` (event) | 🦄 Uniswap **API Integration** |
 | **Parcel ENS subnames** (`oak.r00t.eth`) + text records (`token`, `pool`, `regenCaptured`, `clearedPrice`) | `ens/` (event) | 🪪 ENS **Continuity** |
 | **Parcel CCA fair-launch** (Liquidity Launchpad) — *stretch* | `contracts/src/ParcelCCA.sol` (event) | strengthens both Uniswap prizes |
@@ -24,8 +24,8 @@ judges can verify exactly what was built at the event. Continuity Track (r00t.fu
 - Full mechanism + security guards: **[DESIGN.md](DESIGN.md)**.
 
 ## Verify (for judges)
-- Hook contract + the arb logic: `contracts/src/RegenArbHook.sol` (`afterSwap`).
-- zkAMM public rebalance surface: `contracts/src/interfaces/IZkAMMRebalance.sol`.
+- Hook contract + the arb logic: `contracts/src/hackathon/RegenArbHook.sol` (`afterSwap`).
+- zkAMM public rebalance surface: `contracts/src/hackathon/interfaces/IZkAMMRebalance.sol`.
 - Uniswap API integration: see `frontend/…` (README links to exact lines).
 - Live demo + video: (link at event).
 

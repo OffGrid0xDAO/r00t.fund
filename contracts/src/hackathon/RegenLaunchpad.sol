@@ -75,7 +75,7 @@ contract RegenLaunchpad {
     ///   2. raise (R00T) → parcel.regenTreasury (funds the land).
     ///   3. seed BOTH pools at P: zkAMM.setReserves(...) + Land.seedParcelLiquidity(P, ...) [Uni v4, hooked];
     ///      R00T side pulled from protocolReserve.
-    ///   4. hook.register(uniKey, zkAMM, regenTreasury, parcelId); zkAMM.rebalanceFor(hook).
+    ///   4. hook.register(uniKey, zkAMM, regenTreasury, parcelId); zkAMM.setShortsContract(hook).
     ///   5. write ENS records (clearedPrice, pools, status="live"); phase→Live.
     function clearAndLaunch(bytes32 parcelId) external {
         // TODO(build-day): implement 1–5. This is the "everything automatic" tx.

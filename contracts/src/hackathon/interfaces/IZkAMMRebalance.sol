@@ -5,8 +5,9 @@ pragma solidity ^0.8.24;
 /// @notice The PUBLIC (non-shielded) surface of r00t.fund's private zkAMM that the RegenArbHook
 ///         uses to read the fair price and execute REAL corrective arb trades on the pool reserves.
 ///         Shielded user trades (buyPrivate/sellPrivate) are NOT here — only public reserve ops.
-/// @dev On the demo chain, the zkAMM authorizes the hook via `rebalanceFor(hook)` (twin of the
-///      existing onlyShorts role) so these two swap functions accept the hook as caller.
+/// @dev The hook takes the pool's `shortsContract` slot (parcel pools don't use shorts), so it can
+///      call the two swap functions with ZERO changes to the production ZkAMMPair and no rename that
+///      would break the deployed R00TShorts.
 interface IZkAMMRebalance {
     /// @notice Public reserves (ETH, R00T). Price = ethReserve / tokenReserve. Amounts of shielded
     ///         trades are hidden, but the reserves/price are public — this is what makes the sync work.
@@ -20,7 +21,7 @@ interface IZkAMMRebalance {
     /// @return ethOut ETH received.
     function sellTokensForShorts(uint256 tokenAmount) external returns (uint256 ethOut);
 
-    /// @notice Authorize an address (the hook) to call the rebalance swaps. Added for the hook
-    ///         (mirrors setShortsContract). Owner-gated on the zkAMM.
-    function rebalanceFor(address rebalancer) external;
+    /// @notice Authorize the hook to call the rebalance swaps by making it the pool's "shorts".
+    ///         Set once via the pool's Admin — no zkAMM change, no rename.
+    function setShortsContract(address hook) external;
 }

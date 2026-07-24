@@ -22,6 +22,6 @@
 - _(event)_
 
 ## Key code
-- Hook: `contracts/src/RegenArbHook.sol`
-- zkAMM public surface: `contracts/src/interfaces/IZkAMMRebalance.sol`
+- Hook: `contracts/src/hackathon/RegenArbHook.sol`
+- zkAMM public surface: `contracts/src/hackathon/interfaces/IZkAMMRebalance.sol`
 - Uniswap API integration: `frontend/…` (lines linked in README)

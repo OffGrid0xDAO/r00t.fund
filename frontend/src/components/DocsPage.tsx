@@ -160,6 +160,7 @@ const NAV_SECTIONS = [
   { id: 'overview', label: 'Overview', icon: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25' },
   { id: 'architecture', label: 'Architecture', icon: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z' },
   { id: 'zkamm', label: 'ZkAMM', icon: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
+  { id: 'regen', label: 'Regenerative Liquidity', icon: 'M12 3v18m0 0c-4.97 0-9-1.79-9-4V7c0 2.21 4.03 4 9 4s9-1.79 9-4v10c0 2.21-4.03 4-9 4z' },
   { id: 'cpt', label: 'CPT', icon: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z' },
   { id: 'cre', label: 'CRE Workflows', icon: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244' },
   { id: 'privacy', label: 'Privacy & ZK', icon: 'M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z' },
@@ -571,6 +572,84 @@ export function DocsPage({ onClose }: DocsPageProps) {
                     LPs earn fees proportional to their share of the pool, tracked via <code className="text-[var(--accent)] font-mono text-xs">feePerShare</code> accumulator.
                     LP positions have a lock period (1 minute testnet, 24 hours production) to prevent flash-loan attacks.
                     Fee claiming uses epoch-based distribution with a minimum 72-hour claim window.
+                  </p>
+                </div>
+              </Section>
+
+              <RootDivider />
+
+              {/* ═══════════════════════════════════════════════════════════
+                  Section: Regenerative Liquidity  (ETHGlobal Lisbon 2026)
+                  ═══════════════════════════════════════════════════════════ */}
+              <Section id="regen" className="space-y-6">
+                <CodeLabel>regenerative_liquidity</CodeLabel>
+                <h2 className="text-3xl md:text-4xl font-display font-semibold text-[var(--text-primary)]">
+                  <span className="text-[var(--accent)]">Regenerative</span> Liquidity
+                </h2>
+                <p className="text-[var(--text-secondary)] font-body leading-relaxed">
+                  Every parcel of real land becomes its own fair-launched token with two synchronized
+                  markets &mdash; one private, one public &mdash; and the arbitrage that keeps them in
+                  sync is captured and spent on regenerating that exact plot. The more a parcel is
+                  traded, the more its land is regenerated.
+                </p>
+
+                <div className="space-y-4 text-[var(--text-secondary)] font-body leading-relaxed">
+                  <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
+                    Fair launch (Continuous Clearing Auction)
+                  </h3>
+                  <p>
+                    Instead of a steward guessing a parcel token&rsquo;s opening price, the crowd
+                    discovers it. Each parcel fair-launches through a <code className="text-[var(--accent)] font-mono text-xs">CCA</code> (Uniswap&rsquo;s
+                    Liquidity Launchpad): backers bid, the auction clears at a uniform price <code className="text-[var(--accent)] font-mono text-xs">P</code>,
+                    and <span className="text-[var(--text-primary)]">100% of what backers pay funds the actual land regeneration</span>.
+                    That cleared <code className="text-[var(--accent)] font-mono text-xs">P</code> opens both pools at the same price &mdash; zero launch-arb.
+                  </p>
+
+                  <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
+                    Two pools: private zkAMM + public Uniswap v4
+                  </h3>
+                  <p>
+                    Each parcel token trades against <code className="text-[var(--accent)] font-mono text-xs">$R00T</code> in a
+                    <span className="text-[var(--text-primary)]"> shielded zkAMM</span> (privacy for backers) and a
+                    <span className="text-[var(--text-primary)]"> public Uniswap v4 pool</span> carrying a shared hook. People who
+                    want privacy pay a small premium on the private venue &mdash; and that premium becomes the price gap the hook captures.
+                  </p>
+
+                  <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
+                    The RegenArbHook &mdash; arbitraging a shielded AMM from a v4 hook
+                  </h3>
+                  <p>
+                    A hook can&rsquo;t run a ZK-proof trade &mdash; but the zkAMM&rsquo;s <span className="text-[var(--text-primary)]">reserves are public</span> and
+                    it exposes public swap functions. So in <code className="text-[var(--accent)] font-mono text-xs">afterSwap</code> the shared hook back-runs
+                    every trade with a <span className="text-[var(--text-primary)]">real two-leg arbitrage</span> &mdash; buy the cheaper pool,
+                    sell the dearer &mdash; re-syncing the two prices and sweeping the spread to the plot&rsquo;s regeneration treasury.
+                    <span className="text-[var(--text-primary)]"> Trade amounts stay private; the public reserves sync every trade.</span>
+                  </p>
+                </div>
+
+                <CodeBlock>
+                  <Cm>{'// RegenArbHook.afterSwap — back-run each swap, capture spread → regen'}</Cm>{'\n'}
+                  <Tx>P_uni</Tx> <Mu>=</Mu> <Mu>getSlot0</Mu><Mu>{'('}</Mu><Tx>poolId</Tx><Mu>{')'}</Mu>{'      '}<Cm>{'// public price, post-swap'}</Cm>{'\n'}
+                  <Tx>P_zk</Tx>  <Mu>=</Mu> <Tx>zkAMM</Tx><Mu>.</Mu><Mu>getReserves</Mu><Mu>{'()'}</Mu>{'     '}<Cm>{'// private price (public reserves)'}</Cm>{'\n\n'}
+                  <Kw>if</Kw> <Mu>{'(|P_uni - P_zk| > threshold) {'}</Mu>{'\n'}
+                  {'    '}<Cm>{'// buy where cheap, sell where dear — real trades on both pools'}</Cm>{'\n'}
+                  {'    '}<Tx>profit</Tx> <Mu>=</Mu> <Mu>arb</Mu><Mu>{'('}</Mu><Tx>P_uni</Tx><Mu>,</Mu> <Tx>P_zk</Tx><Mu>{')'}</Mu>{'\n'}
+                  {'    '}<Tx>poolManager</Tx><Mu>.</Mu><Mu>take</Mu><Mu>{'('}</Mu><Ty>ETH</Ty><Mu>,</Mu> <Tx>regenTreasury</Tx><Mu>,</Mu> <Tx>profit</Tx><Mu>{')'}</Mu>{'\n'}
+                  <Mu>{'}'}</Mu>
+                </CodeBlock>
+
+                <div className="space-y-3 text-[var(--text-secondary)] font-body leading-relaxed">
+                  <h3 className="text-xl font-display font-semibold text-[var(--text-primary)]">
+                    The loop
+                  </h3>
+                  <p>
+                    <span className="text-[var(--text-primary)]">Fair auction &rarr; dual pools &rarr; self-syncing hook.</span> Real money
+                    funds the land up front; the ongoing arbitrage &mdash; the privacy premium bots would otherwise
+                    steal &mdash; becomes a perpetual regeneration stream. One shared hook serves every parcel via a
+                    <code className="text-[var(--accent)] font-mono text-xs">poolId &rarr; config</code> registry, and a steward launches
+                    a whole parcel (auction, both pools, hook wiring, ENS records) in a single transaction. Every parcel
+                    is an ENS name &mdash; <code className="text-[var(--accent)] font-mono text-xs">oak.r00t.eth</code> &mdash; whose records show its
+                    price, pools, and live regeneration.
                   </p>
                 </div>
               </Section>
