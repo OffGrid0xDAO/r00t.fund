@@ -7,6 +7,12 @@ import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "v4-core/types/BeforeSwapDelta.sol";
+import {Currency} from "v4-core/types/Currency.sol";
+import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
+import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {FullMath} from "v4-core/libraries/FullMath.sol";
+import {FixedPoint96} from "v4-core/libraries/FixedPoint96.sol";
+import {IERC20Minimal} from "v4-core/interfaces/external/IERC20Minimal.sol";
 
 import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 
@@ -20,6 +26,10 @@ import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 ///      (afterSwap flag). See ../../../hackathon/DESIGN.md + INFRA.md.
 contract RegenArbHook is IHooks {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
+
+    uint256 private _locked = 1;
+    modifier nonReentrant() { require(_locked == 1, "reentrant"); _locked = 2; _; _locked = 1; }
 
     struct MarketConfig {
         IPrivatePool privatePool; // the shielded pool for the SAME pair (R00T/ETH or parcel/R00T)
@@ -108,7 +118,7 @@ contract RegenArbHook is IHooks {
     // ─────────────────────────────────────────────────────────────────────────────────────────────
     function afterSwap(
         address, PoolKey calldata key, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata
-    ) external onlyPoolManager returns (bytes4, int128) {
+    ) external onlyPoolManager nonReentrant returns (bytes4, int128) {
         MarketConfig memory cfg = configs[key.toId()];
         if (!cfg.registered) return (IHooks.afterSwap.selector, int128(0));
 
@@ -117,22 +127,71 @@ contract RegenArbHook is IHooks {
         (bool doArb, bool privZeroForOne, uint256 amountIn) = computeArb(uniPriceE18, r0, r1);
         if (!doArb) { emit SyncSkipped(cfg.marketId, uniPriceE18, r0 == 0 ? 0 : (r1 * WAD) / r0); return (IHooks.afterSwap.selector, int128(0)); }
 
-        // TODO(Phase 1b): execute both legs + settle + take:
-        //   privOut = cfg.privatePool.rebalanceSwap(privZeroForOne, amountIn);   // real private swap
-        //   uniOut  = _uniSwap(key, !privZeroForOne, privOut);                   // nested poolManager.swap
-        //   profit  = uniOut - amountIn; require(profit > 0);                     // no forced loss
-        //   poolManager.take(<profit currency>, cfg.regenTreasury, profit);
-        //   emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, (r1*WAD)/r0);
-        privZeroForOne; amountIn; // silence until leg wiring lands
+        _executeArb(key, cfg, privZeroForOne, amountIn, uniPriceE18, (r1 * WAD) / r0);
         return (IHooks.afterSwap.selector, int128(0));
     }
 
-    /// @dev Uniswap price (currency1 per currency0, 1e18) from slot0. Internal seam so `computeArb`
-    ///      (the core) is fully testable without a live PoolManager; wired to StateLibrary.getSlot0
-    ///      + sqrtPriceX96→price in Phase 1b.
+    /// @dev The real two-leg arb. Uses the hook's small inventory for the private leg; the Uniswap
+    ///      leg replenishes it + the spread. Both directions. Never reverts the user swap: if the
+    ///      round-trip nets <= 0 (shouldn't past the threshold+cap), it just skips the treasury sweep.
+    function _executeArb(
+        PoolKey calldata key, MarketConfig memory cfg, bool privZeroForOne, uint256 amountIn,
+        uint256 uniPriceE18, uint256 privPriceE18
+    ) internal {
+        Currency c0 = key.currency0;
+        Currency c1 = key.currency1;
+
+        if (!privZeroForOne) {
+            // uni prices currency0 DEARER → buy currency0 cheap on private (sell currency1 in),
+            // then sell that currency0 on uni for currency1. profit in currency1.
+            IERC20Minimal(Currency.unwrap(c1)).approve(address(cfg.privatePool), amountIn);
+            uint256 out0 = cfg.privatePool.rebalanceSwap(false, amountIn); // hook: -amountIn c1, +out0 c0
+            BalanceDelta d = poolManager.swap(
+                key,
+                IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -int256(out0), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1 }),
+                ""
+            );
+            _settle(c0, out0);                                            // pay the currency0 we owe
+            uint256 uniOut1 = uint256(int256(d.amount1()));               // currency1 we're owed
+            poolManager.take(c1, address(this), uniOut1);
+            if (uniOut1 > amountIn) {
+                uint256 profit = uniOut1 - amountIn;
+                IERC20Minimal(Currency.unwrap(c1)).transfer(cfg.regenTreasury, profit);
+                emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
+            }
+        } else {
+            // uni prices currency0 CHEAPER → sell currency0 into private, buy currency0 on uni. profit in currency0.
+            IERC20Minimal(Currency.unwrap(c0)).approve(address(cfg.privatePool), amountIn);
+            uint256 out1 = cfg.privatePool.rebalanceSwap(true, amountIn); // hook: -amountIn c0, +out1 c1
+            BalanceDelta d = poolManager.swap(
+                key,
+                IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -int256(out1), sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1 }),
+                ""
+            );
+            _settle(c1, out1);
+            uint256 uniOut0 = uint256(int256(d.amount0()));
+            poolManager.take(c0, address(this), uniOut0);
+            if (uniOut0 > amountIn) {
+                uint256 profit = uniOut0 - amountIn;
+                IERC20Minimal(Currency.unwrap(c0)).transfer(cfg.regenTreasury, profit);
+                emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
+            }
+        }
+    }
+
+    /// @dev Pay `amount` of `c` we owe the pool (v4 sync/transfer/settle).
+    function _settle(Currency c, uint256 amount) internal {
+        poolManager.sync(c);
+        IERC20Minimal(Currency.unwrap(c)).transfer(address(poolManager), amount);
+        poolManager.settle();
+    }
+
+    /// @dev Uniswap price = currency1 per currency0, 1e18, from slot0 sqrtPriceX96.
     function _uniPriceE18(PoolKey calldata key) internal view returns (uint256) {
-        key; // no-op in scaffold
-        return 0;
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
+        // price1/0 = (sqrtP/2^96)^2. Do it in two mulDivs to hold precision without overflow.
+        uint256 p = FullMath.mulDiv(uint256(sqrtPriceX96), uint256(sqrtPriceX96), FixedPoint96.Q96);
+        return FullMath.mulDiv(p, WAD, FixedPoint96.Q96);
     }
 
     /// @dev Babylonian integer sqrt.
