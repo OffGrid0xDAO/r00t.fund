@@ -28,13 +28,19 @@ function rootOutToUsdc(rootOut: bigint, rootPriceE6: bigint): bigint {
   return (num + 10n ** 18n - 1n) / 10n ** 18n;
 }
 
+// Every plot on the map is a real on-chain parcel. "Whole land" patrons the basket of ALL of them.
+const PARCELS = Object.entries(CONTRACTS.parcelIdByTicker) as [string, number][];
+function toParcelIdHex(n: number): string { return '0x' + n.toString(16).padStart(64, '0'); }
+
 export function ParcelFundPanel() {
   const { address } = useAccount();
   const vault = useLandVault(null);
   const pricing = useLandPricing();
   const [usd, setUsd] = useState('5');
   const [payWith, setPayWith] = useState<'eth' | 'usdc'>('eth');
+  const [target, setTarget] = useState<'parcel' | 'land'>('parcel'); // one parcel vs the whole-land basket
   const [busy, setBusy] = useState(false);
+  const [basket, setBasket] = useState<{ i: number; n: number; ticker: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tx, setTx] = useState<string | null>(null);
 
@@ -52,19 +58,39 @@ export function ParcelFundPanel() {
   const claimable = vault.notes.filter((n) => !n.claimed);
   const claimed = vault.notes.filter((n) => n.claimed);
 
+  const fundOne = async (pid: string, rOut: bigint) => {
+    const eCost = rootOutToEth(rOut, pricing.rootPriceE6, pricing.ethPriceE6);
+    const uCost = rootOutToUsdc(rOut, pricing.rootPriceE6);
+    return payWith === 'eth'
+      ? vault.fundETH(pid, rOut, eCost)
+      : vault.fundUSDC(pid, rOut, uCost, CONTRACTS.usdc);
+  };
+
   const doFund = async () => {
     setErr(null); setTx(null);
     if (rootOut === 0n) { setErr('Enter an amount.'); return; }
     if (!vault.isReady) { setErr('Land vault not configured.'); return; }
     try {
       setBusy(true);
-      const res = payWith === 'eth'
-        ? await vault.fundETH(parcelId, rootOut, ethCost)
-        : await vault.fundUSDC(parcelId, rootOut, usdcCost, CONTRACTS.usdc);
-      setTx(res.hash);
+      if (target === 'parcel') {
+        const res = await fundOne(parcelId, rootOut);
+        setTx(res.hash);
+      } else {
+        // Whole land: split evenly across every parcel → a basket of private notes (one per token).
+        const per = usdToRootOut(parseFloat(usd || '0') / PARCELS.length, pricing.rootPriceE6);
+        if (per === 0n) { setErr('Amount too small to split across all parcels.'); return; }
+        let last = '';
+        for (let i = 0; i < PARCELS.length; i++) {
+          const [ticker, num] = PARCELS[i];
+          setBasket({ i: i + 1, n: PARCELS.length, ticker });
+          const res = await fundOne(toParcelIdHex(num), per);
+          last = res.hash;
+        }
+        setTx(last);
+      }
     } catch (e) {
       setErr((e as Error).message?.slice(0, 160) || 'Funding failed.');
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setBasket(null); }
   };
 
   const doClaim = async (note: LandNote) => {
@@ -88,12 +114,26 @@ export function ParcelFundPanel() {
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          <span className="text-[var(--accent)] opacity-60">// </span>patron this parcel · anonymously
+          <span className="text-[var(--accent)] opacity-60">// </span>
+          {target === 'parcel' ? 'patron this parcel · anonymously' : 'patron the whole land · anonymously'}
         </h3>
         <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">
-          Pay with <span className="text-[var(--text-secondary)]">ETH or USDC</span> — 100% funds the ground. You get a
-          private note you can claim to <span className="text-[var(--accent)]">any wallet</span>, unlinked from the one that paid.
+          Pay with <span className="text-[var(--text-secondary)]">ETH or USDC</span> — 100% funds the ground.
+          {target === 'parcel'
+            ? <> You get a <span className="text-[var(--accent)]">private note</span> you can claim to any wallet, unlinked from the one that paid.</>
+            : <> Your patronage is split across <span className="text-[var(--accent)]">all {PARCELS.length} parcels</span> — a basket of every land token — as {PARCELS.length} private notes, each claimable to any wallet.</>}
         </p>
+        {/* target: one parcel vs the whole-land basket */}
+        <div className="inline-flex gap-1 p-1 mt-2 rounded-lg border border-[var(--border)]" style={{ background: 'var(--bg-elevated)' }}>
+          <button onClick={() => setTarget('parcel')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium ${target === 'parcel' ? 'text-[var(--accent-ink)] bg-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+            🌳 This parcel
+          </button>
+          <button onClick={() => setTarget('land')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium ${target === 'land' ? 'text-[var(--accent-ink)] bg-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+            🧺 Whole land
+          </button>
+        </div>
       </div>
 
       {/* Amount + pay-with */}
@@ -119,15 +159,23 @@ export function ParcelFundPanel() {
           </div>
         </div>
         <div className="flex justify-between text-[11px] font-mono text-[var(--text-muted)]">
-          <span>you pay ≈ <span className="text-[var(--text-secondary)]">{payWith === 'eth' ? `${Number(formatEther(ethCost)).toFixed(5)} ETH` : `${(Number(usdcCost) / 1e6).toFixed(2)} USDC`}</span></span>
-          <span>note value: <span className="text-[var(--accent)]">{Number(formatEther(rootOut)).toLocaleString()} R00T-eq</span></span>
+          <span>you pay ≈ <span className="text-[var(--text-secondary)]">{payWith === 'eth' ? `${Number(formatEther(ethCost)).toFixed(5)} ETH` : `${(Number(usdcCost) / 1e6).toFixed(2)} USDC`}</span> total</span>
+          <span>{target === 'parcel'
+            ? <>note value: <span className="text-[var(--accent)]">{Number(formatEther(rootOut)).toLocaleString()} R00T-eq</span></>
+            : <><span className="text-[var(--accent)]">{PARCELS.length}</span> notes · ~{(parseFloat(usd || '0') / PARCELS.length).toFixed(2)} USD each</>}
+          </span>
         </div>
         <button onClick={doFund} disabled={busy}
           className="w-full py-2.5 rounded-lg text-[var(--accent-ink)] bg-[var(--accent)] font-medium text-sm disabled:opacity-60 hover:opacity-90">
-          {busy ? 'Funding privately…' : `Patron with ${payWith.toUpperCase()}`}
+          {busy
+            ? (basket ? `Patroning ${basket.ticker}… (${basket.i}/${basket.n})` : 'Funding privately…')
+            : target === 'parcel' ? `Patron with ${payWith.toUpperCase()}` : `Patron all ${PARCELS.length} parcels with ${payWith.toUpperCase()}`}
         </button>
+        {target === 'land' && !busy && (
+          <p className="text-[10px] font-mono text-[var(--text-muted)]">🧺 basket = {PARCELS.map(([t]) => t).join(' · ')} — {PARCELS.length} wallet confirmations, one per parcel.</p>
+        )}
         {err && <p className="text-[11px] text-[var(--error,#e05555)] break-words">{err}</p>}
-        {tx && <p className="text-[11px] text-[var(--text-muted)]">funded · <a href={getExplorerTxUrl(tx)} target="_blank" rel="noreferrer" className="underline">tx ↗</a> — your private note is below.</p>}
+        {tx && <p className="text-[11px] text-[var(--text-muted)]">funded · <a href={getExplorerTxUrl(tx)} target="_blank" rel="noreferrer" className="underline">last tx ↗</a> — your private note{target === 'land' ? 's are' : ' is'} below.</p>}
       </div>
 
       {/* Your private notes → claim to any wallet */}
