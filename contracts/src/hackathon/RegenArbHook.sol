@@ -7,40 +7,40 @@ import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "v4-core/types/BeforeSwapDelta.sol";
-import {Hooks} from "v4-core/libraries/Hooks.sol";
-import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 
-import {IZkAMMRebalance} from "./interfaces/IZkAMMRebalance.sol";
+import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 
 /// @title RegenArbHook  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE, not production r00t.fund)
-/// @notice ONE shared Uniswap v4 hook for ALL parcel pools. Back-runs every swap with a REAL
-///         two-leg arbitrage between the public Uniswap pool and r00t.fund's private zkAMM,
-///         re-syncing their prices and sweeping the captured spread to that parcel's regeneration
-///         treasury. Launching a new parcel just `register()`s its pool — no new hook deploy.
-/// @dev Deployed ONCE at a mined CREATE2 address encoding the afterSwap + afterSwapReturnDelta flags.
-///      Callbacks are poolManager-only. See ../DESIGN.md (mechanism + guards) and ../INFRA.md (system).
+/// @notice ONE shared Uniswap v4 hook for ALL r00t.fund markets — the main R00T/ETH pool AND every
+///         parcel/R00T pool. It back-runs each swap with a REAL cross-pool arbitrage between the
+///         public Uniswap pool and the matching private (shielded) pool, re-syncing their prices and
+///         sweeping the captured spread to that market's regeneration treasury.
+/// @dev Currency-agnostic: the arb math (`computeArb`) works on generic reserves, so a new parcel or
+///      the base R00T market just `register()`s its pool. Deployed once at a mined CREATE2 address
+///      (afterSwap flag). See ../../../hackathon/DESIGN.md + INFRA.md.
 contract RegenArbHook is IHooks {
-    using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
-    struct ParcelConfig {
-        IZkAMMRebalance zkAMM;   // the private pool's PUBLIC rebalance surface
-        address regenTreasury;   // where the captured spread goes (the plot's regen fund)
-        bytes32 parcelId;
+    struct MarketConfig {
+        IPrivatePool privatePool; // the shielded pool for the SAME pair (R00T/ETH or parcel/R00T)
+        address regenTreasury;    // where the captured spread goes
+        bytes32 marketId;         // parcelId, or a sentinel for the base R00T market
         bool registered;
     }
 
     IPoolManager public immutable poolManager;
-    address public immutable launchpad;                 // RegenLaunchpad — the only registrar
+    address public immutable launchpad; // the only registrar
 
-    mapping(PoolId => ParcelConfig) public configs;     // poolId → parcel wiring
+    mapping(PoolId => MarketConfig) public configs;
 
-    uint256 public constant SYNC_THRESHOLD_BPS = 30;    // arb only when pools diverge > 0.30%
-    uint256 public constant MAX_REBALANCE_BPS  = 500;   // cap one arb to 5% of the smaller reserve
+    uint256 public constant SYNC_THRESHOLD_BPS = 30;   // arb only when pools diverge > 0.30%
+    uint256 public constant MAX_REBALANCE_BPS  = 500;  // cap one arb to 5% of the private reserve
+    uint256 private constant BPS = 10_000;
+    uint256 private constant WAD = 1e18;
 
-    event ParcelRegistered(PoolId indexed poolId, bytes32 indexed parcelId, address zkAMM, address treasury);
-    event SpreadCaptured(bytes32 indexed parcelId, int256 profitWei, uint256 uniPriceE18, uint256 zkPriceE18);
-    event SyncSkipped(bytes32 indexed parcelId, string reason);
+    event MarketRegistered(PoolId indexed poolId, bytes32 indexed marketId, address privatePool, address treasury);
+    event SpreadCaptured(bytes32 indexed marketId, uint256 profit, uint256 uniPriceE18, uint256 privPriceE18);
+    event SyncSkipped(bytes32 indexed marketId, uint256 uniPriceE18, uint256 privPriceE18);
 
     error NotPoolManager();
     error NotLaunchpad();
@@ -53,38 +53,95 @@ contract RegenArbHook is IHooks {
         launchpad = _launchpad;
     }
 
-    /// @notice Wire a newly-launched parcel pool to its zkAMM + regen treasury. onlyLaunchpad.
-    function register(PoolKey calldata key, IZkAMMRebalance zkAMM, address regenTreasury, bytes32 parcelId) external {
+    /// @notice Wire a market's Uniswap pool to its private pool + regen treasury. onlyLaunchpad.
+    function register(PoolKey calldata key, IPrivatePool privatePool, address regenTreasury, bytes32 marketId) external {
         if (msg.sender != launchpad) revert NotLaunchpad();
-        configs[key.toId()] = ParcelConfig(zkAMM, regenTreasury, parcelId, true);
-        emit ParcelRegistered(key.toId(), parcelId, address(zkAMM), regenTreasury);
+        configs[key.toId()] = MarketConfig(privatePool, regenTreasury, marketId, true);
+        emit MarketRegistered(key.toId(), marketId, address(privatePool), regenTreasury);
     }
 
-    // ── the only active hook: back-run each user swap with a real cross-pool arb ──
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
+    // CORE (pure, unit-tested): given the public price and the private reserves, decide the arb.
+    // Works on generic reserves → identical for R00T/ETH and parcel/R00T.
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
+    /// @param uniPriceE18 public price = currency1 per currency0, 1e18-scaled.
+    /// @param r0 private reserve of currency0.  @param r1 private reserve of currency1.
+    /// @return doArb        whether an above-threshold arb exists.
+    /// @return privZeroForOne direction of the PRIVATE-pool leg: true = sell currency0 into private.
+    /// @return amountIn     amount to sell into the private pool on that leg (capped).
+    function computeArb(uint256 uniPriceE18, uint256 r0, uint256 r1)
+        public pure returns (bool doArb, bool privZeroForOne, uint256 amountIn)
+    {
+        if (r0 == 0 || r1 == 0 || uniPriceE18 == 0) return (false, false, 0);
+        uint256 privPriceE18 = (r1 * WAD) / r0;                 // currency1 per currency0 on the private pool
+
+        uint256 hi = uniPriceE18 > privPriceE18 ? uniPriceE18 : privPriceE18;
+        uint256 lo = uniPriceE18 > privPriceE18 ? privPriceE18 : uniPriceE18;
+        if (((hi - lo) * BPS) / hi < SYNC_THRESHOLD_BPS) return (false, false, 0); // below divergence gate
+
+        uint256 k = r0 * r1;
+        uint256 r0target = _sqrt((k * WAD) / uniPriceE18);      // private r0 that makes P_priv == uniPrice
+        uint256 cap;
+        if (uniPriceE18 > privPriceE18) {
+            // currency0 dearer on Uni → cheaper on private → BUY currency0 on private (sell currency1 in)
+            if (r0target >= r0) return (false, false, 0);
+            uint256 out0 = r0 - r0target;
+            cap = (r0 * MAX_REBALANCE_BPS) / BPS;
+            if (out0 > cap) { out0 = cap; r0target = r0 - out0; }
+            amountIn = (k / r0target) - r1;                     // currency1 sold into private
+            privZeroForOne = false;
+            doArb = amountIn > 0;
+        } else {
+            // currency0 cheaper on Uni → dearer on private → SELL currency0 into private
+            if (r0target <= r0) return (false, false, 0);
+            uint256 in0 = r0target - r0;
+            cap = (r0 * MAX_REBALANCE_BPS) / BPS;
+            if (in0 > cap) in0 = cap;
+            amountIn = in0;                                     // currency0 sold into private
+            privZeroForOne = true;
+            doArb = amountIn > 0;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
+    // the only active hook — back-run each swap with the real cross-pool arb
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
     function afterSwap(
         address, PoolKey calldata key, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata
     ) external onlyPoolManager returns (bytes4, int128) {
-        ParcelConfig memory cfg = configs[key.toId()];
+        MarketConfig memory cfg = configs[key.toId()];
         if (!cfg.registered) return (IHooks.afterSwap.selector, int128(0));
 
-        // 1. fair prices: Uniswap post-swap slot0 vs zkAMM TWAP reserves.
-        (uint160 sqrtPriceX96, , , ) = poolManager.getSlot0(key.toId());
-        (uint256 ethR, uint256 tokR) = cfg.zkAMM.getReserves();
-        // uint256 zkPriceE18  = ethR * 1e18 / tokR;                     // ETH per R00T (TODO: TWAP)
-        // uint256 uniPriceE18 = _priceFromSqrt(sqrtPriceX96, key);      // TODO
-        sqrtPriceX96; ethR; tokR;
+        uint256 uniPriceE18 = _uniPriceE18(key);
+        (uint256 r0, uint256 r1) = cfg.privatePool.getReserves();
+        (bool doArb, bool privZeroForOne, uint256 amountIn) = computeArb(uniPriceE18, r0, r1);
+        if (!doArb) { emit SyncSkipped(cfg.marketId, uniPriceE18, r0 == 0 ? 0 : (r1 * WAD) / r0); return (IHooks.afterSwap.selector, int128(0)); }
 
-        // 2. if diverged > SYNC_THRESHOLD_BPS → run the two-leg arb toward the mid, size ≤ MAX_REBALANCE_BPS:
-        //    uniDearer ? { buyTokensForShorts(zkAMM) ; sell on Uni via nested poolManager.swap }
-        //              : { buy on Uni ; sellTokensForShorts(zkAMM) }
-        //    profit = ethOut - ethIn; require(profit >= 0) else emit SyncSkipped (no forced loss);
-        //    poolManager.take(ETH, cfg.regenTreasury, uint(profit));
-        //    emit SpreadCaptured(cfg.parcelId, profit, uniPriceE18, zkPriceE18);
-        // TODO(build-day): leg sizing + nested-swap flash settlement + take().
+        // TODO(Phase 1b): execute both legs + settle + take:
+        //   privOut = cfg.privatePool.rebalanceSwap(privZeroForOne, amountIn);   // real private swap
+        //   uniOut  = _uniSwap(key, !privZeroForOne, privOut);                   // nested poolManager.swap
+        //   profit  = uniOut - amountIn; require(profit > 0);                     // no forced loss
+        //   poolManager.take(<profit currency>, cfg.regenTreasury, profit);
+        //   emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, (r1*WAD)/r0);
+        privZeroForOne; amountIn; // silence until leg wiring lands
         return (IHooks.afterSwap.selector, int128(0));
     }
 
-    // ── unused hooks (address flag bits gate which are callable; these revert) ──
+    /// @dev Uniswap price (currency1 per currency0, 1e18) from slot0. Internal seam so `computeArb`
+    ///      (the core) is fully testable without a live PoolManager; wired to StateLibrary.getSlot0
+    ///      + sqrtPriceX96→price in Phase 1b.
+    function _uniPriceE18(PoolKey calldata key) internal view returns (uint256) {
+        key; // no-op in scaffold
+        return 0;
+    }
+
+    /// @dev Babylonian integer sqrt.
+    function _sqrt(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) { z = y; uint256 x = y / 2 + 1; while (x < z) { z = x; x = (y / x + x) / 2; } }
+        else if (y != 0) { z = 1; }
+    }
+
+    // ── unused hooks (address flag bits gate which are callable) ──
     function beforeInitialize(address, PoolKey calldata, uint160) external pure returns (bytes4) { revert HookNotImplemented(); }
     function afterInitialize(address, PoolKey calldata, uint160, int24) external pure returns (bytes4) { revert HookNotImplemented(); }
     function beforeAddLiquidity(address, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
@@ -95,7 +152,5 @@ contract RegenArbHook is IHooks {
     function beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
     function afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
 
-    receive() external payable {} // seed inventory + ETH legs
-
-    // TODO(build-day): _priceFromSqrt(); getHookPermissions() if we vendor BaseHook.
+    receive() external payable {}
 }

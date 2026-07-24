@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 
-import {IZkAMMRebalance} from "./interfaces/IZkAMMRebalance.sol";
+import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 
 interface IRegenArbHook {
-    function register(PoolKey calldata key, IZkAMMRebalance zkAMM, address regenTreasury, bytes32 parcelId) external;
+    function register(PoolKey calldata key, IPrivatePool zkAMM, address regenTreasury, bytes32 parcelId) external;
 }
 
 /// @title RegenLaunchpad  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE)
@@ -29,7 +29,7 @@ contract RegenLaunchpad {
         address token;          // parcel ERC20
         address land;           // steward's Land
         address regenTreasury;  // the plot's regen fund (raise lands here)
-        IZkAMMRebalance zkAMM;   // private pool
+        IPrivatePool zkAMM;   // private pool
         PoolKey uniKey;         // public Uni v4 pool (hooked)
         bytes32 parcelId;
         Phase phase;
