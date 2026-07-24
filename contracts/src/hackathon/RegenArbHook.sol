@@ -40,7 +40,8 @@ contract RegenArbHook is IHooks {
     }
 
     IPoolManager public immutable poolManager;
-    address public immutable launchpad; // the only registrar
+    address public immutable deployer;  // may (re)point the launchpad registrar
+    address public launchpad;           // the only registrar (settable once wiring is known)
 
     mapping(PoolId => MarketConfig) public configs;
 
@@ -62,6 +63,13 @@ contract RegenArbHook is IHooks {
     constructor(IPoolManager _pm, address _launchpad) {
         poolManager = _pm;
         launchpad = _launchpad;
+        deployer = msg.sender;
+    }
+
+    /// @notice Point the registrar at the RegenLaunchpad (resolves the launchpad↔hook deploy cycle).
+    function setLaunchpad(address l) external {
+        if (msg.sender != deployer) revert NotLaunchpad();
+        launchpad = l;
     }
 
     /// @notice Wire a market's Uniswap pool to its private pool + regen treasury. onlyLaunchpad.
