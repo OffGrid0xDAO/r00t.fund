@@ -70,8 +70,11 @@ contract RegenArbHook is IHooks {
     }
 
     /// @notice Point the registrar at the RegenLaunchpad (resolves the launchpad↔hook deploy cycle).
+    /// @dev Callable by the deployer OR the current launchpad (one-way hand-off): when deployed via a
+    ///      CREATE2 factory the `deployer` is the factory, so the bootstrapper sets itself as the
+    ///      initial launchpad in the constructor and then hands off to the real RegenLaunchpad here.
     function setLaunchpad(address l) external {
-        if (msg.sender != deployer) revert NotLaunchpad();
+        if (msg.sender != deployer && msg.sender != launchpad) revert NotLaunchpad();
         launchpad = l;
     }
 

@@ -143,7 +143,8 @@ contract RegenLaunchpad is IUnlockCallback {
     function clearAndLaunch(bytes32 parcelId) external {
         Parcel storage p = parcels[parcelId];
         if (p.phase != Phase.Auction) revert NotAuction();
-        if (block.timestamp < p.auctionEnd) revert AuctionStillOpen();
+        // clears once the window elapses; the steward may also close the CCA early.
+        if (block.timestamp < p.auctionEnd && msg.sender != p.steward) revert AuctionStillOpen();
 
         // 1) uniform clearing price P = max(reserve, raised/saleTokens) — never below the OTC floor.
         uint256 P = (p.raisedR00T * WAD) / p.saleTokens;

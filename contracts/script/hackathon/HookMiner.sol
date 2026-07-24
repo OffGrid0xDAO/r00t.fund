@@ -13,9 +13,17 @@ library HookMiner {
     function find(uint160 flags, bytes memory creationCode, bytes memory constructorArgs)
         internal pure returns (address hookAddress, bytes32 salt)
     {
+        return find(flags, creationCode, constructorArgs, 0);
+    }
+
+    /// @param startSalt begin the salt search here — pass a distinct value per deployment so identical
+    ///        hooks (same code + args) mine DIFFERENT addresses and don't CREATE2-collide on one chain.
+    function find(uint160 flags, bytes memory creationCode, bytes memory constructorArgs, uint256 startSalt)
+        internal pure returns (address hookAddress, bytes32 salt)
+    {
         bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
         bytes32 initHash = keccak256(initCode);
-        for (uint256 s = 0; s < MAX_LOOP; s++) {
+        for (uint256 s = startSalt; s < startSalt + MAX_LOOP; s++) {
             hookAddress = _addr(bytes32(s), initHash);
             if (uint160(hookAddress) & FLAG_MASK == flags) return (hookAddress, bytes32(s));
         }
