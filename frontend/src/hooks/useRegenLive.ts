@@ -10,8 +10,8 @@
  * All prices normalized to R00T per parcel token so the two pools + the cleared price line up.
  * Uses its own viem public client (Sepolia) so it works regardless of the wallet's current chain.
  */
-import { useCallback, useEffect, useState } from 'react';
-import { createPublicClient, http, keccak256, encodeAbiParameters } from 'viem';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPublicClient, http, keccak256, encodeAbiParameters, parseAbiItem } from 'viem';
 import { HACKATHON } from '../config';
 
 const client = createPublicClient({ transport: http(HACKATHON.rpcUrl) });
@@ -35,6 +35,9 @@ const erc20Abi = [
   { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
 ] as const;
 
+export interface SeriesPoint { t: number; priv: number; pub: number; treasury: number; }
+export interface ArbEvent { block: number; profit: number; uni: number; priv: number; } // prices R00T/parcel
+
 export interface RegenLive {
   privatePrice: number | null;   // R00T per parcel token, private pool
   publicPrice: number | null;    // R00T per parcel token, public v4 pool
@@ -43,10 +46,16 @@ export interface RegenLive {
   raised: number | null;         // R00T raised in the CCA
   treasuryRoot: number | null;   // R00T sitting in the parcel regen treasury
   divergenceBps: number | null;  // |pub-priv| / max * 10000
+  series: SeriesPoint[];         // rolling live poll of both pool prices + treasury
+  arbs: ArbEvent[];              // on-chain SpreadCaptured events (each = a real rebalance)
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
+
+const spreadEvent = parseAbiItem('event SpreadCaptured(bytes32 indexed marketId, uint256 profit, uint256 uniPriceE18, uint256 privPriceE18)');
+const ARB_FROM_BLOCK = 11343000n; // just before the live launch — bounds the getLogs range
+const inv = (e18: bigint) => (e18 > 0n ? Number((10n ** 36n * 1_000_000n / e18)) / 1e6 : 0); // OAK/ROOT → R00T/OAK
 
 function toNum(x: bigint, dp = 6): number {
   return Number((x * BigInt(10 ** dp)) / WAD) / 10 ** dp;
@@ -54,10 +63,32 @@ function toNum(x: bigint, dp = 6): number {
 
 export function useRegenLive(pollMs = 8000): RegenLive {
   const p = HACKATHON.parcel;
+  const seriesRef = useRef<SeriesPoint[]>([]);
   const [s, setS] = useState<RegenLive>({
     privatePrice: null, publicPrice: null, clearedPrice: null, phase: null, raised: null,
-    treasuryRoot: null, divergenceBps: null, loading: true, error: null, refetch: () => {},
+    treasuryRoot: null, divergenceBps: null, series: [], arbs: [], loading: true, error: null, refetch: () => {},
   });
+
+  // read the on-chain arb history once (each SpreadCaptured = one real rebalance).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const logs = await client.getLogs({
+          address: HACKATHON.hook as `0x${string}`, event: spreadEvent,
+          args: { marketId: p.id as `0x${string}` }, fromBlock: ARB_FROM_BLOCK, toBlock: 'latest',
+        });
+        const arbs: ArbEvent[] = logs.map((l: any) => ({
+          block: Number(l.blockNumber),
+          profit: toNum(l.args.profit as bigint, 4),
+          uni: inv(l.args.uniPriceE18 as bigint),
+          priv: inv(l.args.privPriceE18 as bigint),
+        }));
+        if (alive) setS((prev) => ({ ...prev, arbs }));
+      } catch { /* getLogs range/RPC hiccup — chart still works off the live series */ }
+    })();
+    return () => { alive = false; };
+  }, [p.id]);
 
   const load = useCallback(async () => {
     try {
@@ -80,17 +111,25 @@ export function useRegenLive(pollMs = 8000): RegenLive {
       const publicPrice = price1_0_e18 > 0n ? toNum((WAD * WAD) / price1_0_e18) : null;
 
       const clearedPrice = toNum(cleared as bigint);
+      const treasuryRoot = toNum(treasury as bigint, 4);
       const div = privatePrice && publicPrice
         ? Math.round((Math.abs(publicPrice - privatePrice) / Math.max(publicPrice, privatePrice)) * 10000)
         : null;
+
+      // append to the rolling live series (cap 60 points ≈ 8 min at 8s)
+      if (privatePrice != null && publicPrice != null) {
+        const next = [...seriesRef.current, { t: Date.now(), priv: privatePrice, pub: publicPrice, treasury: treasuryRoot }];
+        seriesRef.current = next.slice(-60);
+      }
 
       setS((prev) => ({
         ...prev,
         privatePrice, publicPrice, clearedPrice,
         phase: Number(phase as number),
         raised: toNum(raised as bigint, 2),
-        treasuryRoot: toNum(treasury as bigint, 4),
+        treasuryRoot,
         divergenceBps: div,
+        series: seriesRef.current,
         loading: false, error: null,
       }));
     } catch (e: any) {

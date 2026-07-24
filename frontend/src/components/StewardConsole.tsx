@@ -7,10 +7,58 @@
  * treasury that every cross-pool arb feeds. This is the on-chain proof the pools actually re-sync.
  */
 import { HACKATHON } from '../config';
-import { useRegenLive } from '../hooks/useRegenLive';
+import { useRegenLive, type SeriesPoint, type ArbEvent } from '../hooks/useRegenLive';
 
 const LIME = '#D6FE51';
 const GREEN = '#00ff88';
+const BLUE = '#8C9EFF';
+
+/** dual-line chart of both pool prices over time — the rebalancing made visible. */
+function DualPoolChart({ pts, cleared }: { pts: { pub: number; priv: number }[]; cleared: number | null }) {
+  const W = 560, H = 150, PADX = 8, PADY = 12;
+  if (pts.length < 2) {
+    return <div className="h-[150px] grid place-items-center text-[12px] text-[#666]">collecting live price points… (updates every 8s; trades move the lines)</div>;
+  }
+  const ys = pts.flatMap((p) => [p.pub, p.priv]).concat(cleared ? [cleared] : []);
+  const lo = Math.min(...ys), hi = Math.max(...ys);
+  const span = hi - lo || 1;
+  const x = (i: number) => PADX + (i / (pts.length - 1)) * (W - 2 * PADX);
+  const y = (v: number) => H - PADY - ((v - lo) / span) * (H - 2 * PADY);
+  const line = (key: 'pub' | 'priv') => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 150 }}>
+      {cleared != null && <line x1={PADX} x2={W - PADX} y1={y(cleared)} y2={y(cleared)} stroke="#ffffff40" strokeDasharray="3 3" />}
+      <path d={line('pub')} fill="none" stroke={BLUE} strokeWidth={2} />
+      <path d={line('priv')} fill="none" stroke={LIME} strokeWidth={2} />
+      {/* latest dots */}
+      <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].pub)} r={3} fill={BLUE} />
+      <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].priv)} r={3} fill={LIME} />
+    </svg>
+  );
+}
+
+function ArbFeed({ arbs }: { arbs: ArbEvent[] }) {
+  if (!arbs.length) return <p className="text-[11px] text-[#666]">No rebalances indexed yet — each public swap emits one SpreadCaptured.</p>;
+  const totalProfit = arbs.reduce((a, e) => a + e.profit, 0);
+  return (
+    <div>
+      <div className="text-[11px] text-[#888] mb-2">
+        <span style={{ color: GREEN }}>{arbs.length}</span> on-chain rebalance{arbs.length > 1 ? 's' : ''} · <span style={{ color: GREEN }}>{totalProfit.toFixed(3)}</span> R00T to treasury
+      </div>
+      <div className="space-y-1 max-h-32 overflow-auto">
+        {[...arbs].reverse().map((e, i) => (
+          <a key={i} href={`${HACKATHON.explorerUrl}/block/${e.block}`} target="_blank" rel="noreferrer"
+            className="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-[#111] hover:bg-[#181818]">
+            <span className="text-[#888]">blk {e.block}</span>
+            <span style={{ color: BLUE }}>pub {e.pub.toFixed(4)}</span>
+            <span style={{ color: LIME }}>priv {e.priv.toFixed(4)}</span>
+            <span style={{ color: GREEN }}>+{e.profit.toFixed(3)} R00T</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ex(kind: 'address' | 'tx', v: string) {
   return `${HACKATHON.explorerUrl}/${kind}/${v}`;
@@ -120,7 +168,22 @@ export function StewardConsole({ landName, landAddress, onOpenLand }: StewardCon
 
       {/* the double pool */}
       <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4 mb-5">
-        <div className="text-sm font-semibold mb-3 text-[#ddd]">Double pool — live rebalancing</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold text-[#ddd]">Double pool — live rebalancing</div>
+          <div className="flex gap-3 text-[10px]">
+            <span style={{ color: BLUE }}>● public v4</span>
+            <span style={{ color: LIME }}>● private (zkAMM)</span>
+          </div>
+        </div>
+        {/* time-series chart of both pool prices (falls back to on-chain arb points until the live series fills) */}
+        <DualPoolChart
+          pts={live.series.length >= 2 ? live.series.map((s) => ({ pub: s.pub, priv: s.priv }))
+                : live.arbs.map((a) => ({ pub: a.uni, priv: a.priv }))}
+          cleared={live.clearedPrice}
+        />
+        <div className="mt-3 mb-4">
+          <ArbFeed arbs={live.arbs} />
+        </div>
         <DoublePoolViz priv={live.privatePrice} pub={live.publicPrice} cleared={live.clearedPrice} />
         <div className="flex gap-3 mt-4 text-[11px]">
           <a className="underline text-[#8C9EFF]" href={ex('address', HACKATHON.launchpad)} target="_blank" rel="noreferrer">launchpad ↗</a>
