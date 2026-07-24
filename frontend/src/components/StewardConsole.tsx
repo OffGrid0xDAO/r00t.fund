@@ -61,7 +61,13 @@ const STEPS = [
   ['Every trade regenerates', 'Each public swap back-runs a cross-pool arb; the spread funds the land’s regen treasury.'],
 ];
 
-export function StewardConsole() {
+interface StewardConsoleProps {
+  landName?: string | null;
+  landAddress?: string | null;
+  onOpenLand?: () => void;
+}
+
+export function StewardConsole({ landName, landAddress, onOpenLand }: StewardConsoleProps = {}) {
   const live = useRegenLive();
   const p = HACKATHON.parcel;
   const inSync = live.divergenceBps != null && live.divergenceBps < 30;
@@ -76,6 +82,19 @@ export function StewardConsole() {
         <span className="text-[10px] px-2 py-1 rounded-full border animate-pulse"
           style={{ color: GREEN, borderColor: GREEN }}>● LIVE · Sepolia</span>
       </div>
+
+      {/* the land this steward manages — ties the console to the _land tab */}
+      <button onClick={onOpenLand}
+        className="w-full flex items-center justify-between rounded-xl border border-[#333] bg-[#0a0a0a] px-4 py-3 mb-5 hover:border-[#555] transition-colors text-left">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🗺️</span>
+          <div>
+            <div className="text-sm text-[#ddd]">Stewarding{landName ? ` ${landName}` : ' your land'}</div>
+            <div className="text-[11px] text-[#888] font-mono">{landAddress ? `${landAddress.slice(0, 8)}…${landAddress.slice(-6)}` : 'connected steward'}</div>
+          </div>
+        </div>
+        <span className="text-[11px] text-[#888]">← back to Land map</span>
+      </button>
 
       {/* the launched parcel */}
       <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4 mb-5">

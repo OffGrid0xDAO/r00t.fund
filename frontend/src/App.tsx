@@ -33,6 +33,7 @@ const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ d
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
 const ParcelFundPanel = lazy(() => import('./components/ParcelFundPanel').then(m => ({ default: m.ParcelFundPanel })));
 const StewardConsole = lazy(() => import('./components/StewardConsole').then(m => ({ default: m.StewardConsole })));
+import { useStewardStatus } from './hooks/useStewardStatus';
 const LiquidityPanel = lazy(() => import('./components/LiquidityPanel').then(m => ({ default: m.LiquidityPanel })));
 import { ChartModal } from './components/ChartModal';
 
@@ -292,6 +293,7 @@ function App() {
   });
 
   const { address, isConnected } = useAccount();
+  const steward = useStewardStatus(); // Steward Console appears only for set-up land stewards
   const { connect, connectors } = useConnect();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -387,6 +389,11 @@ function App() {
     }
   }, [isDark]);
 
+  // never strand a wallet on the Steward Console after it loses eligibility
+  useEffect(() => {
+    if (activeTab === '_steward' && !steward.eligible && !steward.loading) setActiveTab('_land');
+  }, [activeTab, steward.eligible, steward.loading]);
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
       id: '_swap',
@@ -408,11 +415,12 @@ function App() {
       label: '_land',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
     },
-    {
-      id: '_steward',
+    // Steward Console only appears for a connected wallet that stewards a set-up Land.
+    ...(steward.eligible ? [{
+      id: '_steward' as Tab,
       label: '_steward',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-    },
+    }] : []),
   ];
 
   // NOTE: Lock screen removed from blocking the main UI
@@ -806,11 +814,21 @@ function App() {
                     )}
                     {activeTab === '_steward' && (
                       <Suspense fallback={<PanelSkeleton />}>
-                        <StewardConsole />
+                        <StewardConsole landName={steward.landName} landAddress={steward.landAddress} onOpenLand={() => setActiveTab('_land')} />
                       </Suspense>
                     )}
                     {activeTab === '_land' && (
                       <div className="space-y-4">
+                        {steward.eligible && (
+                          <button onClick={() => setActiveTab('_steward')}
+                            className="w-full flex items-center justify-between rounded-xl border px-4 py-3 transition-colors"
+                            style={{ borderColor: '#D6FE5155', background: '#D6FE510d' }}>
+                            <span className="text-sm" style={{ color: '#D6FE51' }}>
+                              🌱 You steward{steward.landName ? ` ${steward.landName}` : ' this land'} — open your Steward Console
+                            </span>
+                            <span className="text-xs" style={{ color: '#D6FE51' }}>Regenerative Liquidity →</span>
+                          </button>
+                        )}
                         <div className="flex items-center gap-3">
                           <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · Land Map</span>
                           <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
