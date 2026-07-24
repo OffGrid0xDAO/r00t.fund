@@ -138,4 +138,25 @@ contract RegenArbHookZkParcelTest is Test {
         // captured spread reached the parcel regen treasury in R00T
         assertGt(root.balanceOf(treasury), treRoot0, "regen treasury funded by the shielded-pool arb");
     }
+
+    /// the KEY scenario: NO public Uniswap swap at all — a poke() (as the pool/keeper would after a
+    /// private trade) triggers the SAME cross-pool arb atomically.
+    function test_poke_rebalances_with_no_public_swap() public {
+        adapter.setArbKey(key);
+        (uint256 pr0, uint256 pp0) = pool.getReserves();
+        uint256 treRoot0 = root.balanceOf(treasury);
+
+        adapter.poke(); // no swapRouter.swap anywhere
+
+        (uint256 pr1, uint256 pp1) = pool.getReserves();
+        assertTrue(pr1 != pr0 || pp1 != pp0, "shielded reserves rebalanced from a poke, no public swap");
+        assertGt(root.balanceOf(treasury), treRoot0, "treasury funded by the poke-triggered arb");
+    }
+
+    /// rebalance() is gated to THIS market's private pool (the adapter) + governance — nobody else.
+    function test_rebalance_access_control() public {
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert(bytes("not this market's pool"));
+        hook.rebalance(key);
+    }
 }

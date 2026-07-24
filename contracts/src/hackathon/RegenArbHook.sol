@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IHooks} from "v4-core/interfaces/IHooks.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
@@ -25,14 +26,13 @@ import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 /// @dev Currency-agnostic: the arb math (`computeArb`) works on generic reserves, so a new parcel or
 ///      the base R00T market just `register()`s its pool. Deployed once at a mined CREATE2 address
 ///      (afterSwap flag). See ../../../hackathon/DESIGN.md + INFRA.md.
-contract RegenArbHook is IHooks {
+contract RegenArbHook is IHooks, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;   // native-ETH-aware transfer
     using CurrencySettler for Currency;   // native-ETH-aware settle
 
-    uint256 private _locked = 1;
-    modifier nonReentrant() { require(_locked == 1, "reentrant"); _locked = 2; _; _locked = 1; }
+    uint256 private _locked = 1; // 1 = idle, 2 = mid-arb (skip the hook on our own nested swaps)
 
     struct MarketConfig {
         IPrivatePool privatePool; // the shielded pool for the SAME pair (R00T/ETH or parcel/R00T)
@@ -49,7 +49,8 @@ contract RegenArbHook is IHooks {
     mapping(PoolId => MarketConfig) public configs;
 
     uint256 public constant SYNC_THRESHOLD_BPS = 30;   // arb only when pools diverge > 0.30%
-    uint256 public constant MAX_REBALANCE_BPS  = 500;  // cap one arb to 5% of the private reserve
+    uint256 public constant MAX_REBALANCE_BPS  = 500;  // default per-arb cap = 5% of the private reserve
+    uint256 public maxRebalanceBps = 500;              // governance-tunable per-arb cap (bps)
     uint256 private constant BPS = 10_000;
     uint256 private constant WAD = 1e18;
 
@@ -108,6 +109,13 @@ contract RegenArbHook is IHooks {
     function computeArb(uint256 uniPriceE18, uint256 r0, uint256 r1)
         public pure returns (bool doArb, bool privZeroForOne, uint256 amountIn)
     {
+        return computeArb(uniPriceE18, r0, r1, MAX_REBALANCE_BPS);
+    }
+
+    /// @param maxBps per-arb cap as bps of the private currency0 reserve (governance-tunable in prod).
+    function computeArb(uint256 uniPriceE18, uint256 r0, uint256 r1, uint256 maxBps)
+        public pure returns (bool doArb, bool privZeroForOne, uint256 amountIn)
+    {
         if (r0 == 0 || r1 == 0 || uniPriceE18 == 0) return (false, false, 0);
         uint256 privPriceE18 = (r1 * WAD) / r0;                 // currency1 per currency0 on the private pool
 
@@ -122,7 +130,7 @@ contract RegenArbHook is IHooks {
             // currency0 dearer on Uni → cheaper on private → BUY currency0 on private (sell currency1 in)
             if (r0target >= r0) return (false, false, 0);
             uint256 out0 = r0 - r0target;
-            cap = (r0 * MAX_REBALANCE_BPS) / BPS;
+            cap = (r0 * maxBps) / BPS;
             if (out0 > cap) { out0 = cap; r0target = r0 - out0; }
             amountIn = (k / r0target) - r1;                     // currency1 sold into private
             privZeroForOne = false;
@@ -131,7 +139,7 @@ contract RegenArbHook is IHooks {
             // currency0 cheaper on Uni → dearer on private → SELL currency0 into private
             if (r0target <= r0) return (false, false, 0);
             uint256 in0 = r0target - r0;
-            cap = (r0 * MAX_REBALANCE_BPS) / BPS;
+            cap = (r0 * maxBps) / BPS;
             if (in0 > cap) in0 = cap;
             amountIn = in0;                                     // currency0 sold into private
             privZeroForOne = true;
@@ -139,29 +147,69 @@ contract RegenArbHook is IHooks {
         }
     }
 
+    /// @notice Tune the per-arb cap (bps of a reserve) without redeploying. Deployer/governance only.
+    function setMaxRebalanceBps(uint256 bps) external {
+        if (msg.sender != deployer) revert NotLaunchpad();
+        require(bps > 0 && bps <= 2_000, "1..2000 bps"); // <=20% keeps per-swap impact + inventory sane
+        maxRebalanceBps = bps;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────────────────────
-    // the only active hook — back-run each swap with the real cross-pool arb
+    // triggers — back-run a PUBLIC swap (afterSwap) OR a permissionless keeper/private-pool poke
+    // (rebalance). Both run the SAME cross-pool arb. `_locked` skips the hook on our own nested swaps.
     // ─────────────────────────────────────────────────────────────────────────────────────────────
     function afterSwap(
         address, PoolKey calldata key, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata
-    ) external onlyPoolManager nonReentrant returns (bytes4, int128) {
+    ) external onlyPoolManager returns (bytes4, int128) {
+        if (_locked == 1) { _locked = 2; _maybeArb(key); _locked = 1; }
+        return (IHooks.afterSwap.selector, int128(0));
+    }
+
+    /// @notice Permissionless poke: re-sync the pools even with NO public Uniswap swap — e.g. right
+    ///         after someone trades on the PRIVATE pool. The private pool (or a keeper / the AgentKit
+    ///         steward-agent, or any searcher) calls this; it unlocks the PoolManager and runs the arb
+    ///         (buy the cheap side on one pool, sell dear on the other) ATOMICALLY. Safe for anyone to
+    ///         call: it only converges the two prices and routes the captured spread to the treasury.
+    function rebalance(PoolKey calldata key) external {
         MarketConfig memory cfg = configs[key.toId()];
-        if (!cfg.registered) return (IHooks.afterSwap.selector, int128(0));
+        // only THIS market's own private pool (the shielded zkAMM/ZkParcelPool, via its adapter) may
+        // poke it — plus the launchpad/deployer as a governance keeper fallback. So a parcel pool can
+        // only ever trigger the arb for ITS OWN pool, never another market's.
+        require(
+            msg.sender == address(cfg.privatePool) || msg.sender == launchpad || msg.sender == deployer,
+            "not this market's pool"
+        );
+        require(_locked == 1, "reentrant");
+        _locked = 2;
+        poolManager.unlock(abi.encode(key)); // → unlockCallback → _maybeArb
+        _locked = 1;
+    }
+
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != address(poolManager)) revert NotPoolManager();
+        _maybeArb(abi.decode(data, (PoolKey)));
+        return "";
+    }
+
+    /// @dev The shared arb decision + execution. Assumes the PoolManager is unlocked (true inside both
+    ///      afterSwap and the rebalance() unlock).
+    function _maybeArb(PoolKey memory key) internal {
+        MarketConfig memory cfg = configs[key.toId()];
+        if (!cfg.registered) return;
 
         uint256 uniPriceE18 = _uniPriceE18(key);
         (uint256 r0, uint256 r1) = cfg.privatePool.getReserves();
-        (bool doArb, bool privZeroForOne, uint256 amountIn) = computeArb(uniPriceE18, r0, r1);
-        if (!doArb) { emit SyncSkipped(cfg.marketId, uniPriceE18, r0 == 0 ? 0 : (r1 * WAD) / r0); return (IHooks.afterSwap.selector, int128(0)); }
+        (bool doArb, bool privZeroForOne, uint256 amountIn) = computeArb(uniPriceE18, r0, r1, maxRebalanceBps);
+        if (!doArb) { emit SyncSkipped(cfg.marketId, uniPriceE18, r0 == 0 ? 0 : (r1 * WAD) / r0); return; }
 
         _executeArb(key, cfg, privZeroForOne, amountIn, uniPriceE18, (r1 * WAD) / r0);
-        return (IHooks.afterSwap.selector, int128(0));
     }
 
     /// @dev The real two-leg arb. Uses the hook's small inventory for the private leg; the Uniswap
     ///      leg replenishes it + the spread. Both directions. Never reverts the user swap: if the
     ///      round-trip nets <= 0 (shouldn't past the threshold+cap), it just skips the treasury sweep.
     function _executeArb(
-        PoolKey calldata key, MarketConfig memory cfg, bool privZeroForOne, uint256 amountIn,
+        PoolKey memory key, MarketConfig memory cfg, bool privZeroForOne, uint256 amountIn,
         uint256 uniPriceE18, uint256 privPriceE18
     ) internal {
         Currency c0 = key.currency0;
@@ -220,7 +268,7 @@ contract RegenArbHook is IHooks {
     ///      convert via one small swap on the same Uniswap pool so the treasury only ever grows in its
     ///      chosen numeraire (e.g. always WETH for the base R00T/ETH market).
     function _payTreasury(
-        PoolKey calldata key, MarketConfig memory cfg, Currency profitCcy, uint256 profit,
+        PoolKey memory key, MarketConfig memory cfg, Currency profitCcy, uint256 profit,
         uint256 uniPriceE18, uint256 privPriceE18
     ) internal {
         if (Currency.unwrap(profitCcy) == Currency.unwrap(cfg.treasuryCurrency)) {
@@ -251,7 +299,7 @@ contract RegenArbHook is IHooks {
     }
 
     /// @dev Uniswap price = currency1 per currency0, 1e18, from slot0 sqrtPriceX96.
-    function _uniPriceE18(PoolKey calldata key) internal view returns (uint256) {
+    function _uniPriceE18(PoolKey memory key) internal view returns (uint256) {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
         // price1/0 = (sqrtP/2^96)^2. Do it in two mulDivs to hold precision without overflow.
         uint256 p = FullMath.mulDiv(uint256(sqrtPriceX96), uint256(sqrtPriceX96), FixedPoint96.Q96);
