@@ -34,6 +34,7 @@ contract RegenArbHook is IHooks {
     struct MarketConfig {
         IPrivatePool privatePool; // the shielded pool for the SAME pair (R00T/ETH or parcel/R00T)
         address regenTreasury;    // where the captured spread goes
+        Currency treasuryCurrency;// the numeraire the treasury accrues (WETH for base, R00T for parcels)
         bytes32 marketId;         // parcelId, or a sentinel for the base R00T market
         bool registered;
     }
@@ -64,9 +65,20 @@ contract RegenArbHook is IHooks {
     }
 
     /// @notice Wire a market's Uniswap pool to its private pool + regen treasury. onlyLaunchpad.
-    function register(PoolKey calldata key, IPrivatePool privatePool, address regenTreasury, bytes32 marketId) external {
+    /// @param treasuryCurrency the numeraire the treasury should accrue (must be one of the pair's
+    ///        currencies) — WETH for the base R00T/ETH market, R00T for parcel/R00T markets. When an
+    ///        arb naturally yields the OTHER currency, the hook converts it so the treasury only ever
+    ///        grows in this asset.
+    function register(
+        PoolKey calldata key, IPrivatePool privatePool, address regenTreasury, Currency treasuryCurrency, bytes32 marketId
+    ) external {
         if (msg.sender != launchpad) revert NotLaunchpad();
-        configs[key.toId()] = MarketConfig(privatePool, regenTreasury, marketId, true);
+        require(
+            Currency.unwrap(treasuryCurrency) == Currency.unwrap(key.currency0) ||
+            Currency.unwrap(treasuryCurrency) == Currency.unwrap(key.currency1),
+            "treasuryCurrency not in pair"
+        );
+        configs[key.toId()] = MarketConfig(privatePool, regenTreasury, treasuryCurrency, marketId, true);
         emit MarketRegistered(key.toId(), marketId, address(privatePool), regenTreasury);
     }
 
@@ -155,9 +167,8 @@ contract RegenArbHook is IHooks {
             uint256 uniOut1 = uint256(int256(d.amount1()));               // currency1 we're owed
             poolManager.take(c1, address(this), uniOut1);
             if (uniOut1 > amountIn) {
-                uint256 profit = uniOut1 - amountIn;
-                IERC20Minimal(Currency.unwrap(c1)).transfer(cfg.regenTreasury, profit);
-                emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
+                uint256 profit = uniOut1 - amountIn;                      // surplus, held in c1
+                _payTreasury(key, cfg, c1, profit, uniPriceE18, privPriceE18);
             }
         } else {
             // uni prices currency0 CHEAPER → sell currency0 into private, buy currency0 on uni. profit in currency0.
@@ -172,11 +183,40 @@ contract RegenArbHook is IHooks {
             uint256 uniOut0 = uint256(int256(d.amount0()));
             poolManager.take(c0, address(this), uniOut0);
             if (uniOut0 > amountIn) {
-                uint256 profit = uniOut0 - amountIn;
-                IERC20Minimal(Currency.unwrap(c0)).transfer(cfg.regenTreasury, profit);
-                emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
+                uint256 profit = uniOut0 - amountIn;                      // surplus, held in c0
+                _payTreasury(key, cfg, c0, profit, uniPriceE18, privPriceE18);
             }
         }
+    }
+
+    /// @dev Deliver the captured `profit` (held by the hook in `profitCcy`) to the regen treasury,
+    ///      denominated in `cfg.treasuryCurrency`. If they already match, transfer directly; otherwise
+    ///      convert via one small swap on the same Uniswap pool so the treasury only ever grows in its
+    ///      chosen numeraire (e.g. always WETH for the base R00T/ETH market).
+    function _payTreasury(
+        PoolKey calldata key, MarketConfig memory cfg, Currency profitCcy, uint256 profit,
+        uint256 uniPriceE18, uint256 privPriceE18
+    ) internal {
+        if (Currency.unwrap(profitCcy) == Currency.unwrap(cfg.treasuryCurrency)) {
+            IERC20Minimal(Currency.unwrap(profitCcy)).transfer(cfg.regenTreasury, profit);
+            emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
+            return;
+        }
+        // convert profit -> treasuryCurrency on the same pool, sending the output straight to treasury
+        bool zeroForOne = Currency.unwrap(profitCcy) == Currency.unwrap(key.currency0); // selling currency0?
+        BalanceDelta d = poolManager.swap(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(profit),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            ""
+        );
+        _settle(profitCcy, profit);
+        uint256 outT = zeroForOne ? uint256(int256(d.amount1())) : uint256(int256(d.amount0()));
+        poolManager.take(cfg.treasuryCurrency, cfg.regenTreasury, outT);
+        emit SpreadCaptured(cfg.marketId, outT, uniPriceE18, privPriceE18);
     }
 
     /// @dev Pay `amount` of `c` we owe the pool (v4 sync/transfer/settle).

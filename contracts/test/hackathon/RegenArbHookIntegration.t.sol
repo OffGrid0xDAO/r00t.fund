@@ -84,8 +84,10 @@ contract RegenArbHookIntegrationTest is Test {
         priv.seed(2_000e18, 1_000e18);   // r0=2000, r1=1000 → private price 0.5
         priv.setRebalancer(address(hook));
 
-        // wire the market to the hook + give the hook working inventory (currency1 for this direction)
-        hook.register(key, IPrivatePool(address(priv)), treasury, bytes32("CACTUS"));
+        // wire the market to the hook + give the hook working inventory (currency1 for this direction).
+        // treasuryCurrency = currency0 = the "ETH"/numeraire: even though this direction's raw arb
+        // profit lands in currency1, the hook converts it so the treasury only ever accrues currency0.
+        hook.register(key, IPrivatePool(address(priv)), treasury, Currency.wrap(address(t0)), bytes32("CACTUS"));
         t1.mint(address(hook), 500e18);
 
         // approvals for the user swap
@@ -97,6 +99,7 @@ contract RegenArbHookIntegrationTest is Test {
         uint256 privP0 = _privPrice();
         uint256 uniP0 = _uniPrice();
         assertLt(privP0, uniP0, "setup: private cheaper for currency0");
+        assertEq(t0.balanceOf(treasury), 0, "treasury starts empty");
         assertEq(t1.balanceOf(treasury), 0, "treasury starts empty");
 
         // a small user swap on the public pool → fires afterSwap → the hook arbs
@@ -107,8 +110,10 @@ contract RegenArbHookIntegrationTest is Test {
             ""
         );
 
-        // 1) spread captured → treasury grew
-        assertGt(t1.balanceOf(treasury), 0, "regen treasury must receive the captured spread");
+        // 1) spread captured → treasury grew, and ONLY in the numeraire (currency0 / "ETH"),
+        //    even though this arb direction's raw profit was in currency1 (auto-converted).
+        assertGt(t0.balanceOf(treasury), 0, "regen treasury must receive the spread in the numeraire (ETH)");
+        assertEq(t1.balanceOf(treasury), 0, "treasury must NOT hold the token leg - converted to numeraire");
         // 2) private pool converged toward the uni price
         uint256 privP1 = _privPrice();
         assertGt(privP1, privP0, "private price must rise toward uni");

@@ -3,11 +3,14 @@ pragma solidity ^0.8.24;
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {Currency} from "v4-core/types/Currency.sol";
 
 import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 
 interface IRegenArbHook {
-    function register(PoolKey calldata key, IPrivatePool zkAMM, address regenTreasury, bytes32 parcelId) external;
+    function register(
+        PoolKey calldata key, IPrivatePool zkAMM, address regenTreasury, Currency treasuryCurrency, bytes32 parcelId
+    ) external;
 }
 
 /// @title RegenLaunchpad  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE)
