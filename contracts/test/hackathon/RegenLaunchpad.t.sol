@@ -53,7 +53,7 @@ contract RegenLaunchpadTest is Test {
         hook = RegenArbHook(payable(hookAddr));
 
         root = new TestToken("r00t.fund", "ROOT");
-        launchpad = new RegenLaunchpad(manager, IRegenArbHook(hookAddr), root, reserve);
+        launchpad = new RegenLaunchpad(manager, IRegenArbHook(hookAddr), root, reserve, address(0));
         hook.setLaunchpad(address(launchpad)); // resolve the cycle
 
         parcel = new TestToken("Oak Parcel", "OAK");

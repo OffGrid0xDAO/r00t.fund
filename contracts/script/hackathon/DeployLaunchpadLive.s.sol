@@ -51,7 +51,8 @@ contract DeployLaunchpadLive is Script {
         require(address(hook) == hookAddr, "hook addr mismatch");
 
         // launchpad (protocolReserve = me supplies the R00T side of pool liquidity)
-        RegenLaunchpad launchpad = new RegenLaunchpad(manager, IRegenArbHook(hookAddr), root, me);
+        // gatekeeper = address(0) here (open); the World-gated deploy passes a real StewardGatekeeper.
+        RegenLaunchpad launchpad = new RegenLaunchpad(manager, IRegenArbHook(hookAddr), root, me, vm.envOr("STEWARD_GATEKEEPER", address(0)));
         hook.setLaunchpad(address(launchpad));
 
         // fund + approvals

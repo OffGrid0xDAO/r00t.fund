@@ -23,6 +23,10 @@ interface IRegenArbHook {
     ) external;
 }
 
+interface IStewardGatekeeper {
+    function isEligibleSteward(address who) external view returns (bool);
+}
+
 /// @title RegenLaunchpad  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE)
 /// @notice Steward-facing orchestrator for launching a parcel token against $R00T. A steward escrows
 ///         the parcel supply and opens a Continuous Clearing Auction (CCA); backers bid R00T. Then
@@ -43,6 +47,7 @@ contract RegenLaunchpad is IUnlockCallback {
     IRegenArbHook public immutable hook;      // the ONE shared hook
     IERC20 public immutable root;             // $R00T — the numeraire every parcel trades against
     address public immutable protocolReserve; // supplies the R00T side of the seeded pool liquidity
+    IStewardGatekeeper public immutable gatekeeper; // World-ID steward gate; address(0) = open (tests)
 
     uint24 public constant FEE = 3000;
     int24 public constant TICK_SPACING = 60;
@@ -85,11 +90,12 @@ contract RegenLaunchpad is IUnlockCallback {
     error NothingToClaim();
     error NotPoolManager();
 
-    constructor(IPoolManager _pm, IRegenArbHook _hook, IERC20 _root, address _protocolReserve) {
+    constructor(IPoolManager _pm, IRegenArbHook _hook, IERC20 _root, address _protocolReserve, address _gatekeeper) {
         poolManager = _pm;
         hook = _hook;
         root = _root;
         protocolReserve = _protocolReserve;
+        gatekeeper = IStewardGatekeeper(_gatekeeper);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -109,6 +115,9 @@ contract RegenLaunchpad is IUnlockCallback {
         Parcel storage p = parcels[parcelId];
         if (p.phase != Phase.None) revert AlreadyExists();
         require(saleTokens > 0 && poolTokens > 0 && reservePriceR00T > 0 && window > 0, "bad params");
+        // World gate: only a verified unique human (PoH + Selfie + Identity) — or their human-backed
+        // agent — may open a parcel. Disabled when no gatekeeper is set (address(0)).
+        if (address(gatekeeper) != address(0)) require(gatekeeper.isEligibleSteward(msg.sender), "steward not World-verified");
 
         parcelToken.safeTransferFrom(msg.sender, address(this), saleTokens + poolTokens);
 
