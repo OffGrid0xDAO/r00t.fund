@@ -57,6 +57,42 @@ export const stats = onchainTable("stats", (t) => ({
   updatedAt: t.bigint().notNull(),
 }));
 
+// ── ETHGlobal hackathon: Uniswap v4 markets on Sepolia (R00T/ETH, R00T/OAK, …) ──
+// One row per PUBLIC v4 swap, keyed by market. price1e18 = currency1 per currency0 (from
+// sqrtPriceX96); the frontend orients it per market. Powers the pair-selectable price chart.
+export const v4Trades = onchainTable(
+  "v4_trades",
+  (t) => ({
+    id: t.text().primaryKey(), // txHash-logIndex
+    market: t.text().notNull(), // 'oak' | 'roeth' | …
+    poolId: t.text().notNull(),
+    price1e18: t.text().notNull(),
+    amount0: t.text().notNull(),
+    amount1: t.text().notNull(),
+    tick: t.integer().notNull(),
+    blockNumber: t.bigint().notNull(),
+    timestamp: t.bigint().notNull(),
+    transactionHash: t.text().notNull(),
+  }),
+  (table) => ({ marketIdx: index("v4_trades_market_idx").on(table.market) })
+);
+
+// One row per real cross-pool rebalance (hook SpreadCaptured) — carries BOTH pool prices.
+export const v4Arbs = onchainTable(
+  "v4_arbs",
+  (t) => ({
+    id: t.text().primaryKey(),
+    market: t.text().notNull(),
+    profit: t.text().notNull(),
+    uniPrice1e18: t.text().notNull(),
+    privPrice1e18: t.text().notNull(),
+    blockNumber: t.bigint().notNull(),
+    timestamp: t.bigint().notNull(),
+    transactionHash: t.text().notNull(),
+  }),
+  (table) => ({ marketIdx: index("v4_arbs_market_idx").on(table.market) })
+);
+
 // Merkle tree state - stores the full tree for proof generation
 export const merkleTreeState = onchainTable("merkle_tree_state", (t) => ({
   id: t.text().primaryKey(), // contract address

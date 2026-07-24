@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 import { formatEther, formatUnits } from "viem";
 import { buildPoseidon } from "circomlibjs";
-import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats, pledgeCommitments, pledgeNullifiers, pledgeClaims } from "../ponder.schema";
+import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats, pledgeCommitments, pledgeNullifiers, pledgeClaims, v4Trades, v4Arbs } from "../ponder.schema";
 
 // Pledge vault indexing only registers when a real address is wired (matches the
 // PLEDGE_ENABLED guard in ponder.config.ts). Registering ponder.on() handlers for
@@ -426,6 +426,10 @@ async function handleTokensSold({ event, context }: any) {
   await updatePoolState(context, PAIR_ADDRESS, event.block.number, event.block.timestamp);
 }
 
+// The RH/prod ZkAMM handlers — NOT registered on the hackathon (Sepolia v4) network,
+// whose config has no ZkAMM contracts (registering unconfigured contracts makes Ponder throw).
+const IS_HACKATHON = process.env.PONDER_NETWORK === "hackathon";
+if (!IS_HACKATHON) {
 // Router trade events (regular swaps)
 ponder.on("ZkAMMWithToken:TokensPurchased", handleTokensPurchased);
 ponder.on("ZkAMMWithToken:TokensSold", handleTokensSold);
@@ -665,9 +669,58 @@ ponder.on("ZkAMMPair:LPNullifierSpent", async ({ event, context }) => {
   });
 });
 
+} // end !IS_HACKATHON (RH/prod ZkAMM handlers)
+
+// ── ETHGlobal hackathon: Uniswap v4 markets on Sepolia — price series + rebalance events ──
+if (IS_HACKATHON) {
+  const V4_MARKET_BY_POOLID: Record<string, string> = {
+    "0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289": "oak",
+    "0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482": "roeth",
+  };
+  const V4_MARKET_BY_HOOK: Record<string, string> = {
+    "0x259083118770202ef1ec4d36db321f6abd24c040": "oak",
+    "0x075211f56d5349bc9da2331d3738be4bfd568040": "roeth",
+  };
+
+  // each PUBLIC v4 swap → one price point (currency1 per currency0, 1e18) from sqrtPriceX96
+  ponder.on("PoolManagerV4:Swap", async ({ event, context }: any) => {
+    const market = V4_MARKET_BY_POOLID[String(event.args.id).toLowerCase()];
+    if (!market) return;
+    const sp = BigInt(event.args.sqrtPriceX96);
+    const price1e18 = (sp * sp * (10n ** 18n)) >> 192n; // (sqrtP/2^96)^2 * 1e18
+    await context.db.insert(v4Trades).values({
+      id: `${event.transaction.hash}-${event.log.logIndex}`,
+      market,
+      poolId: String(event.args.id),
+      price1e18: price1e18.toString(),
+      amount0: event.args.amount0.toString(),
+      amount1: event.args.amount1.toString(),
+      tick: Number(event.args.tick),
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    });
+  });
+
+  // each real cross-pool rebalance (hook SpreadCaptured) → both pool prices at that moment
+  ponder.on("RegenArbHook:SpreadCaptured", async ({ event, context }: any) => {
+    const market = V4_MARKET_BY_HOOK[String(event.log.address).toLowerCase()] || "unknown";
+    await context.db.insert(v4Arbs).values({
+      id: `${event.transaction.hash}-${event.log.logIndex}`,
+      market,
+      profit: event.args.profit.toString(),
+      uniPrice1e18: event.args.uniPriceE18.toString(),
+      privPrice1e18: event.args.privPriceE18.toString(),
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    });
+  });
+}
+
 // Pledge vault handlers — only registered when the pledge address is wired
 // (Phase C). Registering handlers for an unconfigured contract makes Ponder throw.
-if (PLEDGE_ENABLED) {
+if (PLEDGE_ENABLED && !IS_HACKATHON) {
   // LandVault: Funded → tree insert; both claim events → nullifier spend.
   ponder.on("PledgeVault:Funded", handlePledgeCommitment);
   ponder.on("PledgeVault:ClaimedR00T", handlePledgeClaimed);

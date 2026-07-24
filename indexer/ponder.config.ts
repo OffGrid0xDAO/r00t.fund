@@ -2,9 +2,21 @@ import { createConfig, rateLimit } from "@ponder/core";
 import { http } from "viem";
 
 import { ZkAMMWithTokenAbi } from "./abis/ZkAMMWithToken";
+import { PoolManagerV4Abi, RegenArbHookAbi } from "./abis/RegenV4";
 
 // Environment-based network selection
 const NETWORK = process.env.PONDER_NETWORK || "sepolia"; // Default to sepolia for testing
+
+// ── ETHGlobal hackathon: Uniswap v4 markets on Ethereum Sepolia (11155111) ──
+// Run a dedicated instance with PONDER_NETWORK=hackathon (separate from the RH prod indexer).
+const HACKATHON_RPC = process.env.PONDER_RPC_URL_11155111 || "https://eth-sepolia.g.alchemy.com/v2/demo";
+const HACKATHON_START_BLOCK = Number(process.env.PONDER_HACKATHON_START_BLOCK || 11343000);
+const HACKATHON_POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"; // canonical Sepolia v4 PoolManager
+// market poolIds (v4) + their RegenArbHook (each emits SpreadCaptured for its market)
+const OAK_POOL_ID = "0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289";
+const OAK_HOOK = "0x259083118770202EF1eC4d36Db321F6aBd24C040";
+const ROETH_POOL_ID = "0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482";
+const ROETH_HOOK = "0x075211F56D5349bC9da2331D3738BE4bFd568040";
 
 // Arbitrum mainnet config
 const ARBITRUM_FIRST_BLOCK = 420982912;
@@ -182,6 +194,14 @@ export default createConfig({
         pollingInterval: 2_000,
       },
     }),
+    ...(NETWORK === "hackathon" && {
+      hackathon: {
+        chainId: 11155111,
+        transport: rateLimit(http(HACKATHON_RPC), { requestsPerSecond: Number(process.env.PONDER_RPS) || 5 }),
+        pollingInterval: 12_000, // Sepolia ~12s blocks
+        maxRequestsPerSecond: Number(process.env.PONDER_RPS) || 5,
+      },
+    }),
     ...(NETWORK === "robinhood" && {
       robinhood: {
         chainId: 4663,
@@ -195,13 +215,32 @@ export default createConfig({
     }),
   },
   contracts: {
-    // ZkAMM Router - handles trades, LP operations
-    ZkAMMWithToken: {
-      network: NETWORK === "arbitrum" ? "arbitrum" : NETWORK === "tenderly" ? "tenderly" : NETWORK === "robinhood" ? "robinhood" : "sepolia",
-      abi: ZkAMMWithTokenAbi,
-      address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : NETWORK === "tenderly" ? TENDERLY_ZKAMM_ADDRESS : NETWORK === "robinhood" ? ROBINHOOD_ZKAMM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
-      startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : NETWORK === "robinhood" ? ROBINHOOD_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
-    },
+    // ── ETHGlobal hackathon (Sepolia v4): public trade prices + hook rebalances per market ──
+    ...(NETWORK === "hackathon" && {
+      PoolManagerV4: {
+        network: "hackathon",
+        abi: PoolManagerV4Abi,
+        address: HACKATHON_POOL_MANAGER as `0x${string}`,
+        startBlock: HACKATHON_START_BLOCK,
+        // only our markets' swaps (id = poolId, indexed) — not all of Sepolia v4
+        filter: { event: "Swap", args: { id: [OAK_POOL_ID, ROETH_POOL_ID] } },
+      },
+      RegenArbHook: {
+        network: "hackathon",
+        abi: RegenArbHookAbi,
+        address: [OAK_HOOK, ROETH_HOOK] as `0x${string}`[],
+        startBlock: HACKATHON_START_BLOCK,
+      },
+    }),
+    // ZkAMM Router - handles trades, LP operations (RH/arbitrum/sepolia/tenderly prod stack)
+    ...(NETWORK !== "hackathon" && {
+      ZkAMMWithToken: {
+        network: NETWORK === "arbitrum" ? "arbitrum" : NETWORK === "tenderly" ? "tenderly" : NETWORK === "robinhood" ? "robinhood" : "sepolia",
+        abi: ZkAMMWithTokenAbi,
+        address: NETWORK === "arbitrum" ? ARBITRUM_ADDRESS : NETWORK === "tenderly" ? TENDERLY_ZKAMM_ADDRESS : NETWORK === "robinhood" ? ROBINHOOD_ZKAMM_ADDRESS : SEPOLIA_ZKAMM_ADDRESS,
+        startBlock: NETWORK === "arbitrum" ? ARBITRUM_FIRST_BLOCK : NETWORK === "tenderly" ? TENDERLY_FIRST_BLOCK : NETWORK === "robinhood" ? ROBINHOOD_FIRST_BLOCK : SEPOLIA_FIRST_BLOCK,
+      },
+    }),
     // ZkAMMPair - handles token AND LP commitments
     // NewCommitment, NewLPCommitment, NullifierSpent, LPNullifierSpent all come from Pair
     ...((NETWORK === "sepolia" || NETWORK === "tenderly" || NETWORK === "robinhood") && {
