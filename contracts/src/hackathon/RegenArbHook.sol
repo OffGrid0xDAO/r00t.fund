@@ -7,7 +7,8 @@ import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "v4-core/types/BeforeSwapDelta.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
+import {CurrencySettler} from "v4-core-test/utils/CurrencySettler.sol";
 import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {FullMath} from "v4-core/libraries/FullMath.sol";
@@ -27,6 +28,8 @@ import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 contract RegenArbHook is IHooks {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
+    using CurrencyLibrary for Currency;   // native-ETH-aware transfer
+    using CurrencySettler for Currency;   // native-ETH-aware settle
 
     uint256 private _locked = 1;
     modifier nonReentrant() { require(_locked == 1, "reentrant"); _locked = 2; _; _locked = 1; }
@@ -164,8 +167,7 @@ contract RegenArbHook is IHooks {
         if (!privZeroForOne) {
             // uni prices currency0 DEARER → buy currency0 cheap on private (sell currency1 in),
             // then sell that currency0 on uni for currency1. profit in currency1.
-            IERC20Minimal(Currency.unwrap(c1)).approve(address(cfg.privatePool), amountIn);
-            uint256 out0 = cfg.privatePool.rebalanceSwap(false, amountIn); // hook: -amountIn c1, +out0 c0
+            uint256 out0 = _privateLeg(cfg.privatePool, false, amountIn, c1); // -amountIn c1, +out0 c0
             BalanceDelta d = poolManager.swap(
                 key,
                 IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -int256(out0), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1 }),
@@ -180,8 +182,7 @@ contract RegenArbHook is IHooks {
             }
         } else {
             // uni prices currency0 CHEAPER → sell currency0 into private, buy currency0 on uni. profit in currency0.
-            IERC20Minimal(Currency.unwrap(c0)).approve(address(cfg.privatePool), amountIn);
-            uint256 out1 = cfg.privatePool.rebalanceSwap(true, amountIn); // hook: -amountIn c0, +out1 c1
+            uint256 out1 = _privateLeg(cfg.privatePool, true, amountIn, c0); // -amountIn c0, +out1 c1
             BalanceDelta d = poolManager.swap(
                 key,
                 IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -int256(out1), sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1 }),
@@ -197,6 +198,20 @@ contract RegenArbHook is IHooks {
         }
     }
 
+    /// @dev Run the private-pool leg. If the input currency is native ETH, forward it as msg.value;
+    ///      otherwise approve the pool to pull the ERC20. Works for both RegenPrivatePool and the real
+    ///      ZkAMMPair adapter.
+    function _privateLeg(IPrivatePool pool, bool zeroForOne, uint256 amountIn, Currency inputCcy)
+        internal returns (uint256 amountOut)
+    {
+        if (inputCcy.isAddressZero()) {
+            amountOut = pool.rebalanceSwap{value: amountIn}(zeroForOne, amountIn);
+        } else {
+            IERC20Minimal(Currency.unwrap(inputCcy)).approve(address(pool), amountIn);
+            amountOut = pool.rebalanceSwap(zeroForOne, amountIn);
+        }
+    }
+
     /// @dev Deliver the captured `profit` (held by the hook in `profitCcy`) to the regen treasury,
     ///      denominated in `cfg.treasuryCurrency`. If they already match, transfer directly; otherwise
     ///      convert via one small swap on the same Uniswap pool so the treasury only ever grows in its
@@ -206,7 +221,7 @@ contract RegenArbHook is IHooks {
         uint256 uniPriceE18, uint256 privPriceE18
     ) internal {
         if (Currency.unwrap(profitCcy) == Currency.unwrap(cfg.treasuryCurrency)) {
-            IERC20Minimal(Currency.unwrap(profitCcy)).transfer(cfg.regenTreasury, profit);
+            profitCcy.transfer(cfg.regenTreasury, profit); // native-ETH-aware
             emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
             return;
         }
@@ -227,11 +242,9 @@ contract RegenArbHook is IHooks {
         emit SpreadCaptured(cfg.marketId, outT, uniPriceE18, privPriceE18);
     }
 
-    /// @dev Pay `amount` of `c` we owe the pool (v4 sync/transfer/settle).
+    /// @dev Pay `amount` of `c` we owe the pool. Native-ETH-aware (settle{value} vs sync/transfer).
     function _settle(Currency c, uint256 amount) internal {
-        poolManager.sync(c);
-        IERC20Minimal(Currency.unwrap(c)).transfer(address(poolManager), amount);
-        poolManager.settle();
+        c.settle(poolManager, address(this), amount, false);
     }
 
     /// @dev Uniswap price = currency1 per currency0, 1e18, from slot0 sqrtPriceX96.
