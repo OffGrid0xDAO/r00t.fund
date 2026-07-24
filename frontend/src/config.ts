@@ -181,6 +181,32 @@ export const CONTRACTS = {
   compliantPrivateVault: FALLBACK.compliantPrivateVault,
 } as const;
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// HACKATHON (ETHGlobal Lisbon 2026) — Regenerative Liquidity stack LIVE on Ethereum Sepolia.
+// The Steward Console reads/writes these. Separate from the RH production stack above.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+export const HACKATHON = {
+  chainId: 11155111,
+  rpcUrl: (import.meta.env.VITE_SEPOLIA_RPC as string) || 'https://eth-sepolia.g.alchemy.com/v2/EwUWHgcUazqY-WR9tRe46',
+  explorerUrl: 'https://sepolia.etherscan.io',
+  // Uniswap v4 (canonical Sepolia)
+  poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
+  stateView: '0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c',
+  // Regenerative Liquidity deploy (parcel CCA + double pool + arb hook)
+  launchpad: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
+  hook: '0x259083118770202EF1eC4d36Db321F6aBd24C040',
+  root: '0x3d47002Cbe4e1d1a0640fc20aD1a75eB6559D73B',
+  // the demo parcel launched via the CCA (addresses + poolId read from the live Initialize event)
+  parcel: { id: '0x4f414b2d50415243454c2d4c4956450000000000000000000000000000000000', ticker: 'OAK',
+    token: '0x48b1ccf919a676f3108106d0ef7db767821258d0',
+    privatePool: '0xA9e2e97168d49b73B55a6df058e15F83082B7213',
+    poolId: '0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289',
+    treasury: '0x30165243a74a823dc3e15fd4039157e7bf53bf20',
+    // v4 pool currency ordering: currency0 = R00T (lower addr), currency1 = OAK
+    currency0IsRoot: true,
+  },
+} as const;
+
 // External contract addresses (Arbitrum mainnet)
 export const EXTERNAL = {
   // WETH on Arbitrum

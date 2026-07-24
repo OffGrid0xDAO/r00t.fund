@@ -32,6 +32,7 @@ const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
 const ParcelFundPanel = lazy(() => import('./components/ParcelFundPanel').then(m => ({ default: m.ParcelFundPanel })));
+const StewardConsole = lazy(() => import('./components/StewardConsole').then(m => ({ default: m.StewardConsole })));
 const LiquidityPanel = lazy(() => import('./components/LiquidityPanel').then(m => ({ default: m.LiquidityPanel })));
 import { ChartModal } from './components/ChartModal';
 
@@ -79,7 +80,7 @@ function PanelSkeleton({ variant = 'default' }: { variant?: 'swap' | 'chart' | '
   );
 }
 
-type Tab = '_swap' | '_portfolio' | '_projects' | '_land';
+type Tab = '_swap' | '_portfolio' | '_projects' | '_land' | '_steward';
 
 const DEMO_TOKENS: TokenOption[] = [
   { address: CONTRACTS.zkAMM, name: TOKEN.name, symbol: TOKEN.symbol, isRoot: true },
@@ -406,6 +407,11 @@ function App() {
       id: '_land',
       label: '_land',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+    },
+    {
+      id: '_steward',
+      label: '_steward',
+      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
     },
   ];
 
@@ -796,6 +802,11 @@ function App() {
                     {activeTab === '_projects' && (
                       <Suspense fallback={<PanelSkeleton />}>
                         <LandsPanel onOpenMap={() => setActiveTab('_land')} />
+                      </Suspense>
+                    )}
+                    {activeTab === '_steward' && (
+                      <Suspense fallback={<PanelSkeleton />}>
+                        <StewardConsole />
                       </Suspense>
                     )}
                     {activeTab === '_land' && (
