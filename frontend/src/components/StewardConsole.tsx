@@ -7,7 +7,6 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useAccount } from 'wagmi';
 import { HACKATHON } from '../config';
-import { MarketsChart } from './MarketsChart';
 import { CCAPanel } from './CCAPanel';
 import { useCCAAuctions } from '../hooks/useCCAAuctions';
 
@@ -118,9 +117,10 @@ export function StewardConsole({ landName, landAddress, onOpenLand, onStartLand 
       <SectionHeader icon={<Icon.sprout className="w-4 h-4" />} title="Your raises" sub={`${raisingCount} raising · ${liveCount} live`} />
       <div className="mb-6"><CCAPanel /></div>
 
-      {/* ── MARKETS / REBALANCING ── */}
-      <SectionHeader icon={<Icon.trend className="w-4 h-4" />} title="Markets — live trades & rebalancing" sub="public v4 ⇄ private zkAMM, one arb hook" />
-      <div className="mb-6"><MarketsChart /></div>
+      {/* Markets / rebalancing viz moved off the console (lives with the swap chart). Re-enable here if
+          a compact steward-facing rebalancing card is wanted:
+          <SectionHeader icon={<Icon.trend className="w-4 h-4" />} title="Markets — live trades & rebalancing" sub="public v4 ⇄ private zkAMM" />
+          <div className="mb-6"><MarketsChart /></div> */}
 
       {/* contracts */}
       <div className="flex items-center gap-4 text-[11px] text-[#666]">

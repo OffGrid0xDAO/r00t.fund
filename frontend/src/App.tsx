@@ -31,6 +31,7 @@ const ManifestoPage = lazy(() => import('./components/ManifestoPage').then(m => 
 const DocsPage = lazy(() => import('./components/DocsPage').then(m => ({ default: m.DocsPage })));
 const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 const PlotMapTopo = lazy(() => import('./components/pilot/PlotMapTopo').then(m => ({ default: m.PlotMapTopo })));
+const StartYourLand = lazy(() => import('./components/pilot/StartYourLand').then(m => ({ default: m.StartYourLand })));
 const ParcelFundPanel = lazy(() => import('./components/ParcelFundPanel').then(m => ({ default: m.ParcelFundPanel })));
 const StewardConsole = lazy(() => import('./components/StewardConsole').then(m => ({ default: m.StewardConsole })));
 import { useStewardStatus } from './hooks/useStewardStatus';
@@ -333,6 +334,7 @@ function App() {
     return true;
   });
   const [showChartModal, setShowChartModal] = useState(false);
+  const [showCreateLand, setShowCreateLand] = useState(false);
   const [heroCollapsed, setHeroCollapsed] = useState(false);
 
   // Subscribe to on-chain trade events via WebSocket for instant chart updates
@@ -390,6 +392,7 @@ function App() {
     localStorage.setItem('hasVisited', 'true');
     setShowLanding(false);
     setActiveTab('_steward');
+    setShowCreateLand(true); // open the create-land wizard modal
   }, []);
 
   const handleLiveTokensDiscovered = useCallback((tokens: { address: string; name: string; symbol: string }[]) => {
@@ -1028,6 +1031,15 @@ function App() {
           <PriceChart zkAMMAddress={CONTRACTS.zkAMM} isExpanded={true} />
         </Suspense>
       </ChartModal>
+
+      {/* Create-your-land wizard (opened by any "Create your land" CTA) */}
+      <AnimatePresence>
+        {showCreateLand && (
+          <Suspense fallback={null}>
+            <StartYourLand onClose={() => setShowCreateLand(false)} />
+          </Suspense>
+        )}
+      </AnimatePresence>
     </div>
     </ToastProvider>
   );
