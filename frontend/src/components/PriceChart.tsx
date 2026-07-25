@@ -76,6 +76,8 @@ const TRADE_TYPE_CONFIG: Record<string, { color: string; label: string; icon: st
 function TradeRow({
   trade,
   index,
+  baseSym,
+  quoteSym,
 }: {
   trade: {
     type: 'buy' | 'sell' | 'add_lp' | 'remove_lp' | 'claim_fees';
@@ -86,7 +88,11 @@ function TradeRow({
     timestamp: number;
   };
   index: number;
+  baseSym?: string;  // e.g. OAK / R00T — the token side
+  quoteSym?: string; // e.g. R00T / ETH — the quote side
 }) {
+  const base = baseSym || TOKEN.symbol;
+  const quote = quoteSym || 'ETH';
   const formatNumber = (num: number, decimals = 2) => {
     if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(decimals)}M`;
     if (num >= 1_000) return `${(num / 1_000).toFixed(decimals)}K`;
@@ -142,10 +148,10 @@ function TradeRow({
         ) : (
           <>
             <div className="text-xs text-[var(--text-primary)] font-medium">
-              {formatNumber(trade.tokenAmount, 0)} ${TOKEN.symbol}
+              {formatNumber(trade.tokenAmount, trade.tokenAmount >= 1 ? 2 : 4)} {base}
             </div>
             <div className="text-[10px] text-[var(--text-muted)]">
-              {trade.ethAmount.toFixed(4)} ETH
+              {trade.ethAmount >= 1 ? formatNumber(trade.ethAmount, 2) : trade.ethAmount.toFixed(4)} {quote}
             </div>
           </>
         )}
@@ -154,17 +160,15 @@ function TradeRow({
   );
 }
 
-export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketKey, onMarketChange }: PriceChartProps) {
+export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketKey }: PriceChartProps) {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('5m');
   const [chartView, setChartView] = useState<ChartViewMode>('candles');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('mcap');
 
-  // pair selection: 'root' (RH main pool) + auto-discovered Sepolia v4 markets. Controlled from App
-  // (so the swap panel can drive it) with a local fallback.
+  // pair selection is driven by the SWAP panel (App passes marketKey). 'root' = the RH main pool;
+  // otherwise an auto-discovered Sepolia v4 market whose real swaps feed this chart.
   const { markets } = useV4Markets();
-  const [localMarket, setLocalMarket] = useState<string>('root');
-  const activeKey = marketKey ?? localMarket;
-  const setMarket = (k: string) => { setLocalMarket(k); onMarketChange?.(k); };
+  const activeKey = marketKey ?? 'root';
   const v4Market = activeKey === 'root' ? undefined : markets.find((m) => m.key === activeKey);
   const isV4 = !!v4Market;
   const { trades: v4TradeList } = useV4Trades(v4Market);
@@ -342,22 +346,13 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketK
 
   return (
     <div className="space-y-4">
-      {/* pair selector — R00T (main) + live Sepolia v4 markets (auto-discovered). Selecting one drives
-          THIS chart from that pool's real on-chain swaps. */}
-      <div className="flex gap-1.5 flex-wrap">
-        <button onClick={() => setMarket('root')}
-          className={`px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors ${activeKey === 'root' ? 'text-black border-[var(--accent)]' : 'text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text-muted)]'}`}
-          style={activeKey === 'root' ? { background: 'var(--accent)' } : {}}>
-          ${TOKEN.symbol}
-        </button>
-        {markets.map((m) => (
-          <button key={m.key} onClick={() => setMarket(m.key)}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors ${activeKey === m.key ? 'text-black border-[var(--accent)]' : 'text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text-muted)]'}`}
-            style={activeKey === m.key ? { background: 'var(--accent)' } : {}}>
-            {m.label}
-          </button>
-        ))}
-        {isV4 && <span className="px-2 py-1 text-[10px] rounded-full border self-center" style={{ color: '#7CFFB2', borderColor: '#7CFFB2' }}>● Sepolia v4</span>}
+      {/* the chart follows the SWAP pair (chosen in the swapper). No manual chart buttons. */}
+      <div className="flex gap-2 items-center">
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-mono border text-black" style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>
+          {isV4 ? v4Market!.label : `$${TOKEN.symbol}`}
+        </span>
+        {isV4 && <span className="px-2 py-1 text-[10px] rounded-full border" style={{ color: '#7CFFB2', borderColor: '#7CFFB2' }}>● Sepolia v4</span>}
+        <span className="text-[10px] text-[var(--text-muted)]">follows your swap ↗</span>
       </div>
 
       {/* Header */}
@@ -812,7 +807,10 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketK
             ) : (
               <div className="divide-y divide-[var(--border)]">
                 {trades.slice(0, 8).map((trade: any, i) => (
-                  <TradeRow key={trade.txHash || i} trade={{ ...trade, type: trade.type ?? trade.side ?? 'buy', tokenAmount: trade.tokenAmount ?? trade.amount ?? 0, ethAmount: trade.ethAmount ?? 0 }} index={i} />
+                  <TradeRow key={trade.txHash || i} index={i}
+                    trade={{ ...trade, type: trade.type ?? trade.side ?? 'buy', tokenAmount: trade.tokenAmount ?? trade.amount ?? 0, ethAmount: trade.ethAmount ?? 0 }}
+                    baseSym={isV4 ? v4Market!.base : undefined}
+                    quoteSym={isV4 ? v4Market!.quote : undefined} />
                 ))}
               </div>
             )}
