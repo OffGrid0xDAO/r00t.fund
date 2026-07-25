@@ -19,6 +19,13 @@ import {IERC20Minimal} from "v4-core/interfaces/external/IERC20Minimal.sol";
 import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 import {IInitializerHook} from "./interfaces/IInitializerHook.sol";
 
+/// @notice Minimal ERC-4626 tokenized-vault surface (the yield "idle state" from Uniswap+Spark's
+///         DualPool hook). Deposit an asset, receive yield-bearing shares to a receiver.
+interface IERC4626Vault {
+    function asset() external view returns (address);
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+}
+
 /// @title RegenArbHook  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE, not production r00t.fund)
 /// @notice ONE shared Uniswap v4 hook for ALL r00t.fund markets — the main R00T/ETH pool AND every
 ///         parcel/R00T pool. It back-runs each swap with a REAL cross-pool arbitrage between the
@@ -49,6 +56,10 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
     address public authorizedInitializer; // Uniswap Liquidity-Launcher allowed to init CCA pools (0 = open)
 
     mapping(PoolId => MarketConfig) public configs;
+    // DualPool-style yield: per treasury-currency ERC-4626 vault. When set, captured spread is
+    // DEPOSITED into the vault and yield-bearing shares go to the treasury (which then compounds
+    // lending yield) instead of the raw token sitting idle. address(0) = pay raw (native ETH etc.).
+    mapping(address => address) public yieldVault; // ERC20 treasury currency → ERC-4626 vault
 
     uint256 public constant SYNC_THRESHOLD_BPS = 30;    // arb only when pools diverge > 0.30%
     uint256 public constant MAX_REBALANCE_BPS  = 500;   // default per-arb cap = 5% of the private reserve
@@ -58,6 +69,7 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
 
     event MarketRegistered(PoolId indexed poolId, bytes32 indexed marketId, address privatePool, address treasury);
     event SpreadCaptured(bytes32 indexed marketId, uint256 profit, uint256 uniPriceE18, uint256 privPriceE18);
+    event YieldDeposited(bytes32 indexed marketId, address indexed vault, uint256 assets, uint256 shares);
     event SyncSkipped(bytes32 indexed marketId, uint256 uniPriceE18, uint256 privPriceE18);
 
     error NotPoolManager();
@@ -172,6 +184,15 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
         if (msg.sender != deployer && msg.sender != launchpad) revert NotLaunchpad();
         require(bps > 0 && bps <= 5_000, "1..5000 bps"); // <=50% ceiling for tiny pools; still bounded
         maxRebalanceBps = bps;
+    }
+
+    /// @notice DualPool-style yield: set the ERC-4626 vault that a treasury currency's captured spread
+    ///         is deposited into (vault.asset() must equal the currency). address(0) = pay raw. The
+    ///         treasury receives yield-bearing shares that compound lending yield. Deployer/gov only.
+    function setYieldVault(address currency, address vault) external {
+        if (msg.sender != deployer && msg.sender != launchpad) revert NotLaunchpad();
+        require(vault == address(0) || IERC4626Vault(vault).asset() == currency, "vault asset mismatch");
+        yieldVault[currency] = vault;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -292,7 +313,7 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
         uint256 uniPriceE18, uint256 privPriceE18
     ) internal {
         if (Currency.unwrap(profitCcy) == Currency.unwrap(cfg.treasuryCurrency)) {
-            profitCcy.transfer(cfg.regenTreasury, profit); // native-ETH-aware
+            _deliver(cfg, profitCcy, profit); // vault-deposit (yield) or raw transfer
             emit SpreadCaptured(cfg.marketId, profit, uniPriceE18, privPriceE18);
             return;
         }
@@ -309,8 +330,23 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
         );
         _settle(profitCcy, profit);
         uint256 outT = zeroForOne ? uint256(int256(d.amount1())) : uint256(int256(d.amount0()));
-        poolManager.take(cfg.treasuryCurrency, cfg.regenTreasury, outT);
+        poolManager.take(cfg.treasuryCurrency, address(this), outT); // take to hook so we can vault-deposit
+        _deliver(cfg, cfg.treasuryCurrency, outT);
         emit SpreadCaptured(cfg.marketId, outT, uniPriceE18, privPriceE18);
+    }
+
+    /// @dev Deliver `amount` of `ccy` (held by the hook) to the treasury. DualPool-style: if a yield
+    ///      vault is set for this ERC20 currency, DEPOSIT into it so the treasury holds yield-bearing
+    ///      shares (compounding lending yield); otherwise pay the raw token (native-ETH-aware).
+    function _deliver(MarketConfig memory cfg, Currency ccy, uint256 amount) internal {
+        address vault = ccy.isAddressZero() ? address(0) : yieldVault[Currency.unwrap(ccy)];
+        if (vault != address(0)) {
+            IERC20Minimal(Currency.unwrap(ccy)).approve(vault, amount);
+            uint256 shares = IERC4626Vault(vault).deposit(amount, cfg.regenTreasury);
+            emit YieldDeposited(cfg.marketId, vault, amount, shares);
+        } else {
+            ccy.transfer(cfg.regenTreasury, amount); // native-ETH-aware
+        }
     }
 
     /// @dev Pay `amount` of `c` we owe the pool. Native-ETH-aware (settle{value} vs sync/transfer).
