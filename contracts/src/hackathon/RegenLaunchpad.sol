@@ -165,7 +165,9 @@ contract RegenLaunchpad is IUnlockCallback {
 
         // carve a small working inventory for the shared hook (it fronts the private leg of each arb
         // and is made whole + profit by the public leg), then split the rest across the two pools.
-        // R00T side pulled from the protocol reserve at price P.
+        // R00T side pulled at price P from the STEWARD (self-seed) when set, else the protocol reserve.
+        // Self-seed makes the launchpad work for ANY steward — they commit the R00T that becomes the
+        // pools' R00T side (must approve the launchpad for it before clearAndLaunch).
         uint256 hookParcel = p.poolTokens / 10;
         uint256 seedParcel = p.poolTokens - hookParcel;
         uint256 privParcel = seedParcel / 2;
@@ -173,7 +175,8 @@ contract RegenLaunchpad is IUnlockCallback {
         uint256 privR00T = (privParcel * P) / WAD;
         uint256 pubR00T = (pubParcel * P) / WAD;
         uint256 hookR00T = (hookParcel * P) / WAD;
-        root.safeTransferFrom(protocolReserve, address(this), privR00T + pubR00T + hookR00T);
+        address r00tFrom = protocolReserve == address(0) ? p.steward : protocolReserve;
+        root.safeTransferFrom(r00tFrom, address(this), privR00T + pubR00T + hookR00T);
 
         // 3) deploy + seed the PRIVATE pool at P (currency-sorted).
         (Currency c0, Currency c1) = _sorted(address(p.token), address(root));
