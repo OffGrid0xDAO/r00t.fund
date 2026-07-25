@@ -11,7 +11,7 @@ import { AppBackground } from './components/AppBackground';
 import { usePrivateWallet } from './hooks/usePrivateWallet';
 import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
-import { CONTRACTS, TOKEN, NETWORK } from './config';
+import { CONTRACTS, TOKEN, NETWORK, HACKATHON } from './config';
 import { switchToRobinhood } from './utils/switchChain';
 import { fetchParcelTokens } from './components/pilot/parcelTokens';
 
@@ -299,6 +299,7 @@ function App() {
   const { switchChainAsync } = useSwitchChain();
 
   const handleSwitchChain = () => switchToRobinhood(switchChainAsync);
+  const handleSwitchToSepolia = () => switchChainAsync({ chainId: HACKATHON.chainId }).catch(() => {});
 
   // Centralized wallet session management (viewing key lifecycle)
   const session = useWalletSession();
@@ -376,8 +377,9 @@ function App() {
   }, []);
 
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
-  const expectedChainId = NETWORK.chainId;
-  const isWrongNetwork = isConnected && chainId !== expectedChainId;
+  // Both chains are first-class: Robinhood (production stack) + Sepolia (hackathon Steward Console).
+  const SUPPORTED_CHAINS = [NETWORK.chainId, HACKATHON.chainId];
+  const isWrongNetwork = isConnected && !SUPPORTED_CHAINS.includes(chainId);
 
   useEffect(() => {
     if (isDark) {
@@ -611,15 +613,16 @@ function App() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 rounded-full bg-[var(--warning)] animate-pulse" />
-                    <span className="text-sm text-[var(--warning)]">Wrong network — switch to {NETWORK.name}</span>
+                    <span className="text-sm text-[var(--warning)]">Unsupported network — pick a chain</span>
                   </div>
-                  <GlowButton
-                    onClick={handleSwitchChain}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    switch()
-                  </GlowButton>
+                  <div className="flex items-center gap-2">
+                    <GlowButton onClick={handleSwitchChain} variant="secondary" size="sm">
+                      {NETWORK.name}
+                    </GlowButton>
+                    <GlowButton onClick={handleSwitchToSepolia} variant="secondary" size="sm">
+                      Sepolia
+                    </GlowButton>
+                  </div>
                 </div>
               </motion.div>
             )}

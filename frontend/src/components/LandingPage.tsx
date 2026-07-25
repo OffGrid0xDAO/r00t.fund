@@ -366,31 +366,17 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
             style={{ scale: logoScale, opacity: logoOpacity }}
             className="relative flex-shrink-0 order-1 lg:order-2"
           >
-            {/* Glow ring behind logo */}
+            {/* Glow ring behind logo — pulse OPACITY (GPU-composited) instead of box-shadow, which
+                forces a full repaint every frame and made the glow strobe/jank ("disco"). */}
             <motion.div
-              animate={{
-                boxShadow: [
-                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
-                  '0 0 80px 30px rgba(214, 254, 81, 0.15)',
-                  '0 0 60px 20px rgba(214, 254, 81, 0.08)',
-                ],
-              }}
+              animate={{ opacity: [0.55, 1, 0.55] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute inset-0 rounded-full dark:shadow-none"
+              className="absolute inset-0 rounded-full pointer-events-none"
               style={{
                 background: 'radial-gradient(circle, rgba(214, 254, 81, 0.06) 0%, transparent 70%)',
+                boxShadow: '0 0 80px 30px rgba(214, 254, 81, 0.12)',
+                willChange: 'opacity',
               }}
-            />
-            <motion.div
-              className="dark:block hidden absolute inset-0 rounded-full"
-              animate={{
-                boxShadow: [
-                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
-                  '0 0 80px 30px rgba(214, 254, 81, 0.12)',
-                  '0 0 60px 20px rgba(214, 254, 81, 0.06)',
-                ],
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             />
 
             <motion.div

@@ -3,9 +3,21 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { injected } from 'wagmi/connectors';
+import { defineChain } from 'viem';
 import App from './App';
-import { CHAIN, NETWORK } from './config';
+import { CHAIN, NETWORK, HACKATHON } from './config';
 import './index.css';
+
+// Ethereum Sepolia — the ETHGlobal hackathon stack (Steward Console, launchpad, parcel pools)
+// lives here, so wagmi must know it too (reads + wallet switch for the demo).
+const SEPOLIA = defineChain({
+  id: HACKATHON.chainId,
+  name: 'Ethereum Sepolia',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: [HACKATHON.rpcUrl] } },
+  blockExplorers: { default: { name: 'Etherscan', url: HACKATHON.explorerUrl } },
+  testnet: true,
+});
 
 // Root error boundary — instead of a silent blank screen, show the actual error.
 class RootBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
@@ -29,10 +41,11 @@ class RootBoundary extends React.Component<{ children: React.ReactNode }, { erro
 // Wagmi config — Robinhood Chain (4663). CHAIN/NETWORK come from config.ts, so
 // switchChain can add + switch the wallet to RH, and the RPC honors VITE_RPC_URL.
 const config = createConfig({
-  chains: [CHAIN],
+  chains: [CHAIN, SEPOLIA],
   connectors: [injected()],
   transports: {
     [CHAIN.id]: http(NETWORK.rpcUrl),
+    [SEPOLIA.id]: http(HACKATHON.rpcUrl),
   },
 });
 
