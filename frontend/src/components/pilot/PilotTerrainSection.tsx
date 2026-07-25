@@ -149,7 +149,7 @@ export function PilotTerrainSection({ onEnterApp }: { onEnterApp?: () => void })
               </div>
               <div style={{ background: 'var(--bg-secondary)' }}>
                 <Suspense fallback={<div className="grid place-items-center h-[50vh] text-xs font-mono text-[var(--text-muted)]">loading land map…</div>}>
-                  <PlotMapTopo />
+                  <PlotMapTopo demo />
                 </Suspense>
               </div>
             </motion.div>

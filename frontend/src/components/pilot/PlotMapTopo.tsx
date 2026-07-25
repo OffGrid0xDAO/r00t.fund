@@ -53,44 +53,45 @@ function sampleField(poly: number[][], max: number, seed: number): [number, numb
 }
 const REVIVAL_LEVELS = ['Barren', 'Sprouting', 'Greening', 'Flourishing', 'Thriving', 'Revived'];
 
-export function PlotMapTopo({ className = '' }: { className?: string }) {
+export function PlotMapTopo({ className = '', onStartLand, demo = false }: { className?: string; onStartLand?: () => void; demo?: boolean }) {
   const [boundary, setBoundary] = useState<number[][] | null>(null);
   const [contours, setContours] = useState<{ l: string; p: number[][] }[]>([]);
   const [river, setRiver] = useState<number[][] | null>(null);
   const [plots, setPlots] = useState<Plot[] | null>(null);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [noLand, setNoLand] = useState(false);
   const { address } = useAccount();
   const { auctions } = useCCAAuctions(address);
 
-  // MY LAND first: if this steward created a land via the wizard, render THEIR terrain + THEIR launched
-  // parcels (pilot == any anon steward). Otherwise fall back to the static pilot demo terrain.
+  // App: ONLY the steward's own land (no hardcoded pilot) — prompt to create if none. Landing (demo):
+  // the static Pilot Project terrain as the showcase/template.
   useEffect(() => {
     const mine = loadMyLand(address);
     if (mine && mine.boundary?.length >= 3) {
+      setNoLand(false);
       setBoundary(mine.boundary);
       setRiver(mine.river ?? null);
       setContours(mine.contours ?? []);
       setPlots(genLandPlots(mine.boundary, auctions.map((a) => ({ ticker: a.ticker, name: a.token ? `$${a.ticker}` : a.ticker, phase: a.phase, raised: a.raised, clearedPrice: a.clearedPrice }))));
       return;
     }
-    const getJson = async (url: string) => {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`${url} → ${r.status}`);
-      return r.json();
-    };
-    getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary))
-      .catch((e) => { console.error('[PlotMap] boundary load failed', e); setLoadErr(String(e.message || e)); });
-    getJson('/terrain/zones.json').then((z: Zone[]) => setPlots(zonesToPlots(z)))
-      .catch((e) => { console.error('[PlotMap] zones load failed', e); setLoadErr(String(e.message || e)); });
-    getJson('/terrain/contours.json').then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch((e) => console.warn('[PlotMap] contours', e));
-    getJson('/terrain/river.json').then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch((e) => console.warn('[PlotMap] river', e));
-  }, [address, auctions.length]);
+    if (!demo) { setNoLand(true); setBoundary(null); setPlots(null); return; }
+    // demo (landing showcase) → static Pilot Project terrain
+    const getJson = async (url: string) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} → ${r.status}`); return r.json(); };
+    getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary)).catch((e) => console.error('[PlotMap] boundary', e));
+    getJson('/terrain/zones.json').then((z: Zone[]) => setPlots(zonesToPlots(z))).catch((e) => console.error('[PlotMap] zones', e));
+    getJson('/terrain/contours.json').then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch(() => {});
+    getJson('/terrain/river.json').then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch(() => {});
+  }, [address, auctions.length, demo]);
 
-  if (loadErr) {
-    return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] gap-1 text-center px-4 ${className}`}>
-      <span>couldn't load the land</span>
-      <span className="text-[10px] opacity-70">{loadErr} · check console / dev server</span>
-    </div>;
+  if (noLand) {
+    return (
+      <div className={`grid place-items-center aspect-[16/9] rounded-2xl border border-dashed border-[var(--border)] gap-3 text-center px-6 ${className}`}>
+        <div className="text-4xl">🗺️</div>
+        <div className="text-sm text-[var(--text-primary)]">No land yet</div>
+        <p className="text-[11px] font-mono text-[var(--text-muted)] max-w-xs">Set up your land — upload your boundary + topography, commit $R00T, and name your parcels. Your terrain renders here automatically.</p>
+        {onStartLand && <button onClick={onStartLand} className="px-5 py-2.5 rounded-xl text-black font-medium text-sm" style={{ background: 'var(--accent)' }}>Start your land</button>}
+      </div>
+    );
   }
   if (!boundary || !plots) {
     return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] ${className}`}>dividing the land…</div>;

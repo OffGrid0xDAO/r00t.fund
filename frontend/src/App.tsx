@@ -911,7 +911,7 @@ function App() {
                         </div>
                         <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
                           <Suspense fallback={<PanelSkeleton />}>
-                            <PlotMapTopo />
+                            <PlotMapTopo onStartLand={handleStartLand} />
                           </Suspense>
                         </div>
                         <p className="text-[10px] font-mono text-[var(--text-muted)] text-center">Fuzzed, non-cadastral geometry — indicative zones, not a legal subdivision. Patronage only — no revenue share.</p>
