@@ -205,6 +205,27 @@ export const HACKATHON = {
     // v4 pool currency ordering: currency0 = R00T (lower addr), currency1 = OAK
     currency0IsRoot: true,
   },
+  // v4 indexer (Ponder on Railway, PONDER_NETWORK=hackathon) — v4Trades/v4Arbs per market.
+  indexerUrl: (import.meta.env.VITE_HACKATHON_INDEXER as string) || '',
+  // pair-selectable markets — each shows its public price (v4 Swap) + private price + rebalances.
+  markets: [
+    {
+      key: 'oak', label: 'R00T / OAK', base: 'OAK', quote: 'R00T', priceLabel: 'R00T/OAK',
+      poolId: '0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289',
+      hook: '0x259083118770202EF1eC4d36Db321F6aBd24C040',
+      privatePool: '0xA9e2e97168d49b73B55a6df058e15F83082B7213', // RegenPrivatePool.getReserves()=(R00T,OAK)
+      treasury: '0x30165243a74a823dc3e15fd4039157e7bf53bf20', treasuryIsEth: false,
+      currency0IsRoot: true,   // price1/0 = OAK/R00T → invert for R00T/OAK
+    },
+    {
+      key: 'roeth', label: 'R00T / ETH', base: 'R00T', quote: 'ETH', priceLabel: 'R00T/ETH',
+      poolId: '0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482',
+      hook: '0x075211F56D5349bC9da2331D3738BE4bFd568040',
+      privatePool: '0x6Db6AF0D6fAD4352D0c72930C81cC91EFB0b3E50', // real ZkAMMPair.getReserves()=(ETH,R00T)
+      treasury: '0xAD9aC7e45B26ff7A24b6b34C309Ce66915733745', treasuryIsEth: true,
+      currency0IsRoot: false,  // currency0 = ETH; price1/0 = R00T/ETH directly
+    },
+  ],
 } as const;
 
 // External contract addresses (Arbitrum mainnet)

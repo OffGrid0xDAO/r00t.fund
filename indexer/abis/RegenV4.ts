@@ -30,4 +30,16 @@ export const RegenArbHookAbi = [
       { type: "uint256", indexed: false, name: "privPriceE18" },
     ],
   },
+  // Emitted on every register() — the AUTO-DISCOVERY feed: a new market appears here the instant a
+  // token launches (clearAndLaunch / base-market wiring). One shared hook → one feed for all markets.
+  {
+    type: "event",
+    name: "MarketRegistered",
+    inputs: [
+      { type: "bytes32", indexed: true, name: "poolId" },
+      { type: "bytes32", indexed: true, name: "marketId" },
+      { type: "address", indexed: false, name: "privatePool" },
+      { type: "address", indexed: false, name: "treasury" },
+    ],
+  },
 ] as const;

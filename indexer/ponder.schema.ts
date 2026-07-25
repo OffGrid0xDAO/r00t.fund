@@ -77,6 +77,19 @@ export const v4Trades = onchainTable(
   (table) => ({ marketIdx: index("v4_trades_market_idx").on(table.market) })
 );
 
+// AUTO-DISCOVERED markets — one row per hook MarketRegistered. The frontend reads this to build the
+// pair selector automatically, so a new pair's chart appears the instant its token launches.
+export const v4Markets = onchainTable("v4_markets", (t) => ({
+  id: t.text().primaryKey(), // poolId
+  marketId: t.text().notNull(),
+  hook: t.text().notNull(),
+  privatePool: t.text().notNull(),
+  treasury: t.text().notNull(),
+  blockNumber: t.bigint().notNull(),
+  timestamp: t.bigint().notNull(),
+  transactionHash: t.text().notNull(),
+}));
+
 // One row per real cross-pool rebalance (hook SpreadCaptured) — carries BOTH pool prices.
 export const v4Arbs = onchainTable(
   "v4_arbs",

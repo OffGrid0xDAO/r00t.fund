@@ -7,6 +7,7 @@
  * treasury that every cross-pool arb feeds. This is the on-chain proof the pools actually re-sync.
  */
 import { HACKATHON } from '../config';
+import { MarketsChart } from './MarketsChart';
 import { useRegenLive, type ArbEvent } from '../hooks/useRegenLive';
 
 const LIME = '#D6FE51';
@@ -165,6 +166,10 @@ export function StewardConsole({ landName, landAddress, onOpenLand }: StewardCon
           <Stat label="Regen treasury" value={live.treasuryRoot != null ? live.treasuryRoot.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '…'} sub="R00T from arb" color={GREEN} />
         </div>
       </div>
+
+      {/* all markets — pick a pair, watch trades + rebalancing live */}
+      <div className="mb-3 text-sm font-semibold text-[#ddd]">Markets — choose a pair</div>
+      <div className="mb-5"><MarketsChart /></div>
 
       {/* the double pool */}
       <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4 mb-5">

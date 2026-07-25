@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 import { formatEther, formatUnits } from "viem";
 import { buildPoseidon } from "circomlibjs";
-import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats, pledgeCommitments, pledgeNullifiers, pledgeClaims, v4Trades, v4Arbs } from "../ponder.schema";
+import { trades, commitments, withdrawals, nullifiers, stats, merkleTreeState, merkleRoots, poolState, lpPositions, lpWithdrawals, lpFeeClaims, lpNullifiers, lpStats, pledgeCommitments, pledgeNullifiers, pledgeClaims, v4Trades, v4Arbs, v4Markets } from "../ponder.schema";
 
 // Pledge vault indexing only registers when a real address is wired (matches the
 // PLEDGE_ENABLED guard in ponder.config.ts). Registering ponder.on() handlers for
@@ -700,6 +700,20 @@ if (IS_HACKATHON) {
       timestamp: event.block.timestamp,
       transactionHash: event.transaction.hash,
     });
+  });
+
+  // AUTO-DISCOVERY: a new market appears the instant a token launches (register → MarketRegistered)
+  ponder.on("RegenArbHook:MarketRegistered", async ({ event, context }: any) => {
+    await context.db.insert(v4Markets).values({
+      id: String(event.args.poolId),
+      marketId: String(event.args.marketId),
+      hook: String(event.log.address),
+      privatePool: String(event.args.privatePool),
+      treasury: String(event.args.treasury),
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    }).onConflictDoNothing();
   });
 
   // each real cross-pool rebalance (hook SpreadCaptured) → both pool prices at that moment
