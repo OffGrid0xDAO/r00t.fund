@@ -29,9 +29,9 @@ export interface WalletSession {
 }
 
 export function useWalletSession(): WalletSession {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const { disconnect: wagmiDisconnect } = useWagmiDisconnect();
+  const { disconnect: wagmiDisconnect, disconnectAsync } = useWagmiDisconnect();
 
   const [viewingKey, setViewingKey] = useState<string | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -144,9 +144,10 @@ export function useWalletSession(): WalletSession {
 
     console.log('[useWalletSession] Session cleared - explicit disconnect');
 
-    // Then disconnect wallet
-    wagmiDisconnect();
-  }, [wagmiDisconnect]);
+    // Disconnect the ACTIVE connector explicitly (with EIP-6963 multi-wallet discovery the active
+    // connector — e.g. Rabby — may not be the default one, so disconnect() with no args can miss it).
+    disconnectAsync(connector ? { connector } : undefined).catch(() => wagmiDisconnect());
+  }, [wagmiDisconnect, disconnectAsync, connector]);
 
   return {
     viewingKey,

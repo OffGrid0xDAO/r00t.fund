@@ -239,6 +239,65 @@ function WalletButton({
   );
 }
 
+// Wallet picker — lists every EIP-6963-discovered wallet (Rabby, MetaMask, …) so the user chooses,
+// instead of silently grabbing one arbitrary injected provider.
+function ConnectMenu() {
+  const { connect, connectors } = useConnect();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  // dedupe by name; drop the generic injected() shim when named EIP-6963 wallets are present
+  const seen = new Set<string>();
+  const deduped = connectors.filter((c) => {
+    const key = (c.name || c.id).toLowerCase();
+    if (seen.has(key)) return false; seen.add(key); return true;
+  });
+  const named = deduped.filter((c) => c.name && c.name.toLowerCase() !== 'injected');
+  const wallets = named.length ? named : deduped;
+
+  return (
+    <div ref={ref} className="relative">
+      <GlowButton onClick={() => { if (wallets.length === 1) connect({ connector: wallets[0] }); else setOpen((o) => !o); }} variant="primary">
+        <span className="flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          connect()
+        </span>
+      </GlowButton>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="absolute right-0 top-full mt-2 p-2 rounded-lg border border-[var(--border)] min-w-[220px] z-50"
+            style={{ background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-md)' }}
+          >
+            {wallets.length === 0 && (
+              <div className="px-4 py-3 text-sm text-[var(--text-muted)] font-mono">No wallet found — install MetaMask or Rabby</div>
+            )}
+            {wallets.map((c) => (
+              <button
+                key={c.uid}
+                onClick={() => { connect({ connector: c }); setOpen(false); }}
+                className="w-full px-4 py-3 rounded-md text-left font-mono text-sm text-[var(--text-primary)] flex items-center gap-3 hover:bg-white/5 transition-colors"
+              >
+                {c.icon ? <img src={c.icon} alt="" className="w-5 h-5 rounded" /> : <span className="w-5 h-5 rounded bg-[var(--accent)]/20" />}
+                {c.name || 'Browser Wallet'}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // Trading Card - Unified styling
 function TradingCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
@@ -294,7 +353,6 @@ function App() {
 
   const { address, isConnected } = useAccount();
   const steward = useStewardStatus(); // Steward Console appears only for set-up land stewards
-  const { connect, connectors } = useConnect();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
 
@@ -391,10 +449,11 @@ function App() {
     }
   }, [isDark]);
 
-  // never strand a wallet on the Steward Console after it loses eligibility
+  // never strand a DISCONNECTED wallet on the Steward Console (connected wallets may browse it
+  // to set up as a steward + launch, even before they steward a Land).
   useEffect(() => {
-    if (activeTab === '_steward' && !steward.eligible && !steward.loading) setActiveTab('_land');
-  }, [activeTab, steward.eligible, steward.loading]);
+    if (activeTab === '_steward' && !isConnected) setActiveTab('_land');
+  }, [activeTab, isConnected]);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -417,8 +476,9 @@ function App() {
       label: '_land',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
     },
-    // Steward Console only appears for a connected wallet that stewards a set-up Land.
-    ...(steward.eligible ? [{
+    // Steward Console: reachable by any connected wallet (set up as a steward + launch a regen
+    // token); the console itself shows onboarding vs the live dashboard based on eligibility.
+    ...(isConnected ? [{
       id: '_steward' as Tab,
       label: '_steward',
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
@@ -512,14 +572,7 @@ function App() {
                 onDisconnect={session.disconnect}
               />
             ) : (
-              <GlowButton onClick={() => connect({ connector: connectors[0] })} variant="primary">
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  connect()
-                </span>
-              </GlowButton>
+              <ConnectMenu />
             )}
           </div>
         </div>
