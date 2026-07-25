@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useConnect, useChainId, useSwitchChain, usePublicClient } from 'wagmi';
 import { SwapPanel, TokenOption } from './components/SwapPanel';
@@ -365,6 +365,20 @@ function App() {
   const [selectedToken, setSelectedToken] = useState<string>(CONTRACTS.zkAMM);
   const [availableTokens, setAvailableTokens] = useState<TokenOption[]>(DEMO_TOKENS);
   const [portfolioInitialTab] = useState<'overview' | 'transfer' | 'withdraw' | undefined>(undefined);
+  // the chart follows the SWAP pair: map the swapper's selected token (by symbol) to a v4 market key.
+  // 'root' = the RH main pool; a parcel symbol (OAK) → its market; R00T/ETH → the base v4 market.
+  const [chartOverride, setChartOverride] = useState<string | null>(null); // set when the user picks a chart chip directly
+  const swapMarketKey = useMemo(() => {
+    const sym = (availableTokens.find(t => t.address === selectedToken)?.symbol || '').toUpperCase();
+    if (!sym) return 'root';
+    const m = HACKATHON.markets.find(mk => mk.base.toUpperCase() === sym);
+    if (m) return m.key;                    // e.g. OAK → 'oak'
+    if (sym === 'ROOT' || sym === 'R00T' || sym === 'ETH') return 'roeth'; // R00T/ETH base market
+    return 'root';
+  }, [selectedToken, availableTokens]);
+  const chartMarketKey = chartOverride ?? swapMarketKey; // swap drives it; a chart chip can override
+  // when the swap token changes, hand control back to the swap (clear any manual chart override)
+  useEffect(() => { setChartOverride(null); }, [selectedToken]);
 
   const handleEnterApp = useCallback(() => {
     localStorage.setItem('hasVisited', 'true');
@@ -695,6 +709,8 @@ function App() {
                   <PriceChart
                     zkAMMAddress={CONTRACTS.zkAMM}
                     onExpand={() => setShowChartModal(true)}
+                    marketKey={chartMarketKey}
+                    onMarketChange={setChartOverride}
                   />
                 </Suspense>
               </TradingCard>
