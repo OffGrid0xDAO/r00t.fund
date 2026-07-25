@@ -40,9 +40,21 @@ class RootBoundary extends React.Component<{ children: React.ReactNode }, { erro
 
 // Wagmi config — Robinhood Chain (4663). CHAIN/NETWORK come from config.ts, so
 // switchChain can add + switch the wallet to RH, and the RPC honors VITE_RPC_URL.
+// Explicit Rabby connector (in addition to EIP-6963 auto-discovery) so "Rabby Wallet" is always
+// offered in the picker. Rabby injects at window.rabby (and also announces itself via EIP-6963).
+const rabby = injected({
+  target() {
+    const provider = typeof window !== 'undefined' ? (window as any).rabby : undefined;
+    return { id: 'rabby', name: 'Rabby Wallet', provider };
+  },
+});
+
 const config = createConfig({
   chains: [CHAIN, SEPOLIA],
-  connectors: [injected()],
+  // EIP-6963 discovery (default true) surfaces every installed wallet — Rabby, MetaMask, … — as its
+  // own connector; the explicit ones below guarantee Rabby + a generic browser-wallet fallback.
+  multiInjectedProviderDiscovery: true,
+  connectors: [rabby, injected()],
   transports: {
     [CHAIN.id]: http(NETWORK.rpcUrl),
     [SEPOLIA.id]: http(HACKATHON.rpcUrl),
