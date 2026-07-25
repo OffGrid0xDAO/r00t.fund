@@ -61,6 +61,7 @@ contract ZkParcelPool is ReentrancyGuard {
     uint256 public r00tReserve;    // AMM curve reserve (R00T side)
     uint256 public parcelReserve;  // AMM curve reserve (parcel side)
     bool public seeded;
+    address public rebalancer;     // the cross-pool arb caller (RegenArbHook adapter); 0 = none
 
     // ============ Events ============
 
@@ -89,6 +90,7 @@ contract ZkParcelPool is ReentrancyGuard {
     error InsufficientNoteBacking();
     error FieldRange();
     error Expired();
+    error NotRebalancer();
 
     // ============ Modifiers ============
 
@@ -148,6 +150,42 @@ contract ZkParcelPool is ReentrancyGuard {
         parcelReserve = p;
         seeded = true;
         emit Seeded(r, p);
+    }
+
+    // ============ Public rebalance surface (for the cross-pool arb hook) ============
+
+    /// @notice Authorize the arb caller (the RegenArbHook adapter). One-shot by the creator (LandVault).
+    /// @dev The rebalancer may move the PUBLIC reserves to re-sync this pool's price with the public
+    ///      Uniswap pool. Shielded user trades (buyParcel/sellParcel) are unaffected — only the
+    ///      already-public reserves/price move here, so no user amount is revealed by this path.
+    function setRebalancer(address r) external onlyCreator {
+        rebalancer = r;
+    }
+
+    /// @notice Real constant-product rebalance leg (1% fee retained in reserves, like the shielded
+    ///         path). `r00tIn = true`: send R00T in, receive parcel out; `false`: parcel in, R00T out.
+    ///         Caller (the adapter) must approve the input token.
+    function rebalanceSwap(bool r00tIn, uint256 amountIn) external nonReentrant returns (uint256 amountOut) {
+        if (msg.sender != rebalancer) revert NotRebalancer();
+        if (amountIn == 0) revert ZeroAmount();
+        if (!seeded) revert NotSeeded();
+
+        uint256 amountInAfterFee = (amountIn * (FEE_DENOMINATOR - FEE_BPS)) / FEE_DENOMINATOR;
+        if (r00tIn) {
+            root.safeTransferFrom(msg.sender, address(this), amountIn);
+            amountOut = parcelReserve - (r00tReserve * parcelReserve) / (r00tReserve + amountInAfterFee);
+            if (parcelReserve - amountOut < MIN_RESERVE) revert InsufficientLiquidity();
+            r00tReserve += amountIn;         // full amount in (fee retained in reserve)
+            parcelReserve -= amountOut;
+            parcel.safeTransfer(msg.sender, amountOut);
+        } else {
+            parcel.safeTransferFrom(msg.sender, address(this), amountIn);
+            amountOut = r00tReserve - (parcelReserve * r00tReserve) / (parcelReserve + amountInAfterFee);
+            if (r00tReserve - amountOut < MIN_RESERVE) revert InsufficientLiquidity();
+            parcelReserve += amountIn;
+            r00tReserve -= amountOut;
+            root.safeTransfer(msg.sender, amountOut);
+        }
     }
 
     // ============ Shield: real R00T → shielded R00T note (entry point for buying) ============
