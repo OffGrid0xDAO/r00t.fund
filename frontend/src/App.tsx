@@ -885,7 +885,7 @@ function App() {
                     )}
                     {activeTab === '_projects' && (
                       <Suspense fallback={<PanelSkeleton />}>
-                        <LandsPanel onOpenMap={() => setActiveTab('_land')} />
+                        <LandsPanel onOpenMap={() => setActiveTab('_land')} onStartLand={handleStartLand} />
                       </Suspense>
                     )}
                     {activeTab === '_steward' && (
