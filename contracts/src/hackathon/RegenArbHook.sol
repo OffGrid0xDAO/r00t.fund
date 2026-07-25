@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-core/libraries/FixedPoint96.sol";
 import {IERC20Minimal} from "v4-core/interfaces/external/IERC20Minimal.sol";
 
 import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
+import {IInitializerHook} from "./interfaces/IInitializerHook.sol";
 
 /// @title RegenArbHook  (ETHGlobal Lisbon 2026 — HACKATHON WORKSPACE, not production r00t.fund)
 /// @notice ONE shared Uniswap v4 hook for ALL r00t.fund markets — the main R00T/ETH pool AND every
@@ -26,7 +27,7 @@ import {IPrivatePool} from "./interfaces/IPrivatePool.sol";
 /// @dev Currency-agnostic: the arb math (`computeArb`) works on generic reserves, so a new parcel or
 ///      the base R00T market just `register()`s its pool. Deployed once at a mined CREATE2 address
 ///      (afterSwap flag). See ../../../hackathon/DESIGN.md + INFRA.md.
-contract RegenArbHook is IHooks, IUnlockCallback {
+contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;   // native-ETH-aware transfer
@@ -45,6 +46,7 @@ contract RegenArbHook is IHooks, IUnlockCallback {
     IPoolManager public immutable poolManager;
     address public immutable deployer;  // may (re)point the launchpad registrar
     address public launchpad;           // the only registrar (settable once wiring is known)
+    address public authorizedInitializer; // Uniswap Liquidity-Launcher allowed to init CCA pools (0 = open)
 
     mapping(PoolId => MarketConfig) public configs;
 
@@ -77,6 +79,21 @@ contract RegenArbHook is IHooks, IUnlockCallback {
     function setLaunchpad(address l) external {
         if (msg.sender != deployer && msg.sender != launchpad) revert NotLaunchpad();
         launchpad = l;
+    }
+
+    // ── Uniswap Liquidity-Launcher (real CCA) compatibility: IInitializerHook ──
+    /// @notice The address the launcher must be to initialize a CCA pool with this hook (0 = open).
+    function authorized() external view returns (address) { return authorizedInitializer; }
+
+    /// @notice Set the Uniswap Liquidity-Launcher allowed to init pools with this hook. Deployer only.
+    function setAuthorizedInitializer(address a) external {
+        if (msg.sender != deployer) revert NotLaunchpad();
+        authorizedInitializer = a;
+    }
+
+    /// @notice ERC165 — the launcher checks this before accepting the hook (else InvalidHook).
+    function supportsInterface(bytes4 id) external pure returns (bool) {
+        return id == type(IInitializerHook).interfaceId || id == 0x01ffc9a7 /* IERC165 */;
     }
 
     /// @notice Wire a market's Uniswap pool to its private pool + regen treasury. onlyLaunchpad.
@@ -316,7 +333,13 @@ contract RegenArbHook is IHooks, IUnlockCallback {
     }
 
     // ── unused hooks (address flag bits gate which are callable) ──
-    function beforeInitialize(address, PoolKey calldata, uint160) external pure returns (bytes4) { revert HookNotImplemented(); }
+    /// @notice Gates CCA pool initialization to the authorized Uniswap Liquidity-Launcher (when set;
+    ///         0 = open, so our own scripts still initialize pools directly). Called by v4 only when the
+    ///         hook address carries the BEFORE_INITIALIZE flag (the CCA deploy mines for it).
+    function beforeInitialize(address sender, PoolKey calldata, uint160) external view returns (bytes4) {
+        if (authorizedInitializer != address(0) && sender != authorizedInitializer) revert NotLaunchpad();
+        return IHooks.beforeInitialize.selector;
+    }
     function afterInitialize(address, PoolKey calldata, uint160, int24) external pure returns (bytes4) { revert HookNotImplemented(); }
     function beforeAddLiquidity(address, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4) { revert HookNotImplemented(); }
     function afterAddLiquidity(address, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, BalanceDelta, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta) { revert HookNotImplemented(); }
