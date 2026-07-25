@@ -385,6 +385,13 @@ function App() {
     setShowLanding(false);
   }, []);
 
+  // "Start your land" → enter the app AND open the Steward Console (create land + launch parcels via CCA)
+  const handleStartLand = useCallback(() => {
+    localStorage.setItem('hasVisited', 'true');
+    setShowLanding(false);
+    setActiveTab('_steward');
+  }, []);
+
   const handleLiveTokensDiscovered = useCallback((tokens: { address: string; name: string; symbol: string }[]) => {
     setAvailableTokens(prev => {
       let updated = prev;
@@ -463,11 +470,8 @@ function App() {
     }
   }, [isDark]);
 
-  // never strand a DISCONNECTED wallet on the Steward Console (connected wallets may browse it
-  // to set up as a steward + launch, even before they steward a Land).
-  useEffect(() => {
-    if (activeTab === '_steward' && !isConnected) setActiveTab('_land');
-  }, [activeTab, isConnected]);
+  // The Steward Console is reachable even before connect (it shows connect prompts inside), so a
+  // "Start your land" click lands there directly. No forced redirect.
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -508,7 +512,7 @@ function App() {
     return (
       <>
         <Suspense fallback={<div className="min-h-screen bg-[var(--bg-primary)]" />}>
-          <LandingPage onEnterApp={handleEnterApp} onOpenManifesto={() => setShowManifesto(true)} onOpenDocs={() => setShowDocs(true)} />
+          <LandingPage onEnterApp={handleEnterApp} onStartLand={handleStartLand} onOpenManifesto={() => setShowManifesto(true)} onOpenDocs={() => setShowDocs(true)} />
         </Suspense>
         {showManifesto && (
           <Suspense fallback={null}>

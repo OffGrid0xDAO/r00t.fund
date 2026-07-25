@@ -18,6 +18,7 @@ import { SectionBoundary } from './pilot/SectionBoundary';
 
 interface LandingPageProps {
   onEnterApp: () => void;
+  onStartLand?: () => void; // enter app + open the Steward Console (create land + launch parcels via CCA)
   onOpenManifesto?: () => void;
   onOpenDocs?: () => void;
 }
@@ -188,7 +189,8 @@ function HeroMeta() {
   );
 }
 
-export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: LandingPageProps) {
+export function LandingPage({ onEnterApp, onStartLand, onOpenManifesto, onOpenDocs }: LandingPageProps) {
+  const startLand = onStartLand || onEnterApp;
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -423,7 +425,7 @@ export function LandingPage({ onEnterApp, onOpenManifesto, onOpenDocs }: Landing
       {/* Multi-tenant land network + Start your land */}
       <SectionBoundary label="Land network">
         <Suspense fallback={null}>
-          <LandsSection onEnterApp={onEnterApp} />
+          <LandsSection onEnterApp={onEnterApp} onStartLand={startLand} />
         </Suspense>
       </SectionBoundary>
 
