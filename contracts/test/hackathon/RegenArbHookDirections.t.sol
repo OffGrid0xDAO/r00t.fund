@@ -155,6 +155,6 @@ contract RegenArbHookDirectionsTest is Test {
         (uint256 r0After,) = priv.getReserves();
         // currency0 reserve change on one step is bounded by MAX_REBALANCE_BPS (5%) of the reserve
         uint256 delta = r0Before > r0After ? r0Before - r0After : r0After - r0Before;
-        assertLe(delta, (r0Before * 500) / 10_000 + 1, "single-step move within the 5% cap");
+        assertLe(delta, (r0Before * hook.maxRebalanceBps()) / 10_000 + 1, "single-step move within the configured cap");
     }
 }

@@ -196,11 +196,11 @@ export const HACKATHON = {
   poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
   stateView: '0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c',
   quoter: '0x61b3f2011a92d183c7dbadbda940a7555ccf9227', // official Uniswap v4 Quoter (Sepolia)
-  // Regenerative Liquidity V2 — self-seed launchpad (ANY steward launches; shares the base R00T so the
-  // R00T/ETH base market + all parcels use ONE token). Nothing hardcoded per parcel — auto-discovered.
-  launchpad: '0x124e129e009Bd1848ecd1DA10FCc111b7961910e',
-  hook: '0x4F66212e29605f4715c24F696A92d36BdDEe8040',
-  root: '0x4Dc3c11150682B6f6F3D1b1a32bA397Fd6200709',
+  // CLEAN STACK — ONE shared hook (10% cap) for the R00T/ETH base market AND every parcel; self-seed
+  // launchpad (any steward launches); ONE R00T. Base market seeded IN-SYNC. Nothing hardcoded per parcel.
+  launchpad: '0xC6d8369d72dAC352Ef439Aa37a81355ED442CB11',
+  hook: '0x2B019cC4D35CeB177fe41a4A8b4D873494C20040',
+  root: '0x70E3432B83a83Caa818a98010DF87AF6daa6AbC9',
   // the demo parcel launched via the CCA (addresses + poolId read from the live Initialize event)
   parcel: { id: '0x4f414b2d50415243454c2d4c4956450000000000000000000000000000000000', ticker: 'OAK',
     token: '0x48b1ccf919a676f3108106d0ef7db767821258d0',
@@ -219,12 +219,12 @@ export const HACKATHON = {
   markets: [
     {
       key: 'roeth', label: 'R00T / ETH', base: 'R00T', quote: 'ETH', priceLabel: 'R00T/ETH',
-      poolId: '0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482',
-      hook: '0x075211F56D5349bC9da2331D3738BE4bFd568040',
-      privatePool: '0x6Db6AF0D6fAD4352D0c72930C81cC91EFB0b3E50', // real ZkAMMPair (ETH,R00T)
-      treasury: '0xAD9aC7e45B26ff7A24b6b34C309Ce66915733745', treasuryIsEth: true,
+      poolId: '0xc85eee3324217afd9113d8b66e59e1e4380976ede7ee4cd3882cc107eca74bfb',
+      hook: '0x2B019cC4D35CeB177fe41a4A8b4D873494C20040', // shared clean hook
+      privatePool: '0xf597Edb2B8380177c42D2FAc45A2D9A4f191D549', // real ZkAMMPair (ETH,R00T), in-sync seed
+      treasury: '0xBe196EEfCD38593a681f906F11fa4832889e96F5', treasuryIsEth: true,
       currency0IsRoot: false, // currency0 = ETH; price1/0 = R00T/ETH directly
-      currency0: '0x0000000000000000000000000000000000000000', currency1: '0x4Dc3c11150682B6f6F3D1b1a32bA397Fd6200709',
+      currency0: '0x0000000000000000000000000000000000000000', currency1: '0x70E3432B83a83Caa818a98010DF87AF6daa6AbC9',
       fee: 3000, tickSpacing: 60,
     },
   ] as {

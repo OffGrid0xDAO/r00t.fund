@@ -50,9 +50,9 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
 
     mapping(PoolId => MarketConfig) public configs;
 
-    uint256 public constant SYNC_THRESHOLD_BPS = 30;   // arb only when pools diverge > 0.30%
-    uint256 public constant MAX_REBALANCE_BPS  = 500;  // default per-arb cap = 5% of the private reserve
-    uint256 public maxRebalanceBps = 500;              // governance-tunable per-arb cap (bps)
+    uint256 public constant SYNC_THRESHOLD_BPS = 30;    // arb only when pools diverge > 0.30%
+    uint256 public constant MAX_REBALANCE_BPS  = 500;   // default per-arb cap = 5% of the private reserve
+    uint256 public maxRebalanceBps = 500;               // governance-tunable per-arb cap (bps); raise for small-liq pools (up to 50%) once hook inventory supports it
     uint256 private constant BPS = 10_000;
     uint256 private constant WAD = 1e18;
 
@@ -169,8 +169,8 @@ contract RegenArbHook is IHooks, IUnlockCallback, IInitializerHook {
 
     /// @notice Tune the per-arb cap (bps of a reserve) without redeploying. Deployer/governance only.
     function setMaxRebalanceBps(uint256 bps) external {
-        if (msg.sender != deployer) revert NotLaunchpad();
-        require(bps > 0 && bps <= 2_000, "1..2000 bps"); // <=20% keeps per-swap impact + inventory sane
+        if (msg.sender != deployer && msg.sender != launchpad) revert NotLaunchpad();
+        require(bps > 0 && bps <= 5_000, "1..5000 bps"); // <=50% ceiling for tiny pools; still bounded
         maxRebalanceBps = bps;
     }
 
