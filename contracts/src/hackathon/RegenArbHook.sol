@@ -87,7 +87,10 @@ contract RegenArbHook is IHooks, IUnlockCallback {
     function register(
         PoolKey calldata key, IPrivatePool privatePool, address regenTreasury, Currency treasuryCurrency, bytes32 marketId
     ) external {
-        if (msg.sender != launchpad) revert NotLaunchpad();
+        // ONE shared hook serves every market: the launchpad registers parcels, and the deployer
+        // (governance) registers the base R00T/ETH market — both onto this single registry, so one
+        // MarketRegistered feed covers all markets (auto-discovery + one indexer).
+        if (msg.sender != launchpad && msg.sender != deployer) revert NotLaunchpad();
         require(
             Currency.unwrap(treasuryCurrency) == Currency.unwrap(key.currency0) ||
             Currency.unwrap(treasuryCurrency) == Currency.unwrap(key.currency1),

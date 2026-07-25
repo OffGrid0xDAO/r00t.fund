@@ -7,6 +7,12 @@ import { PoolManagerV4Abi, RegenArbHookAbi } from "./abis/RegenV4";
 // Environment-based network selection
 const NETWORK = process.env.PONDER_NETWORK || "sepolia"; // Default to sepolia for testing
 
+// ONE service can index the prod chain AND the Sepolia hackathon v4 markets together: set
+// PONDER_HACKATHON=1 on the prod (robinhood) service. Guarded off when the prod network is itself
+// Sepolia (11155111) to avoid a duplicate-chainId clash.
+const HACKATHON_ENABLED = (process.env.PONDER_HACKATHON === "1" || NETWORK === "hackathon") && NETWORK !== "sepolia";
+const PROD_ENABLED = NETWORK !== "hackathon";
+
 // ── ETHGlobal hackathon: Uniswap v4 markets on Ethereum Sepolia (11155111) ──
 // Run a dedicated instance with PONDER_NETWORK=hackathon (separate from the RH prod indexer).
 const HACKATHON_RPC = process.env.PONDER_RPC_URL_11155111 || "https://eth-sepolia.g.alchemy.com/v2/demo";
@@ -194,7 +200,7 @@ export default createConfig({
         pollingInterval: 2_000,
       },
     }),
-    ...(NETWORK === "hackathon" && {
+    ...(HACKATHON_ENABLED && {
       hackathon: {
         chainId: 11155111,
         transport: rateLimit(http(HACKATHON_RPC), { requestsPerSecond: Number(process.env.PONDER_RPS) || 5 }),
@@ -216,7 +222,7 @@ export default createConfig({
   },
   contracts: {
     // ── ETHGlobal hackathon (Sepolia v4): public trade prices + hook rebalances per market ──
-    ...(NETWORK === "hackathon" && {
+    ...(HACKATHON_ENABLED && {
       PoolManagerV4: {
         network: "hackathon",
         abi: PoolManagerV4Abi,

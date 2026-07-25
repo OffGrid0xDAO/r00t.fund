@@ -426,10 +426,12 @@ async function handleTokensSold({ event, context }: any) {
   await updatePoolState(context, PAIR_ADDRESS, event.block.number, event.block.timestamp);
 }
 
-// The RH/prod ZkAMM handlers — NOT registered on the hackathon (Sepolia v4) network,
-// whose config has no ZkAMM contracts (registering unconfigured contracts makes Ponder throw).
-const IS_HACKATHON = process.env.PONDER_NETWORK === "hackathon";
-if (!IS_HACKATHON) {
+// ONE service can index both: prod (RH ZkAMM) + hackathon (Sepolia v4). Register each handler set
+// only when its contracts are in the config (unconfigured contracts make Ponder throw).
+const IS_HACKATHON_ONLY = process.env.PONDER_NETWORK === "hackathon";
+const HACKATHON_ENABLED = (process.env.PONDER_HACKATHON === "1" || IS_HACKATHON_ONLY) && process.env.PONDER_NETWORK !== "sepolia";
+const PROD_ENABLED = !IS_HACKATHON_ONLY;
+if (PROD_ENABLED) {
 // Router trade events (regular swaps)
 ponder.on("ZkAMMWithToken:TokensPurchased", handleTokensPurchased);
 ponder.on("ZkAMMWithToken:TokensSold", handleTokensSold);
@@ -669,10 +671,10 @@ ponder.on("ZkAMMPair:LPNullifierSpent", async ({ event, context }) => {
   });
 });
 
-} // end !IS_HACKATHON (RH/prod ZkAMM handlers)
+} // end PROD_ENABLED (RH/prod ZkAMM handlers)
 
 // ── ETHGlobal hackathon: Uniswap v4 markets on Sepolia — price series + rebalance events ──
-if (IS_HACKATHON) {
+if (HACKATHON_ENABLED) {
   const V4_MARKET_BY_POOLID: Record<string, string> = {
     "0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289": "oak",
     "0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482": "roeth",
@@ -734,7 +736,7 @@ if (IS_HACKATHON) {
 
 // Pledge vault handlers — only registered when the pledge address is wired
 // (Phase C). Registering handlers for an unconfigured contract makes Ponder throw.
-if (PLEDGE_ENABLED && !IS_HACKATHON) {
+if (PLEDGE_ENABLED && PROD_ENABLED) {
   // LandVault: Funded → tree insert; both claim events → nullifier spend.
   ponder.on("PledgeVault:Funded", handlePledgeCommitment);
   ponder.on("PledgeVault:ClaimedR00T", handlePledgeClaimed);
