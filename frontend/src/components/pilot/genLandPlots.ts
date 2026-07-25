@@ -6,7 +6,6 @@
  */
 import type { Plot, PlotStatus } from './types';
 
-type Pt = [number, number];
 const EMOJI: Record<string, string> = { OAK: '🌳', NUT: '🌰', CARROT: '🥕', CACTUS: '🌵', BERRY: '🫐', HERB: '🌿', FIG: '🫒', SPUD: '🥔', TURNIP: '🥬' };
 
 function pointInPoly(x: number, y: number, poly: number[][]): boolean {

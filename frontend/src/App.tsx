@@ -890,7 +890,7 @@ function App() {
                     )}
                     {activeTab === '_steward' && (
                       <Suspense fallback={<PanelSkeleton />}>
-                        <StewardConsole landName={steward.landName} landAddress={steward.landAddress} onOpenLand={() => setActiveTab('_land')} />
+                        <StewardConsole landName={steward.landName} landAddress={steward.landAddress} onOpenLand={() => setActiveTab('_land')} onStartLand={handleStartLand} />
                       </Suspense>
                     )}
                     {activeTab === '_land' && (
