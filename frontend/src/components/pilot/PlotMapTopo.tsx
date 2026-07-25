@@ -19,6 +19,10 @@ import { TYPE_LABEL, type Plot } from './types';
 import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { MachinesPanel } from './MachinesPanel';
+import { useAccount } from 'wagmi';
+import { loadMyLand } from './myLand';
+import { genLandPlots } from './genLandPlots';
+import { useCCAAuctions } from '../../hooks/useCCAAuctions';
 
 // ── game helpers: scatter crops inside a parcel so the field visibly fills ──
 function mulberry(seed: number) {
@@ -55,21 +59,32 @@ export function PlotMapTopo({ className = '' }: { className?: string }) {
   const [river, setRiver] = useState<number[][] | null>(null);
   const [plots, setPlots] = useState<Plot[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const { address } = useAccount();
+  const { auctions } = useCCAAuctions(address);
 
+  // MY LAND first: if this steward created a land via the wizard, render THEIR terrain + THEIR launched
+  // parcels (pilot == any anon steward). Otherwise fall back to the static pilot demo terrain.
   useEffect(() => {
+    const mine = loadMyLand(address);
+    if (mine && mine.boundary?.length >= 3) {
+      setBoundary(mine.boundary);
+      setRiver(mine.river ?? null);
+      setContours(mine.contours ?? []);
+      setPlots(genLandPlots(mine.boundary, auctions.map((a) => ({ ticker: a.ticker, name: a.token ? `$${a.ticker}` : a.ticker, phase: a.phase, raised: a.raised, clearedPrice: a.clearedPrice }))));
+      return;
+    }
     const getJson = async (url: string) => {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`${url} → ${r.status}`);
       return r.json();
     };
-    // boundary + plots are required to render; contours/river are optional flourish
     getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary))
       .catch((e) => { console.error('[PlotMap] boundary load failed', e); setLoadErr(String(e.message || e)); });
     getJson('/terrain/zones.json').then((z: Zone[]) => setPlots(zonesToPlots(z)))
       .catch((e) => { console.error('[PlotMap] zones load failed', e); setLoadErr(String(e.message || e)); });
     getJson('/terrain/contours.json').then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch((e) => console.warn('[PlotMap] contours', e));
     getJson('/terrain/river.json').then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch((e) => console.warn('[PlotMap] river', e));
-  }, []);
+  }, [address, auctions.length]);
 
   if (loadErr) {
     return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] gap-1 text-center px-4 ${className}`}>

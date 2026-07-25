@@ -11,6 +11,7 @@ import { useAccount } from 'wagmi';
 import { BASE_TOKEN } from './lands';
 import { useLandFactory } from '../../hooks/useLandFactory';
 import { useLaunchParcel } from '../../hooks/useLaunchParcel';
+import { saveMyLand } from './myLand';
 
 type Step = 0 | 1 | 2 | 3 | 4;
 interface ParcelDraft { ticker: string; name: string; emoji: string; sale: number; pool: number; floor: number; ha: number }
@@ -68,6 +69,10 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   const handleSubmit = async () => {
     setLaunchLog([]);
     const log = (s: string) => setLaunchLog((p) => [...p, s]);
+
+    // save the land terrain so the MAP renders THIS steward's land (pilot == any anon steward).
+    const parsedRiver = files.river ? parseBoundary(files.river) : null;
+    if (boundary) saveMyLand(address, { name, region, boundary, river: parsedRiver ?? undefined, createdAt: Date.now() });
 
     // 1) create the Land on-chain (records name/region/topography cid + commits R00T) when configured.
     if (configured && treasury.trim().startsWith('0x')) {
