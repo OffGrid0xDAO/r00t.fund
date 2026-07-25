@@ -32,12 +32,13 @@ function orient(m: Market, price1_0: number): number {
   return m.currency0IsRoot ? (price1_0 === 0 ? 0 : 1 / price1_0) : price1_0;
 }
 
-export function useV4Chart(market: Market): V4Chart {
+export function useV4Chart(market: Market | undefined): V4Chart {
   const [s, setS] = useState<V4Chart>({ series: [], livePub: null, livePriv: null, treasury: null, divergenceBps: null, loading: true });
   const arbsRef = useRef<V4Point[]>([]);
 
   // historical rebalances (once per market switch)
   useEffect(() => {
+    if (!market) { setS({ series: [], livePub: null, livePriv: null, treasury: null, divergenceBps: null, loading: false }); return; }
     let alive = true;
     arbsRef.current = [];
     setS((p) => ({ ...p, series: [], loading: true }));
@@ -56,10 +57,11 @@ export function useV4Chart(market: Market): V4Chart {
       } catch { /* RPC hiccup — live tail still renders */ }
     })();
     return () => { alive = false; };
-  }, [market.key]);
+  }, [market?.key]);
 
   // live tail (public slot0 + private reserves + treasury), polled
   useEffect(() => {
+    if (!market) return;
     let alive = true;
     const tick = async () => {
       try {
@@ -84,7 +86,7 @@ export function useV4Chart(market: Market): V4Chart {
     tick();
     const iv = setInterval(tick, 8000);
     return () => { alive = false; clearInterval(iv); };
-  }, [market.key]);
+  }, [market?.key]);
 
   return s;
 }

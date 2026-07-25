@@ -32,16 +32,24 @@ function DualLine({ pts }: { pts: { pub: number; priv: number }[] }) {
 
 export function MarketsChart({ onExpand }: { onExpand?: () => void } = {}) {
   const [mi, setMi] = useState(0);
-  const { markets } = useV4Markets(); // auto-discovers new markets from MarketRegistered
-  const market = markets[Math.min(mi, markets.length - 1)] ?? markets[0];
+  const { markets, loading } = useV4Markets(); // auto-discovers markets from MarketRegistered
+  const market = markets.length ? (markets[Math.min(mi, markets.length - 1)] ?? markets[0]) : undefined;
   const c = useV4Chart(market);
   const inSync = c.divergenceBps != null && c.divergenceBps < 30;
   const [qAmt, setQAmt] = useState('1');
   const [zfo, setZfo] = useState(true); // sell currency0 (= the quote token) → base
-  const inSym = zfo ? market.quote : market.base;
-  const outSym = zfo ? market.base : market.quote;
+  const inSym = market ? (zfo ? market.quote : market.base) : '';
+  const outSym = market ? (zfo ? market.base : market.quote) : '';
   const q = useV4Quote(market, qAmt, zfo);
   const rebalances = useMemo(() => c.series.filter((p) => p.tx).slice(-6).reverse(), [c.series]);
+
+  if (!market) {
+    return (
+      <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-8 text-center">
+        <div className="text-sm text-[#888]">{loading ? 'discovering markets…' : 'No markets yet — launch a parcel above and it appears here automatically.'}</div>
+      </div>
+    );
+  }
   // % change of the public price across the visible series
   const chg = useMemo(() => {
     const pts = c.series.filter((p) => p.pub > 0);

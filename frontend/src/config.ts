@@ -196,10 +196,10 @@ export const HACKATHON = {
   poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
   stateView: '0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c',
   quoter: '0x61b3f2011a92d183c7dbadbda940a7555ccf9227', // official Uniswap v4 Quoter (Sepolia)
-  // Regenerative Liquidity deploy (parcel CCA + double pool + arb hook)
-  launchpad: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
-  hook: '0x259083118770202EF1eC4d36Db321F6aBd24C040',
-  root: '0x3d47002Cbe4e1d1a0640fc20aD1a75eB6559D73B',
+  // Regenerative Liquidity deploy V2 — self-seed launchpad (ANY steward can launch, nothing hardcoded)
+  launchpad: '0x7731c00C809576b678426865fC6Afd3BA6EfC508',
+  hook: '0xc8F4A068131Cd19403619f1d62Ee599f5C07c040',
+  root: '0xA23FA2fA8CC3D6b8724fD1a16d5EF7680240f400',
   // the demo parcel launched via the CCA (addresses + poolId read from the live Initialize event)
   parcel: { id: '0x4f414b2d50415243454c2d4c4956450000000000000000000000000000000000', ticker: 'OAK',
     token: '0x48b1ccf919a676f3108106d0ef7db767821258d0',
@@ -211,29 +211,14 @@ export const HACKATHON = {
   },
   // v4 indexer (Ponder on Railway, PONDER_NETWORK=hackathon) — v4Trades/v4Arbs per market.
   indexerUrl: (import.meta.env.VITE_HACKATHON_INDEXER as string) || '',
-  // pair-selectable markets — each shows its public price (v4 Swap) + private price + rebalances.
-  markets: [
-    {
-      key: 'oak', label: 'R00T / OAK', base: 'OAK', quote: 'R00T', priceLabel: 'R00T/OAK',
-      poolId: '0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289',
-      hook: '0x259083118770202EF1eC4d36Db321F6aBd24C040',
-      privatePool: '0xA9e2e97168d49b73B55a6df058e15F83082B7213', // RegenPrivatePool.getReserves()=(R00T,OAK)
-      treasury: '0x30165243a74a823dc3e15fd4039157e7bf53bf20', treasuryIsEth: false,
-      currency0IsRoot: true,   // price1/0 = OAK/R00T → invert for R00T/OAK
-      currency0: '0x3d47002Cbe4e1d1a0640fc20aD1a75eB6559D73B', currency1: '0x48B1Ccf919A676f3108106D0Ef7dB767821258D0',
-      fee: 3000, tickSpacing: 60,
-    },
-    {
-      key: 'roeth', label: 'R00T / ETH', base: 'R00T', quote: 'ETH', priceLabel: 'R00T/ETH',
-      poolId: '0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482',
-      hook: '0x075211F56D5349bC9da2331D3738BE4bFd568040',
-      privatePool: '0x6Db6AF0D6fAD4352D0c72930C81cC91EFB0b3E50', // real ZkAMMPair.getReserves()=(ETH,R00T)
-      treasury: '0xAD9aC7e45B26ff7A24b6b34C309Ce66915733745', treasuryIsEth: true,
-      currency0IsRoot: false,  // currency0 = ETH; price1/0 = R00T/ETH directly
-      currency0: '0x0000000000000000000000000000000000000000', currency1: '0x4Dc3c11150682B6f6F3D1b1a32bA397Fd6200709',
-      fee: 3000, tickSpacing: 60,
-    },
-  ],
+  // NOTHING HARDCODED — markets are auto-discovered on-chain (RegenArbHook.MarketRegistered on the
+  // shared `hook` above) as stewards launch parcels. useV4Markets seeds from this (empty) list + the
+  // live events, so every new land/parcel appears automatically with zero config.
+  markets: [] as {
+    key: string; label: string; base: string; quote: string; priceLabel: string;
+    poolId: string; hook: string; privatePool: string; treasury: string;
+    treasuryIsEth: boolean; currency0IsRoot: boolean; currency0: string; currency1: string; fee: number; tickSpacing: number;
+  }[],
 } as const;
 
 // External contract addresses (Arbitrum mainnet)

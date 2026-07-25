@@ -60,7 +60,8 @@ export function useV4Markets(): { markets: Market[]; loading: boolean } {
     (async () => {
       const byPool = new Map(HACKATHON.markets.map((m) => [m.poolId.toLowerCase(), m as Market]));
       const out: Market[] = [...HACKATHON.markets];
-      const hooks = [...new Set(HACKATHON.markets.map((m) => m.hook.toLowerCase()))];
+      // scan the primary shared hook (all new launches register here) + any curated market hooks
+      const hooks = [...new Set([HACKATHON.hook.toLowerCase(), ...HACKATHON.markets.map((m) => m.hook.toLowerCase())])];
       try {
         for (const hook of hooks) {
           const logs = await logsClient.getLogs({ address: hook as `0x${string}`, event: marketRegistered, fromBlock: FROM_BLOCK, toBlock: 'latest' });

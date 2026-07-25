@@ -116,6 +116,8 @@ export function CCAPanel() {
     setBusy(a.parcelId + ':launch');
     try {
       await ensureChain();
+      // self-seed launchpad pulls the R00T pool-side from the steward → approve first (max)
+      await tx(await walletClient.writeContract({ address: HACKATHON.root as `0x${string}`, abi: erc20, functionName: 'approve', args: [HACKATHON.launchpad as `0x${string}`, 2n ** 255n] }));
       const h = await walletClient.writeContract({ address: HACKATHON.launchpad as `0x${string}`, abi: lpWrite, functionName: 'clearAndLaunch', args: [a.parcelId as `0x${string}`] });
       await tx(h); refetch();
     } catch (e) { console.error(e); } finally { setBusy(''); }
