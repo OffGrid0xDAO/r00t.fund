@@ -118,10 +118,6 @@ interface StewardConsoleProps {
 }
 
 export function StewardConsole({ landName, landAddress, onOpenLand }: StewardConsoleProps = {}) {
-  const live = useRegenLive();
-  const p = HACKATHON.parcel;
-  const inSync = live.divergenceBps != null && live.divergenceBps < 30;
-
   return (
     <div className="max-w-3xl mx-auto w-full px-4 py-6">
       <div className="flex items-center justify-between mb-5">
@@ -146,61 +142,17 @@ export function StewardConsole({ landName, landAddress, onOpenLand }: StewardCon
         <span className="text-[11px] text-[#888]">← back to Land map</span>
       </button>
 
-      {/* the launched parcel */}
-      <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🌳</span>
-            <div>
-              <div className="font-semibold">${p.ticker} · Oak Parcel</div>
-              <div className="text-[11px] text-[#888]">
-                phase: <span style={{ color: live.phase === 2 ? GREEN : '#aaa' }}>{['None', 'Auction', 'Live'][live.phase ?? 0] || '…'}</span>
-              </div>
-            </div>
-          </div>
-          {live.error && <span className="text-[11px] text-[#e05555]">{live.error}</span>}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="CCA clear" value={live.clearedPrice != null ? live.clearedPrice.toFixed(4) : '…'} sub={`R00T / ${p.ticker}`} />
-          <Stat label="Raised" value={live.raised != null ? `${live.raised.toLocaleString()}` : '…'} sub="R00T" />
-          <Stat label="Divergence" value={live.divergenceBps != null ? `${live.divergenceBps} bps` : '…'} sub={inSync ? 'in sync (<30bps)' : 'arbing…'} color={inSync ? GREEN : LIME} />
-          <Stat label="Regen treasury" value={live.treasuryRoot != null ? live.treasuryRoot.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '…'} sub="R00T from arb" color={GREEN} />
-        </div>
-      </div>
-
-      {/* live raises — fair-launch a parcel via the CCA */}
+      {/* live raises — fair-launch a parcel via the CCA (create → bid → clearAndLaunch) */}
       <div className="mb-5"><CCAPanel /></div>
 
-      {/* all markets — pick a pair, watch trades + rebalancing live */}
-      <div className="mb-3 text-sm font-semibold text-[#ddd]">Markets — choose a pair</div>
+      {/* all markets — auto-discovered; pick a pair, watch public vs private + rebalancing live */}
+      <div className="mb-3 text-sm font-semibold text-[#ddd]">Markets — live trades & rebalancing</div>
       <div className="mb-5"><MarketsChart /></div>
 
-      {/* the double pool */}
-      <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold text-[#ddd]">Double pool — live rebalancing</div>
-          <div className="flex gap-3 text-[10px]">
-            <span style={{ color: BLUE }}>● public v4</span>
-            <span style={{ color: LIME }}>● private (zkAMM)</span>
-          </div>
-        </div>
-        {/* time-series chart of both pool prices (falls back to on-chain arb points until the live series fills) */}
-        <DualPoolChart
-          pts={live.series.length >= 2 ? live.series.map((s) => ({ pub: s.pub, priv: s.priv }))
-                : live.arbs.map((a) => ({ pub: a.uni, priv: a.priv }))}
-          cleared={live.clearedPrice}
-        />
-        <div className="mt-3 mb-4">
-          <ArbFeed arbs={live.arbs} />
-        </div>
-        <DoublePoolViz priv={live.privatePrice} pub={live.publicPrice} cleared={live.clearedPrice} />
-        <div className="flex gap-3 mt-4 text-[11px]">
-          <a className="underline text-[#8C9EFF]" href={ex('address', HACKATHON.launchpad)} target="_blank" rel="noreferrer">launchpad ↗</a>
-          <a className="underline text-[#8C9EFF]" href={ex('address', HACKATHON.hook)} target="_blank" rel="noreferrer">arb hook ↗</a>
-          <a className="underline text-[#8C9EFF]" href={ex('address', p.privatePool)} target="_blank" rel="noreferrer">private pool ↗</a>
-          <a className="underline text-[#8C9EFF]" href={ex('address', p.treasury)} target="_blank" rel="noreferrer">treasury ↗</a>
-          <button onClick={live.refetch} className="ml-auto text-[#888] hover:text-white">↻ refresh</button>
-        </div>
+      {/* shared-contract links */}
+      <div className="flex gap-3 mb-5 text-[11px]">
+        <a className="underline text-[#8C9EFF]" href={ex('address', HACKATHON.launchpad)} target="_blank" rel="noreferrer">launchpad ↗</a>
+        <a className="underline text-[#8C9EFF]" href={ex('address', HACKATHON.hook)} target="_blank" rel="noreferrer">shared arb hook ↗</a>
       </div>
 
       {/* the steward journey */}
