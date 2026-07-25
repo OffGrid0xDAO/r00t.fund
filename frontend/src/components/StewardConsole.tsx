@@ -7,7 +7,7 @@
  * treasury that every cross-pool arb feeds. This is the on-chain proof the pools actually re-sync.
  */
 import { HACKATHON } from '../config';
-import { useRegenLive, type SeriesPoint, type ArbEvent } from '../hooks/useRegenLive';
+import { useRegenLive, type ArbEvent } from '../hooks/useRegenLive';
 
 const LIME = '#D6FE51';
 const GREEN = '#00ff88';
@@ -50,7 +50,7 @@ function ArbFeed({ arbs }: { arbs: ArbEvent[] }) {
           <a key={i} href={`${HACKATHON.explorerUrl}/block/${e.block}`} target="_blank" rel="noreferrer"
             className="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-[#111] hover:bg-[#181818]">
             <span className="text-[#888]">blk {e.block}</span>
-            <span style={{ color: BLUE }}>pub {e.pub.toFixed(4)}</span>
+            <span style={{ color: BLUE }}>pub {e.uni.toFixed(4)}</span>
             <span style={{ color: LIME }}>priv {e.priv.toFixed(4)}</span>
             <span style={{ color: GREEN }}>+{e.profit.toFixed(3)} R00T</span>
           </a>
