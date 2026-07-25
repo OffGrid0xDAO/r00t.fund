@@ -7,10 +7,13 @@
  */
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAccount } from 'wagmi';
 import { BASE_TOKEN } from './lands';
 import { useLandFactory } from '../../hooks/useLandFactory';
+import { useLaunchParcel } from '../../hooks/useLaunchParcel';
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3 | 4;
+interface ParcelDraft { ticker: string; name: string; emoji: string; sale: number; pool: number; floor: number }
 
 interface Files { heightmap?: string; boundary?: string; river?: string }
 
@@ -41,23 +44,53 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   const [treasury, setTreasury] = useState('');
   const [rootPledge, setRootPledge] = useState(1000);
   const [submitted, setSubmitted] = useState(false);
+  const [parcels, setParcels] = useState<ParcelDraft[]>([
+    { ticker: 'CACTUS', name: 'Cactus Line', emoji: '🌵', sale: 100000, pool: 100000, floor: 0.01 },
+  ]);
+  const [launchLog, setLaunchLog] = useState<string[]>([]);
 
+  const { address } = useAccount();
   const { createLand, status, error, configured, toPledge } = useLandFactory();
+  const { launch } = useLaunchParcel();
   const submitting = status === 'approving' || status === 'creating';
 
+  // treasury for the parcels' regen funds: the land treasury address (or the steward wallet)
+  const parcelTreasury = (treasury.trim().startsWith('0x') ? treasury.trim() : address || '') as string;
+
+  function addParcel() { setParcels((p) => [...p, { ticker: '', name: '', emoji: '🌱', sale: 100000, pool: 100000, floor: 0.01 }]); }
+  function setParcel(i: number, patch: Partial<ParcelDraft>) { setParcels((p) => p.map((x, j) => (j === i ? { ...x, ...patch } : x))); }
+  function delParcel(i: number) { setParcels((p) => p.filter((_, j) => j !== i)); }
+
   const handleSubmit = async () => {
-    // On-chain path when the factory is deployed + a treasury address is given.
+    setLaunchLog([]);
+    const log = (s: string) => setLaunchLog((p) => [...p, s]);
+
+    // 1) create the Land on-chain (records name/region/topography cid + commits R00T) when configured.
     if (configured && treasury.trim().startsWith('0x')) {
+      log('creating land on-chain…');
       const res = await createLand({
         name, region,
         boundaryText: files.boundary, topoText: files.heightmap,
         treasury: treasury.trim() as `0x${string}`,
         r00tPledge: toPledge(rootPledge),
       });
-      if (res) setSubmitted(true);
-      return;
+      if (!res) { log('✗ land creation failed'); return; }
+      log(`✓ land "${name}" created`);
+    } else {
+      log('land queued (factory not configured) — launching parcels…');
     }
-    // Not configured yet → queue locally (demo/onboarding).
+
+    // 2) launch each parcel as a CCA (deploy token → open auction → clears into both pools + hook).
+    for (const p of parcels.filter((x) => x.ticker.trim())) {
+      log(`— launching $${p.ticker} —`);
+      const r = await launch({
+        ticker: p.ticker.trim().toUpperCase(), name: p.name || `${p.ticker} Parcel`,
+        sale: p.sale, pool: p.pool, floorR00T: p.floor, windowHours: 1, treasury: parcelTreasury,
+      });
+      if (r) log(`✓ $${p.ticker} raise LIVE (${r.token.slice(0, 8)}…)`);
+      else log(`✗ $${p.ticker} failed`);
+    }
+    log('✓ all parcels launched — trading on zkAMM + Uniswap v4 with the arb hook');
     setSubmitted(true);
   };
 
@@ -74,7 +107,7 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
     r.readAsText(file);
   };
 
-  const canNext = step === 0 ? name.trim() && region.trim() : step === 1 ? !!files.boundary : true;
+  const canNext = step === 0 ? !!(name.trim() && region.trim()) : step === 1 ? !!files.boundary : step === 3 ? parcels.some((p) => p.ticker.trim()) : true;
 
   return (
     <motion.div
@@ -104,7 +137,7 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
         {/* stepper */}
         {!submitted && (
           <div className="flex gap-1.5 px-6 pt-4">
-            {['Land', 'Topography', 'Token', 'Review'].map((s, i) => (
+            {['Land', 'Topography', 'Token', 'Parcels', 'Launch'].map((s, i) => (
               <div key={s} className="flex-1">
                 <div className="h-1 rounded-full transition-colors" style={{ background: i <= step ? 'var(--accent)' : 'var(--border)' }} />
                 <span className={`mt-1 block text-[9px] font-mono uppercase tracking-wide ${i === step ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>{s}</span>
@@ -177,14 +210,36 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                   <p className="mt-1 text-[10px] font-mono text-[var(--text-muted)]">Locked at creation as the seed liquidity for your parcel/${BASE_TOKEN} pools — this is the OTC ${BASE_TOKEN} you sell to backers.</p>
                 </Field>
               </motion.div>
+            ) : step === 3 ? (
+              <motion.div key="parcels" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
+                <div className="rounded-xl border border-[var(--border)] p-3" style={{ background: `color-mix(in srgb, var(--accent) 6%, var(--bg-secondary))` }}>
+                  <p className="text-sm text-[var(--text-primary)] font-medium">Define your parcels — like a memecoin launchpad</p>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed mt-0.5">Each becomes a token you open via a Continuous Clearing Auction. On clear it seeds a private zkAMM + a public Uniswap v4 pool, arbed by the shared regen hook. Fully automated — no manual config.</p>
+                </div>
+                {parcels.map((p, i) => (
+                  <div key={i} className="rounded-lg border border-[var(--border)] p-3 grid grid-cols-12 gap-2 items-end">
+                    <label className="col-span-2 text-[9px] font-mono text-[var(--text-muted)]">emoji
+                      <input value={p.emoji} onChange={(e) => setParcel(i, { emoji: e.target.value })} className={`${inputCls} text-center`} maxLength={2} /></label>
+                    <label className="col-span-3 text-[9px] font-mono text-[var(--text-muted)]">ticker
+                      <input value={p.ticker} onChange={(e) => setParcel(i, { ticker: e.target.value.toUpperCase() })} placeholder="OAK" className={`${inputCls} font-mono`} /></label>
+                    <label className="col-span-4 text-[9px] font-mono text-[var(--text-muted)]">name
+                      <input value={p.name} onChange={(e) => setParcel(i, { name: e.target.value })} placeholder="Native oak" className={inputCls} /></label>
+                    <label className="col-span-2 text-[9px] font-mono text-[var(--text-muted)]">floor R00T
+                      <input type="number" value={p.floor} onChange={(e) => setParcel(i, { floor: Number(e.target.value) || 0 })} className={inputCls} /></label>
+                    <button onClick={() => delParcel(i)} className="col-span-1 text-[var(--text-muted)] hover:text-[var(--error,#e5484d)] pb-2" aria-label="remove">✕</button>
+                  </div>
+                ))}
+                <button onClick={addParcel} className="w-full py-2 rounded-lg border border-dashed border-[var(--border)] text-xs text-[var(--text-muted)] hover:border-[var(--accent)]">+ add parcel</button>
+              </motion.div>
             ) : (
-              <motion.div key="s3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
+              <motion.div key="s4" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
                 {[
                   ['Land', name || '—'], ['Steward', steward || '—'], ['Region', region || '—'],
                   ['Boundary', files.boundary ? '✓ uploaded' : '—'], ['Topography', files.heightmap ? '✓ uploaded' : '— (auto-flat)'],
                   ['Watercourse', files.river ? '✓ uploaded' : '— (none)'],
-                  ['Token base', `$${BASE_TOKEN}`], ['Supply / parcel', supply.toLocaleString()], ['Treasury', treasury || '—'],
+                  ['Token base', `$${BASE_TOKEN}`], ['Treasury', treasury || '—'],
                   [`$${BASE_TOKEN} pledge`, rootPledge.toLocaleString()],
+                  ['Parcels', parcels.filter((p) => p.ticker.trim()).map((p) => `${p.emoji}$${p.ticker}`).join('  ') || '—'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between text-sm border-b border-[var(--border)]/60 pb-2">
                     <span className="text-[var(--text-muted)] font-mono text-xs">{k}</span>
@@ -192,12 +247,16 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                   </div>
                 ))}
                 <p className="text-[11px] font-mono text-[var(--text-muted)] pt-1">
-                  {configured
-                    ? `On submit: approve your $${BASE_TOKEN} pledge → createLand on-chain → terrain fuzzed & auto-parceled.`
-                    : 'On submit: terrain is fuzzed → auto-parceled → your land goes live for pledges.'}
+                  On submit: createLand on-chain (name/region/topography + commit ${BASE_TOKEN}) → each parcel opens a
+                  CCA that seeds a private zkAMM + public Uniswap v4 pool + wires the arb hook. Fully automated.
                 </p>
                 {status === 'error' && error && (
                   <p className="text-[11px] font-mono text-[var(--error,#e5484d)] pt-1">⚠ {error}</p>
+                )}
+                {launchLog.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-0.5 rounded-lg border border-[var(--border)] p-2 max-h-40 overflow-y-auto" style={{ background: 'var(--bg-secondary)' }}>
+                    {launchLog.map((s, i) => <div key={i} className="text-[10px] font-mono" style={{ color: s.startsWith('✓') ? '#7CFFB2' : s.startsWith('✗') ? '#e05555' : 'var(--text-muted)' }}>{s}</div>)}
+                  </div>
                 )}
               </motion.div>
             )}
@@ -210,14 +269,14 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
             <button onClick={() => (step === 0 ? onClose() : setStep((s) => (s - 1) as Step))} className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
               {step === 0 ? 'Cancel' : 'Back'}
             </button>
-            {step < 3 ? (
+            {step < 4 ? (
               <button onClick={() => canNext && setStep((s) => (s + 1) as Step)} disabled={!canNext}
                 className="px-6 py-2.5 rounded-xl text-[var(--accent-ink)] font-medium text-sm disabled:opacity-40" style={{ background: 'var(--accent)' }}>
                 Continue
               </button>
             ) : (
               <button onClick={handleSubmit} disabled={submitting} className="px-6 py-2.5 rounded-xl text-[var(--accent-ink)] font-medium text-sm disabled:opacity-50" style={{ background: 'var(--accent)' }}>
-                {status === 'approving' ? `Approving $${BASE_TOKEN}…` : status === 'creating' ? 'Creating land…' : 'Submit land'}
+                {status === 'approving' ? `Approving $${BASE_TOKEN}…` : status === 'creating' ? 'Creating land…' : launchLog.length > 0 ? 'Launching…' : 'Create land + launch parcels'}
               </button>
             )}
           </div>
