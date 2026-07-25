@@ -8,6 +8,7 @@
  */
 import { HACKATHON } from '../config';
 import { MarketsChart } from './MarketsChart';
+import { CCAPanel } from './CCAPanel';
 import { useRegenLive, type ArbEvent } from '../hooks/useRegenLive';
 
 const LIME = '#D6FE51';
@@ -166,6 +167,9 @@ export function StewardConsole({ landName, landAddress, onOpenLand }: StewardCon
           <Stat label="Regen treasury" value={live.treasuryRoot != null ? live.treasuryRoot.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '…'} sub="R00T from arb" color={GREEN} />
         </div>
       </div>
+
+      {/* live raises — fair-launch a parcel via the CCA */}
+      <div className="mb-5"><CCAPanel /></div>
 
       {/* all markets — pick a pair, watch trades + rebalancing live */}
       <div className="mb-3 text-sm font-semibold text-[#ddd]">Markets — choose a pair</div>
