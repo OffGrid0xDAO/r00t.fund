@@ -16,13 +16,12 @@ const PROD_ENABLED = NETWORK !== "hackathon";
 // ── ETHGlobal hackathon: Uniswap v4 markets on Ethereum Sepolia (11155111) ──
 // Run a dedicated instance with PONDER_NETWORK=hackathon (separate from the RH prod indexer).
 const HACKATHON_RPC = process.env.PONDER_RPC_URL_11155111 || "https://eth-sepolia.g.alchemy.com/v2/demo";
-const HACKATHON_START_BLOCK = Number(process.env.PONDER_HACKATHON_START_BLOCK || 11343000);
+const HACKATHON_START_BLOCK = Number(process.env.PONDER_HACKATHON_START_BLOCK || 11347000);
 const HACKATHON_POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"; // canonical Sepolia v4 PoolManager
-// market poolIds (v4) + their RegenArbHook (each emits SpreadCaptured for its market)
-const OAK_POOL_ID = "0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289";
-const OAK_HOOK = "0x259083118770202EF1eC4d36Db321F6aBd24C040";
-const ROETH_POOL_ID = "0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482";
-const ROETH_HOOK = "0x075211F56D5349bC9da2331D3738BE4bFd568040";
+// CLEAN STACK — ONE shared RegenArbHook indexes MarketRegistered (auto-discovers every market) +
+// SpreadCaptured (rebalances) for the base pair AND all parcels. The base R00T/ETH poolId seeds Swap.
+const SHARED_HOOK = "0x2B019cC4D35CeB177fe41a4A8b4D873494C20040";
+const BASE_POOL_ID = "0xc85eee3324217afd9113d8b66e59e1e4380976ede7ee4cd3882cc107eca74bfb";
 
 // Arbitrum mainnet config
 const ARBITRUM_FIRST_BLOCK = 420982912;
@@ -228,13 +227,15 @@ export default createConfig({
         abi: PoolManagerV4Abi,
         address: HACKATHON_POOL_MANAGER as `0x${string}`,
         startBlock: HACKATHON_START_BLOCK,
-        // only our markets' swaps (id = poolId, indexed) — not all of Sepolia v4
-        filter: { event: "Swap", args: { id: [OAK_POOL_ID, ROETH_POOL_ID] } },
+        // base pair's swaps seed the chart; parcels' pools are discovered via MarketRegistered and
+        // their swaps flow through the same PoolManager (indexed by the v4_trades handler which keys
+        // on the discovered poolIds).
+        filter: { event: "Swap", args: { id: [BASE_POOL_ID] } },
       },
       RegenArbHook: {
         network: "hackathon",
         abi: RegenArbHookAbi,
-        address: [OAK_HOOK, ROETH_HOOK] as `0x${string}`[],
+        address: SHARED_HOOK as `0x${string}`, // ONE shared hook: MarketRegistered + SpreadCaptured for all markets
         startBlock: HACKATHON_START_BLOCK,
       },
     }),

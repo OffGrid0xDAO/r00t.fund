@@ -675,19 +675,14 @@ ponder.on("ZkAMMPair:LPNullifierSpent", async ({ event, context }) => {
 
 // ── ETHGlobal hackathon: Uniswap v4 markets on Sepolia — price series + rebalance events ──
 if (HACKATHON_ENABLED) {
-  const V4_MARKET_BY_POOLID: Record<string, string> = {
-    "0xba014fe2550fc8648c63e26599e7da400bf9f85a62b491697a4523f14586b289": "oak",
-    "0x5fe29acad4d207f9d083c6f5dc8ad22876cb8c7dd68c3bcbc28a785b42111482": "roeth",
-  };
-  const V4_MARKET_BY_HOOK: Record<string, string> = {
-    "0x259083118770202ef1ec4d36db321f6abd24c040": "oak",
-    "0x075211f56d5349bc9da2331d3738be4bfd568040": "roeth",
-  };
+  // CLEAN STACK: the base pair is 'roeth'; every other market is keyed by its poolId (auto-discovered
+  // via MarketRegistered) — no hardcoded parcel names.
+  const BASE_POOL_ID = "0xc85eee3324217afd9113d8b66e59e1e4380976ede7ee4cd3882cc107eca74bfb";
+  const marketKey = (poolId: string) => (poolId.toLowerCase() === BASE_POOL_ID ? "roeth" : poolId.toLowerCase());
 
   // each PUBLIC v4 swap → one price point (currency1 per currency0, 1e18) from sqrtPriceX96
   ponder.on("PoolManagerV4:Swap", async ({ event, context }: any) => {
-    const market = V4_MARKET_BY_POOLID[String(event.args.id).toLowerCase()];
-    if (!market) return;
+    const market = marketKey(String(event.args.id));
     const sp = BigInt(event.args.sqrtPriceX96);
     const price1e18 = (sp * sp * (10n ** 18n)) >> 192n; // (sqrtP/2^96)^2 * 1e18
     await context.db.insert(v4Trades).values({
@@ -718,9 +713,11 @@ if (HACKATHON_ENABLED) {
     }).onConflictDoNothing();
   });
 
-  // each real cross-pool rebalance (hook SpreadCaptured) → both pool prices at that moment
+  // each real cross-pool rebalance (hook SpreadCaptured) → both pool prices at that moment.
+  // keyed by marketId ("R00T-ETH" for base, else the parcelId) — no hardcoded hook map.
   ponder.on("RegenArbHook:SpreadCaptured", async ({ event, context }: any) => {
-    const market = V4_MARKET_BY_HOOK[String(event.log.address).toLowerCase()] || "unknown";
+    const mid = String(event.args.marketId);
+    const market = mid === "0x523030542d455448000000000000000000000000000000000000000000000000" ? "roeth" : mid;
     await context.db.insert(v4Arbs).values({
       id: `${event.transaction.hash}-${event.log.logIndex}`,
       market,
