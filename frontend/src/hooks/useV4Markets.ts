@@ -16,6 +16,7 @@ export type Market = {
   key: string; label: string; base: string; quote: string; priceLabel: string;
   poolId: string; hook: string; privatePool: string; treasury: string;
   treasuryIsEth: boolean; currency0IsRoot: boolean;
+  currency0: string; currency1: string; fee: number; tickSpacing: number; // v4 PoolKey (for the Quoter)
 };
 
 const client = createPublicClient({ transport: http(HACKATHON.rpcUrl) });
@@ -76,6 +77,7 @@ export function useV4Markets(): { markets: Market[]; loading: boolean } {
               key: poolId.slice(0, 10), label: `R00T / ${sym}`, base: sym, quote: 'R00T', priceLabel: `R00T/${sym}`,
               poolId, hook, privatePool: priv, treasury: String(l.args.treasury), treasuryIsEth: false,
               currency0IsRoot: t0.toLowerCase() === ROOT,
+              currency0: t0, currency1: t1, fee: 3000, tickSpacing: 60, // parcel pools use 0.3% / 60
             });
           }
         }

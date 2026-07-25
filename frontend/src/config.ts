@@ -192,6 +192,7 @@ export const HACKATHON = {
   // Uniswap v4 (canonical Sepolia)
   poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
   stateView: '0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c',
+  quoter: '0x61b3f2011a92d183c7dbadbda940a7555ccf9227', // official Uniswap v4 Quoter (Sepolia)
   // Regenerative Liquidity deploy (parcel CCA + double pool + arb hook)
   launchpad: '0x2EaFE93d9ecf8B8E2Dd0C5f0B5c86a374206C6B0',
   hook: '0x259083118770202EF1eC4d36Db321F6aBd24C040',
@@ -216,6 +217,8 @@ export const HACKATHON = {
       privatePool: '0xA9e2e97168d49b73B55a6df058e15F83082B7213', // RegenPrivatePool.getReserves()=(R00T,OAK)
       treasury: '0x30165243a74a823dc3e15fd4039157e7bf53bf20', treasuryIsEth: false,
       currency0IsRoot: true,   // price1/0 = OAK/R00T → invert for R00T/OAK
+      currency0: '0x3d47002Cbe4e1d1a0640fc20aD1a75eB6559D73B', currency1: '0x48B1Ccf919A676f3108106D0Ef7dB767821258D0',
+      fee: 3000, tickSpacing: 60,
     },
     {
       key: 'roeth', label: 'R00T / ETH', base: 'R00T', quote: 'ETH', priceLabel: 'R00T/ETH',
@@ -224,6 +227,8 @@ export const HACKATHON = {
       privatePool: '0x6Db6AF0D6fAD4352D0c72930C81cC91EFB0b3E50', // real ZkAMMPair.getReserves()=(ETH,R00T)
       treasury: '0xAD9aC7e45B26ff7A24b6b34C309Ce66915733745', treasuryIsEth: true,
       currency0IsRoot: false,  // currency0 = ETH; price1/0 = R00T/ETH directly
+      currency0: '0x0000000000000000000000000000000000000000', currency1: '0x4Dc3c11150682B6f6F3D1b1a32bA397Fd6200709',
+      fee: 3000, tickSpacing: 60,
     },
   ],
 } as const;

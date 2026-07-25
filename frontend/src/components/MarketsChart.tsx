@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { HACKATHON } from '../config';
 import { useV4Chart } from '../hooks/useV4Chart';
 import { useV4Markets } from '../hooks/useV4Markets';
+import { useV4Quote } from '../hooks/useV4Quote';
 
 const LIME = '#D6FE51', BLUE = '#8C9EFF', GREEN = '#7CFFB2';
 
@@ -35,6 +36,11 @@ export function MarketsChart() {
   const market = markets[Math.min(mi, markets.length - 1)] ?? markets[0];
   const c = useV4Chart(market);
   const inSync = c.divergenceBps != null && c.divergenceBps < 30;
+  const [qAmt, setQAmt] = useState('1');
+  const [zfo, setZfo] = useState(true); // sell currency0 (= the quote token) → base
+  const inSym = zfo ? market.quote : market.base;
+  const outSym = zfo ? market.base : market.quote;
+  const q = useV4Quote(market, qAmt, zfo);
   const rebalances = useMemo(() => c.series.filter((p) => p.tx).slice(-6).reverse(), [c.series]);
 
   return (
@@ -64,6 +70,22 @@ export function MarketsChart() {
         <Stat label="private" value={c.livePriv != null ? c.livePriv.toPrecision(4) : '…'} sub={market.priceLabel} color={LIME} />
         <Stat label="divergence" value={c.divergenceBps != null ? `${c.divergenceBps} bps` : '…'} sub={inSync ? 'in sync' : 'arbing…'} color={inSync ? GREEN : LIME} />
         <Stat label="regen treasury" value={c.treasury != null ? c.treasury.toLocaleString(undefined, { maximumFractionDigits: market.treasuryIsEth ? 4 : 2 }) : '…'} sub={market.quote} color={GREEN} />
+      </div>
+
+      {/* live quote via the OFFICIAL Uniswap v4 Quoter */}
+      <div className="mt-3 border-t border-[#222] pt-3">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10px] text-[#666]">quote · <span className="text-[#8C9EFF]">Uniswap v4 Quoter</span></div>
+          <button onClick={() => setZfo((v) => !v)} className="text-[10px] text-[#aaa] hover:text-white">⇅ flip</button>
+        </div>
+        <div className="flex items-center gap-2">
+          <input value={qAmt} onChange={(e) => setQAmt(e.target.value)} inputMode="decimal"
+            className="w-24 bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-sm font-mono outline-none focus:border-[var(--accent)]" />
+          <span className="text-xs text-[#888]">{inSym} →</span>
+          <span className="flex-1 text-sm font-mono" style={{ color: LIME }}>
+            {q.loading ? '…' : q.error ? <span className="text-[#e05555] text-xs">{q.error}</span> : q.amountOut != null ? `${q.amountOut.toPrecision(6)} ${outSym}` : '—'}
+          </span>
+        </div>
       </div>
 
       {/* recent rebalances */}
