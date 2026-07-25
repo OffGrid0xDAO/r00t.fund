@@ -9,6 +9,7 @@ import { createPublicClient, http, parseAbiItem } from 'viem';
 import { HACKATHON } from '../config';
 import type { Market } from './useV4Markets';
 
+const logsClient = createPublicClient({ transport: http(HACKATHON.logsRpc) }); // wide-range getLogs (free-tier Alchemy caps to 10 blocks)
 const client = createPublicClient({ transport: http(HACKATHON.rpcUrl) });
 const spreadEvent = parseAbiItem('event SpreadCaptured(bytes32 indexed marketId, uint256 profit, uint256 uniPriceE18, uint256 privPriceE18)');
 const FROM_BLOCK = 11343000n;
@@ -42,7 +43,7 @@ export function useV4Chart(market: Market): V4Chart {
     setS((p) => ({ ...p, series: [], loading: true }));
     (async () => {
       try {
-        const logs = await client.getLogs({ address: market.hook as `0x${string}`, event: spreadEvent, fromBlock: FROM_BLOCK, toBlock: 'latest' });
+        const logs = await logsClient.getLogs({ address: market.hook as `0x${string}`, event: spreadEvent, fromBlock: FROM_BLOCK, toBlock: 'latest' });
         const pts: V4Point[] = logs.map((l: any, i: number) => ({
           x: Number(l.blockNumber) + i * 1e-6,
           pub: orient(market, Number(l.args.uniPriceE18) / 1e18),

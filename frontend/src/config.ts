@@ -188,6 +188,9 @@ export const CONTRACTS = {
 export const HACKATHON = {
   chainId: 11155111,
   rpcUrl: (import.meta.env.VITE_SEPOLIA_RPC as string) || 'https://eth-sepolia.g.alchemy.com/v2/EwUWHgcUazqY-WR9tRe46',
+  // Free-tier Alchemy caps eth_getLogs to a 10-block range, so event/trade HISTORY is read from a
+  // wide-range logs RPC (drpc). Ponder (PONDER_NETWORK=hackathon) is the production upgrade for this.
+  logsRpc: (import.meta.env.VITE_SEPOLIA_LOGS_RPC as string) || 'https://sepolia.drpc.org',
   explorerUrl: 'https://sepolia.etherscan.io',
   // Uniswap v4 (canonical Sepolia)
   poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',

@@ -4,6 +4,8 @@ import { usePriceHistory, TimeFrame, TRADE_COMPLETE_EVENT } from '../hooks/usePr
 import { TOKEN, getExplorerTxUrl } from '../config';
 import { OHLCVChart, ChartToggle, DisplayToggle, type ChartViewMode, type DisplayMode } from './OHLCVChart';
 import { ExpandChartButton } from './ChartModal';
+import { useV4Markets } from '../hooks/useV4Markets';
+import { useV4Trades } from '../hooks/useV4Trades';
 
 // Re-export for consumers that import from PriceChart
 export { TRADE_COMPLETE_EVENT };
@@ -12,6 +14,9 @@ interface PriceChartProps {
   zkAMMAddress: string;
   onExpand?: () => void;
   isExpanded?: boolean;
+  // 'root' = the RH main pool (default); otherwise a Sepolia v4 market key (e.g. 'oak','roeth').
+  marketKey?: string;
+  onMarketChange?: (key: string) => void;
 }
 
 const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
@@ -149,17 +154,27 @@ function TradeRow({
   );
 }
 
-export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: PriceChartProps) {
+export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketKey, onMarketChange }: PriceChartProps) {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('5m');
   const [chartView, setChartView] = useState<ChartViewMode>('candles');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('mcap');
 
+  // pair selection: 'root' (RH main pool) + auto-discovered Sepolia v4 markets. Controlled from App
+  // (so the swap panel can drive it) with a local fallback.
+  const { markets } = useV4Markets();
+  const [localMarket, setLocalMarket] = useState<string>('root');
+  const activeKey = marketKey ?? localMarket;
+  const setMarket = (k: string) => { setLocalMarket(k); onMarketChange?.(k); };
+  const v4Market = activeKey === 'root' ? undefined : markets.find((m) => m.key === activeKey);
+  const isV4 = !!v4Market;
+  const { trades: v4TradeList } = useV4Trades(v4Market);
+
   const {
-    currentPrice,
+    currentPrice: rhPrice,
     priceChange,
     volume,
     allTimeVolume,
-    trades,
+    trades: rhTrades,
     marketCapUsd,
     liquidityUsd,
     isLoading,
@@ -167,6 +182,10 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
     refreshAll,
     ethPrice,
   } = usePriceHistory(zkAMMAddress, timeFrame);
+
+  // when a Sepolia v4 pair is active, drive the SAME chart from its real on-chain swaps
+  const trades = isV4 ? v4TradeList : rhTrades;
+  const currentPrice = isV4 ? (v4TradeList.length ? v4TradeList[v4TradeList.length - 1].price : 0) : rhPrice;
 
   // Transform data for market cap display mode
   // For OHLCV chart: pass ALL trades (user can scroll), timeframe controls candle size
@@ -221,7 +240,8 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
       });
     }
 
-    if (displayMode === 'price') {
+    if (displayMode === 'price' || isV4) {
+      // v4 pairs are priced in R00T/ETH (not USD market cap) — show the raw price series.
       return {
         history: historyFromTrades,
         current: currentPrice,
@@ -245,7 +265,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
         price: t.price * totalSupply * ethPrice,
       })),
     };
-  }, [displayMode, currentPrice, trades, totalSupply, ethPrice, timeFrame]);
+  }, [displayMode, currentPrice, trades, totalSupply, ethPrice, timeFrame, isV4]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
@@ -267,7 +287,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
     return () => window.removeEventListener(TRADE_COMPLETE_EVENT, onTradeComplete);
   }, [handleRefresh]);
 
-  const hasData = zkAMMAddress !== '0x...';
+  const hasData = isV4 ? true : zkAMMAddress !== '0x...';
 
   // Chart dimensions
   const chartWidth = 100;
@@ -322,6 +342,24 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
 
   return (
     <div className="space-y-4">
+      {/* pair selector — R00T (main) + live Sepolia v4 markets (auto-discovered). Selecting one drives
+          THIS chart from that pool's real on-chain swaps. */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button onClick={() => setMarket('root')}
+          className={`px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors ${activeKey === 'root' ? 'text-black border-[var(--accent)]' : 'text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text-muted)]'}`}
+          style={activeKey === 'root' ? { background: 'var(--accent)' } : {}}>
+          ${TOKEN.symbol}
+        </button>
+        {markets.map((m) => (
+          <button key={m.key} onClick={() => setMarket(m.key)}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors ${activeKey === m.key ? 'text-black border-[var(--accent)]' : 'text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text-muted)]'}`}
+            style={activeKey === m.key ? { background: 'var(--accent)' } : {}}>
+            {m.label}
+          </button>
+        ))}
+        {isV4 && <span className="px-2 py-1 text-[10px] rounded-full border self-center" style={{ color: '#7CFFB2', borderColor: '#7CFFB2' }}>● Sepolia v4</span>}
+      </div>
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -343,7 +381,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
           <div>
             <p className="text-xs font-mono text-[var(--text-muted)] mb-2">
               <span className="text-[var(--accent)] opacity-60">// </span>
-              {displayMode === 'price' ? 'price' : 'market_cap'}
+              {isV4 ? 'price' : displayMode === 'price' ? 'price' : 'market_cap'}
               {!hasData && (
                 <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-sm bg-[var(--bg-secondary)] border border-[var(--border)]">
                   not connected
@@ -359,7 +397,16 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
               transition={{ duration: 0.2 }}
               className="flex items-baseline gap-2"
             >
-              {displayMode === 'price' ? (
+              {isV4 ? (
+                <>
+                  <span className="text-xl text-[var(--text-primary)] font-mono font-medium">
+                    {currentPrice > 0 ? currentPrice.toPrecision(5) : '—'}
+                  </span>
+                  <span className="text-xs text-[var(--text-muted)] font-mono">
+                    {v4Market!.priceLabel}
+                  </span>
+                </>
+              ) : displayMode === 'price' ? (
                 <>
                   <span className="text-xl text-[var(--text-primary)] font-mono font-medium">
                     {currentPrice > 0 ? currentPrice.toExponential(2) : '—'}
@@ -412,7 +459,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
           >
             <OHLCVChart
               trades={chartData.allTrades as any}
-              symbol={displayMode === 'price' ? `${TOKEN.symbol}/ETH` : `${TOKEN.symbol} MCap`}
+              symbol={isV4 ? v4Market!.priceLabel : displayMode === 'price' ? `${TOKEN.symbol}/ETH` : `${TOKEN.symbol} MCap`}
               timeframe={timeFrame === '5m' ? 1 : timeFrame === '1h' ? 5 : timeFrame === '4h' ? 15 : timeFrame === '1d' ? 30 : 60}
               height={isExpanded ? 500 : 320}
               showVolume={true}
@@ -764,8 +811,8 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false }: Price
               </motion.div>
             ) : (
               <div className="divide-y divide-[var(--border)]">
-                {trades.slice(0, 8).map((trade, i) => (
-                  <TradeRow key={trade.txHash || i} trade={trade} index={i} />
+                {trades.slice(0, 8).map((trade: any, i) => (
+                  <TradeRow key={trade.txHash || i} trade={{ ...trade, type: trade.type ?? trade.side ?? 'buy', tokenAmount: trade.tokenAmount ?? trade.amount ?? 0, ethAmount: trade.ethAmount ?? 0 }} index={i} />
                 ))}
               </div>
             )}

@@ -30,7 +30,7 @@ function DualLine({ pts }: { pts: { pub: number; priv: number }[] }) {
   );
 }
 
-export function MarketsChart() {
+export function MarketsChart({ onExpand }: { onExpand?: () => void } = {}) {
   const [mi, setMi] = useState(0);
   const { markets } = useV4Markets(); // auto-discovers new markets from MarketRegistered
   const market = markets[Math.min(mi, markets.length - 1)] ?? markets[0];
@@ -42,11 +42,33 @@ export function MarketsChart() {
   const outSym = zfo ? market.base : market.quote;
   const q = useV4Quote(market, qAmt, zfo);
   const rebalances = useMemo(() => c.series.filter((p) => p.tx).slice(-6).reverse(), [c.series]);
+  // % change of the public price across the visible series
+  const chg = useMemo(() => {
+    const pts = c.series.filter((p) => p.pub > 0);
+    if (pts.length < 2) return null;
+    const a = pts[0].pub, b = pts[pts.length - 1].pub;
+    return a > 0 ? ((b - a) / a) * 100 : null;
+  }, [c.series]);
 
   return (
     <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4">
+      {/* headline: current pair price + change + expand */}
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] text-[#777] font-mono">
+            <span>// {market.priceLabel}</span>
+            <span className="px-1.5 py-0.5 rounded-full border animate-pulse text-[9px]" style={{ color: GREEN, borderColor: GREEN }}>● LIVE · Sepolia v4</span>
+          </div>
+          <div className="text-2xl font-mono mt-0.5" style={{ color: LIME }}>{c.livePub != null ? c.livePub.toPrecision(5) : '…'}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {chg != null && <span className="text-sm font-mono" style={{ color: chg >= 0 ? GREEN : '#e05555' }}>{chg >= 0 ? '+' : ''}{chg.toFixed(2)}%</span>}
+          {onExpand && <button onClick={onExpand} className="text-[#666] hover:text-white p-1" title="expand">⤢</button>}
+        </div>
+      </div>
+
       {/* pair selector */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex gap-2 flex-wrap">
           {markets.map((m, i) => (
             <button key={m.key} onClick={() => setMi(i)}

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { HACKATHON } from '../config';
 
+const logsClient = createPublicClient({ transport: http(HACKATHON.logsRpc) }); // wide-range getLogs (free-tier Alchemy caps to 10 blocks)
 const client = createPublicClient({ transport: http(HACKATHON.rpcUrl) });
 const auctionStarted = parseAbiItem('event AuctionStarted(bytes32 indexed parcelId, uint64 end, uint256 reservePriceR00T)');
 const parcelCreated = parseAbiItem('event ParcelCreated(bytes32 indexed parcelId, address indexed steward, address token, uint256 saleTokens, uint256 poolTokens)');
@@ -46,8 +47,8 @@ export function useCCAAuctions(me?: string): { auctions: Auction[]; loading: boo
     (async () => {
       try {
         const [starts, created] = await Promise.all([
-          client.getLogs({ address: HACKATHON.launchpad as `0x${string}`, event: auctionStarted, fromBlock: FROM_BLOCK, toBlock: 'latest' }),
-          client.getLogs({ address: HACKATHON.launchpad as `0x${string}`, event: parcelCreated, fromBlock: FROM_BLOCK, toBlock: 'latest' }),
+          logsClient.getLogs({ address: HACKATHON.launchpad as `0x${string}`, event: auctionStarted, fromBlock: FROM_BLOCK, toBlock: 'latest' }),
+          logsClient.getLogs({ address: HACKATHON.launchpad as `0x${string}`, event: parcelCreated, fromBlock: FROM_BLOCK, toBlock: 'latest' }),
         ]);
         const createdBy: Record<string, any> = {};
         for (const c of created as any[]) createdBy[String(c.args.parcelId).toLowerCase()] = c.args;

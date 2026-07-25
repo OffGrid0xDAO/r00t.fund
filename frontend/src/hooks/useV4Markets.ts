@@ -19,6 +19,7 @@ export type Market = {
   currency0: string; currency1: string; fee: number; tickSpacing: number; // v4 PoolKey (for the Quoter)
 };
 
+const logsClient = createPublicClient({ transport: http(HACKATHON.logsRpc) }); // wide-range getLogs (free-tier Alchemy caps to 10 blocks)
 const client = createPublicClient({ transport: http(HACKATHON.rpcUrl) });
 const marketRegistered = parseAbiItem('event MarketRegistered(bytes32 indexed poolId, bytes32 indexed marketId, address privatePool, address treasury)');
 const FROM_BLOCK = 11343000n;
@@ -62,7 +63,7 @@ export function useV4Markets(): { markets: Market[]; loading: boolean } {
       const hooks = [...new Set(HACKATHON.markets.map((m) => m.hook.toLowerCase()))];
       try {
         for (const hook of hooks) {
-          const logs = await client.getLogs({ address: hook as `0x${string}`, event: marketRegistered, fromBlock: FROM_BLOCK, toBlock: 'latest' });
+          const logs = await logsClient.getLogs({ address: hook as `0x${string}`, event: marketRegistered, fromBlock: FROM_BLOCK, toBlock: 'latest' });
           for (const l of logs as any[]) {
             const poolId = String(l.args.poolId).toLowerCase();
             if (byPool.has(poolId) || out.some((m) => m.poolId.toLowerCase() === poolId)) continue;
