@@ -21,8 +21,12 @@ contract DeployLaunchpadV2 is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address me = vm.addr(pk);
 
+        // Reuse an EXISTING R00T (ROOT_ADDRESS) so parcels + the base R00T/ETH market share ONE token
+        // (coherence); deploy a fresh one only if not provided.
+        address existingRoot = vm.envOr("ROOT_ADDRESS", address(0));
+
         vm.startBroadcast(pk);
-        TestToken root = new TestToken("r00t.fund", "ROOT");
+        TestToken root = existingRoot != address(0) ? TestToken(existingRoot) : new TestToken("r00t.fund", "ROOT");
 
         // shared hook (afterSwap), mined; launchpad set after (resolves the cycle)
         bytes memory args = abi.encode(manager, me);

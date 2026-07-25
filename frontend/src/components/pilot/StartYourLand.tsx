@@ -13,7 +13,8 @@ import { useLandFactory } from '../../hooks/useLandFactory';
 import { useLaunchParcel } from '../../hooks/useLaunchParcel';
 
 type Step = 0 | 1 | 2 | 3 | 4;
-interface ParcelDraft { ticker: string; name: string; emoji: string; sale: number; pool: number; floor: number }
+interface ParcelDraft { ticker: string; name: string; emoji: string; sale: number; pool: number; floor: number; ha: number }
+const MIN_HA = 0.5; // smallest parcel
 
 interface Files { heightmap?: string; boundary?: string; river?: string }
 
@@ -44,10 +45,13 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   const [treasury, setTreasury] = useState('');
   const [rootPledge, setRootPledge] = useState(1000);
   const [submitted, setSubmitted] = useState(false);
+  const [hectares, setHectares] = useState(9); // total land size; parcels drawn from this budget
   const [parcels, setParcels] = useState<ParcelDraft[]>([
-    { ticker: 'CACTUS', name: 'Cactus Line', emoji: '🌵', sale: 100000, pool: 100000, floor: 0.01 },
+    { ticker: 'CACTUS', name: 'Cactus Line', emoji: '🌵', sale: 100000, pool: 100000, floor: 0.01, ha: 0.5 },
   ]);
   const [launchLog, setLaunchLog] = useState<string[]>([]);
+  const usedHa = parcels.reduce((s, p) => s + (p.ha || 0), 0);
+  const remainingHa = Math.max(0, hectares - usedHa);
 
   const { address } = useAccount();
   const { createLand, status, error, configured, toPledge } = useLandFactory();
@@ -57,7 +61,7 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   // treasury for the parcels' regen funds: the land treasury address (or the steward wallet)
   const parcelTreasury = (treasury.trim().startsWith('0x') ? treasury.trim() : address || '') as string;
 
-  function addParcel() { setParcels((p) => [...p, { ticker: '', name: '', emoji: '🌱', sale: 100000, pool: 100000, floor: 0.01 }]); }
+  function addParcel() { if (remainingHa < MIN_HA) return; setParcels((p) => [...p, { ticker: '', name: '', emoji: '🌱', sale: 100000, pool: 100000, floor: 0.01, ha: Math.min(0.5, remainingHa) }]); }
   function setParcel(i: number, patch: Partial<ParcelDraft>) { setParcels((p) => p.map((x, j) => (j === i ? { ...x, ...patch } : x))); }
   function delParcel(i: number) { setParcels((p) => p.filter((_, j) => j !== i)); }
 
@@ -107,7 +111,9 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
     r.readAsText(file);
   };
 
-  const canNext = step === 0 ? !!(name.trim() && region.trim()) : step === 1 ? !!files.boundary : step === 3 ? parcels.some((p) => p.ticker.trim()) : true;
+  // parcels are OPTIONAL — a steward can create the land now and add parcels later (incrementally,
+  // min 0.5 ha each, until the land is fully parceled) from the Steward Console.
+  const canNext = step === 0 ? !!(name.trim() && region.trim()) : step === 1 ? !!files.boundary : true;
 
   return (
     <motion.div
@@ -214,7 +220,18 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
               <motion.div key="parcels" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
                 <div className="rounded-xl border border-[var(--border)] p-3" style={{ background: `color-mix(in srgb, var(--accent) 6%, var(--bg-secondary))` }}>
                   <p className="text-sm text-[var(--text-primary)] font-medium">Define your parcels — like a memecoin launchpad</p>
-                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed mt-0.5">Each becomes a token you open via a Continuous Clearing Auction. On clear it seeds a private zkAMM + a public Uniswap v4 pool, arbed by the shared regen hook. Fully automated — no manual config.</p>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed mt-0.5">Name each one yourself. Each becomes a token opened via a CCA → private zkAMM + public Uniswap v4 pool + regen hook. <span className="text-[var(--accent-on-bg)]">Optional now</span> — you can add more parcels anytime from the Steward Console until the land is fully used.</p>
+                </div>
+                {/* hectare budget */}
+                <div className="flex items-center gap-3">
+                  <label className="text-[10px] font-mono text-[var(--text-muted)]">total ha
+                    <input type="number" min={MIN_HA} step={0.5} value={hectares} onChange={(e) => setHectares(Math.max(MIN_HA, Number(e.target.value) || 0))} className={`${inputCls} w-20`} /></label>
+                  <div className="flex-1">
+                    <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                      <div className="h-full" style={{ width: `${Math.min(100, (usedHa / hectares) * 100)}%`, background: 'var(--accent)' }} />
+                    </div>
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]">{usedHa.toFixed(1)} / {hectares} ha used · {remainingHa.toFixed(1)} ha left</span>
+                  </div>
                 </div>
                 {parcels.map((p, i) => (
                   <div key={i} className="rounded-lg border border-[var(--border)] p-3 grid grid-cols-12 gap-2 items-end">
@@ -222,14 +239,19 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
                       <input value={p.emoji} onChange={(e) => setParcel(i, { emoji: e.target.value })} className={`${inputCls} text-center`} maxLength={2} /></label>
                     <label className="col-span-3 text-[9px] font-mono text-[var(--text-muted)]">ticker
                       <input value={p.ticker} onChange={(e) => setParcel(i, { ticker: e.target.value.toUpperCase() })} placeholder="OAK" className={`${inputCls} font-mono`} /></label>
-                    <label className="col-span-4 text-[9px] font-mono text-[var(--text-muted)]">name
+                    <label className="col-span-3 text-[9px] font-mono text-[var(--text-muted)]">name
                       <input value={p.name} onChange={(e) => setParcel(i, { name: e.target.value })} placeholder="Native oak" className={inputCls} /></label>
-                    <label className="col-span-2 text-[9px] font-mono text-[var(--text-muted)]">floor R00T
+                    <label className="col-span-2 text-[9px] font-mono text-[var(--text-muted)]">ha
+                      <input type="number" min={MIN_HA} step={0.5} value={p.ha} onChange={(e) => setParcel(i, { ha: Math.max(MIN_HA, Number(e.target.value) || 0) })} className={inputCls} /></label>
+                    <label className="col-span-1 text-[9px] font-mono text-[var(--text-muted)]">floor
                       <input type="number" value={p.floor} onChange={(e) => setParcel(i, { floor: Number(e.target.value) || 0 })} className={inputCls} /></label>
                     <button onClick={() => delParcel(i)} className="col-span-1 text-[var(--text-muted)] hover:text-[var(--error,#e5484d)] pb-2" aria-label="remove">✕</button>
                   </div>
                 ))}
-                <button onClick={addParcel} className="w-full py-2 rounded-lg border border-dashed border-[var(--border)] text-xs text-[var(--text-muted)] hover:border-[var(--accent)]">+ add parcel</button>
+                <button onClick={addParcel} disabled={remainingHa < MIN_HA}
+                  className="w-full py-2 rounded-lg border border-dashed border-[var(--border)] text-xs text-[var(--text-muted)] hover:border-[var(--accent)] disabled:opacity-40">
+                  {remainingHa < MIN_HA ? 'land fully parceled' : '+ add parcel'}
+                </button>
               </motion.div>
             ) : (
               <motion.div key="s4" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-3">
