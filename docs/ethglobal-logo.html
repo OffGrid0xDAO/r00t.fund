@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r00t.fund × ETHGlobal — closing</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{ --green:#63C46E; --green2:#8FE59A; --ink:#EDEDEA; --muted:#8f9584; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:'Newsreader',serif}
+  /* cinematic scene */
+  #scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;transform-origin:50% 60%;animation:ken 26s ease-out both}
+  @keyframes ken{0%{transform:scale(1.12) translateY(-1%)}100%{transform:scale(1) translateY(0)}}
+  .vig{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 90% at 50% 46%,transparent 40%,rgba(0,0,0,.55) 82%,rgba(0,0,0,.85) 100%)}
+  .grain{position:fixed;inset:-50%;z-index:2;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation:grain .6s steps(2) infinite}
+  @keyframes grain{0%{transform:translate(0,0)}50%{transform:translate(-3%,2%)}100%{transform:translate(2%,-2%)}}
+  /* content */
+  .wrap{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;text-align:center}
+  @keyframes rise{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+  @keyframes glow{0%,100%{filter:drop-shadow(0 0 22px rgba(99,196,110,.55))}50%{filter:drop-shadow(0 0 40px rgba(99,196,110,.9))}}
+  .logo{opacity:0;animation:rise 1.6s ease .3s forwards;}
+  .logo svg{animation:glow 3.6s ease-in-out infinite}
+  .word{font-size:clamp(48px,8vw,104px);font-weight:500;letter-spacing:-.01em;line-height:1;margin-top:6px;opacity:0;animation:rise 1.4s ease .9s forwards;
+    text-shadow:0 0 40px rgba(99,196,110,.25)}
+  .word .g{color:var(--green);text-shadow:0 0 34px rgba(99,196,110,.6)}
+  .word .f{color:#E9E9E4}
+  .divider{display:flex;align-items:center;gap:16px;margin:30px 0 26px;opacity:0;animation:rise 1.2s ease 1.7s forwards}
+  .divider .ln{width:110px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35))}
+  .divider .ln.r{background:linear-gradient(90deg,rgba(255,255,255,.35),transparent)}
+  .divider .x{font-family:'IBM Plex Mono',monospace;color:#b7bbae;font-size:14px;opacity:.7}
+  .partner{display:flex;align-items:center;gap:16px;opacity:0;animation:rise 1.3s ease 2.2s forwards}
+  .partner .name{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-size:clamp(30px,4.4vw,50px);font-weight:700;color:#F4F4F1;letter-spacing:-.01em}
+  .partner .name b{font-weight:800}
+  .cap{margin-top:30px;font-family:'IBM Plex Mono',monospace;font-size:clamp(10px,1.15vw,13px);letter-spacing:.42em;text-transform:uppercase;color:#7f8676;opacity:0;animation:rise 1.6s ease 2.9s forwards}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vig"></div>
+<div class="grain"></div>
+
+<div class="wrap">
+  <!-- r00t logo (green glow) -->
+  <div class="logo">
+    <svg width="122" height="152" viewBox="60 20 250 380" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="0.3" y2="1">
+        <stop offset="0%" stop-color="#8FE59A"/><stop offset="60%" stop-color="#63C46E"/><stop offset="100%" stop-color="#3E9E52"/>
+      </linearGradient></defs>
+      <path fill="url(#lg)" d="M212.521332,290.474915C216.026886,293.578308 219.322052,296.383972 222.522064,299.294250C246.724380,321.305176 240.959717,358.669464 210.941635,374.454926C184.330643,388.448761 150.493912,376.351196 139.356140,348.861145C132.007019,330.722229 137.307526,309.935028 153.288895,297.728394C170.754272,284.388275 178.548080,266.483978 179.853516,245.218597C180.271378,238.411499 180.149384,231.556915 179.979416,224.731400C179.704697,213.700165 172.631454,208.843750 162.525558,213.085983C146.624115,219.761078 134.772034,230.160370 130.069855,247.764099C126.775711,260.096527 115.278198,267.565643 103.298645,266.709991C90.673042,265.808197 80.772224,257.257599 78.395973,245.203415C74.986389,227.907440 90.072647,212.085281 108.328331,214.581711C124.465866,216.788483 139.076263,213.570160 152.659683,204.883270C153.640869,204.255783 154.628738,203.633926 155.570190,202.949844C164.245544,196.646042 163.920959,190.078781 154.402817,185.055939C137.097687,175.923828 119.010185,170.310944 99.227829,175.000275C91.991035,176.715714 85.091179,179.956177 77.819023,181.399536C55.177525,185.893356 31.899712,168.176132 29.194962,144.854752C26.514469,121.742516 44.553093,100.230537 67.714584,98.918144C88.774246,97.724846 105.761673,107.864021 111.662323,126.968140C117.885674,147.117020 131.128784,160.201843 149.427246,169.064240C154.202042,171.376785 159.109528,173.548019 164.161819,175.124847C172.451981,177.712204 178.290359,174.859848 179.237686,166.384857C181.245087,148.425873 182.133347,130.260727 170.344818,114.623222C167.072876,110.282974 163.200592,106.232811 159.000763,102.783806C144.013870,90.476219 138.468826,74.397957 143.906677,57.632801C149.524445,40.312874 165.616028,28.091072 183.953751,27.216412C207.676666,26.084894 226.928665,40.454231 231.303680,63.474380C234.074249,78.052315 228.982788,90.655457 217.674240,100.003166C206.274933,109.425880 196.693283,119.976334 194.869156,135.052124C193.619614,145.379181 193.787811,155.994949 194.494431,166.402039C194.999908,173.846878 201.256699,177.794769 208.152130,175.581558C226.552719,169.675583 243.316544,160.954590 254.171051,144.101913C257.272125,139.287231 259.372894,133.680283 261.141907,128.182297C267.417511,108.678108 284.018829,97.648224 305.785278,98.942902C324.215332,100.039116 340.923798,114.938301 343.780029,133.706451C346.135376,149.183456 341.224304,162.574829 328.886292,172.352875C316.618256,182.075439 302.077057,185.867691 287.615265,179.463058C264.337555,169.154144 242.768265,173.267792 221.384979,183.860229C209.065811,189.962646 208.936813,196.890152 220.388611,204.482590C234.036942,213.531326 248.822662,216.926697 265.099243,214.557739C276.897339,212.840607 287.793793,218.720581 292.972046,228.881821C297.972198,238.693588 296.626465,249.794830 288.758881,258.007843C281.872650,265.196381 273.243683,268.130188 263.297852,266.019073C252.893829,263.810699 245.825165,257.388519 243.248672,247.271866C238.614639,229.076233 225.831207,219.109482 209.658676,212.446274C202.248154,209.393051 195.445404,212.720963 194.667419,220.562256C192.436142,243.051636 192.932022,265.279205 207.353485,284.573975C208.843903,286.568024 210.622177,288.346893 212.521332,290.474915z"/>
+    </svg>
+  </div>
+
+  <!-- wordmark -->
+  <div class="word"><span class="g">root</span><span class="f">.fund</span></div>
+
+  <div class="divider"><span class="ln"></span><span class="x">×</span><span class="ln r"></span></div>
+
+  <!-- ETHGlobal lockup -->
+  <div class="partner">
+    <svg width="62" height="62" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ea" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#57C08D"/><stop offset="100%" stop-color="#F5568B"/></linearGradient>
+        <linearGradient id="eb" x1="1" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FBC65E"/><stop offset="100%" stop-color="#4C6EF5"/></linearGradient>
+      </defs>
+      <g transform="translate(65,60)">
+        <ellipse rx="52" ry="25" fill="none" stroke="url(#ea)" stroke-width="7" transform="rotate(34)"/>
+        <ellipse rx="52" ry="25" fill="none" stroke="url(#eb)" stroke-width="7" transform="rotate(-34)"/>
+        <!-- ETH diamond -->
+        <path d="M0 -26 L14 2 L0 12 L-14 2 Z" fill="#1E2340"/>
+        <path d="M0 16 L14 6 L0 26 L-14 6 Z" fill="#1E2340"/>
+      </g>
+    </svg>
+    <span class="name"><b>ETH</b>Global</span>
+  </div>
+
+  <div class="cap">ETHGlobal · Lisbon 2026 — regenerative liquidity</div>
+</div>
+
+<script>
+// ---- procedural cinematic dusk valley ----
+const cv=document.getElementById('scene'), c=cv.getContext('2d');
+let W,H;
+function noise1(x){ return Math.sin(x*0.9)*0.5+Math.sin(x*2.3+1.7)*0.28+Math.sin(x*5.1+0.3)*0.14; }
+function draw(){
+  W=cv.width=innerWidth*devicePixelRatio; H=cv.height=innerHeight*devicePixelRatio;
+  c.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const w=innerWidth,h=innerHeight, cx=w*0.5, horizon=h*0.58;
+  // sky
+  const sky=c.createLinearGradient(0,0,0,h);
+  sky.addColorStop(0,'#070a0f'); sky.addColorStop(.42,'#10130e'); sky.addColorStop(.62,'#221f10'); sky.addColorStop(.72,'#2b2410'); sky.addColorStop(1,'#0a0a07');
+  c.fillStyle=sky; c.fillRect(0,0,w,h);
+  // sun bloom in the valley notch (warm green-amber)
+  const sun=c.createRadialGradient(cx,horizon,0,cx,horizon,w*0.42);
+  sun.addColorStop(0,'rgba(206,214,150,0.55)'); sun.addColorStop(.25,'rgba(150,160,80,0.30)'); sun.addColorStop(.6,'rgba(90,110,50,0.10)'); sun.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=sun; c.fillRect(0,0,w,h);
+  // core glow
+  const core=c.createRadialGradient(cx,horizon,0,cx,horizon,w*0.12);
+  core.addColorStop(0,'rgba(224,230,180,0.5)'); core.addColorStop(1,'rgba(224,230,180,0)');
+  c.fillStyle=core; c.fillRect(0,0,w,h);
+  // layered ridges with a central valley so the sun peeks through
+  const layers=[
+    {y:horizon-6, amp:26, col:'#20241b', rough:0.9, valley:70},
+    {y:horizon+14, amp:34, col:'#171a12', rough:1.3, valley:96},
+    {y:horizon+46, amp:46, col:'#0e100a', rough:1.7, valley:120},
+    {y:horizon+92, amp:60, col:'#060704', rough:2.4, valley:150},
+  ];
+  layers.forEach((L,li)=>{
+    c.beginPath(); c.moveTo(0,h);
+    for(let x=0;x<=w;x+=6){
+      const t=(x-cx)/(w*0.22);
+      const dip=L.valley*Math.exp(-t*t);                 // central valley
+      const y=L.y + noise1(x*0.012*L.rough+li*10)*L.amp - dip*0.0 + dip; // dip lowers the ridge (higher y)
+      c.lineTo(x, L.y + noise1(x*0.012*L.rough+li*10)*L.amp + dip);
+    }
+    c.lineTo(w,h); c.closePath(); c.fillStyle=L.col; c.fill();
+  });
+  // horizon haze
+  const haze=c.createLinearGradient(0,horizon-40,0,horizon+80);
+  haze.addColorStop(0,'rgba(120,120,80,0)'); haze.addColorStop(.5,'rgba(120,124,84,0.10)'); haze.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=haze; c.fillRect(0,horizon-40,w,120);
+}
+draw(); addEventListener('resize',draw);
+</script>
+</body>
+</html>

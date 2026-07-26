@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r00t.fund · RegenArbHook — Uniswap v4 pool</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  :root{
+    --bg:#121210; --panel:#17181b; --panel2:#1d1e22; --stroke:#33342e; --line:#2A2A28;
+    --ink:#F5F5F3; --muted:#8a8a80;
+    --pink:#F694FF; --blue:#6E8BFF; --lime:#D6FE51; --orange:#FF7A45; --violet:#9B7BFF;
+    --mono:'IBM Plex Mono',monospace; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:var(--sans)}
+  #topo{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+  body::before{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(70% 55% at 50% -5%,rgba(214,254,81,.10),transparent 60%),radial-gradient(60% 60% at 100% 105%,rgba(155,123,255,.08),transparent 60%)}
+  .stage{position:relative;z-index:2;height:100%;display:grid;place-items:center}
+  svg{width:min(92vw,720px);height:auto;overflow:visible;filter:drop-shadow(0 24px 60px rgba(0,0,0,.55))}
+  .lbl{font-family:var(--sans);font-weight:800}
+  .mono{font-family:var(--mono)}
+  @keyframes plugTop{0%{transform:translateY(-60px);opacity:0}60%{transform:translateY(6px)}100%{transform:translateY(0);opacity:1}}
+  @keyframes plugLeft{0%{transform:translateX(-70px);opacity:0}60%{transform:translateX(5px)}100%{transform:translateX(0);opacity:1}}
+  @keyframes plugRight{0%{transform:translateX(70px);opacity:0}60%{transform:translateX(-5px)}100%{transform:translateX(0);opacity:1}}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  #chipTop{animation:plugTop .8s cubic-bezier(.2,1.2,.3,1) .2s both}
+  #chipLeft{animation:plugLeft .8s cubic-bezier(.2,1.2,.3,1) .45s both}
+  #chipRight{animation:plugRight .8s cubic-bezier(.2,1.2,.3,1) .7s both}
+  .wire{stroke:#4a4b44;stroke-width:4;fill:none;stroke-dasharray:120;stroke-dashoffset:120;animation:draw .6s ease .55s forwards}
+  .wire.r{animation-delay:.8s}
+  .flash{transition:filter .15s, transform .15s}
+  .flash.on{filter:drop-shadow(0 0 18px rgba(246,148,255,.95));transform:scale(1.02)}
+  #regenChip.on{filter:drop-shadow(0 0 20px rgba(214,254,81,.95))}
+  #knob{transition:cx .45s cubic-bezier(.2,.8,.2,1)}
+  #dots circle{animation:dotPulse 2.4s ease-in-out infinite}
+  @keyframes dotPulse{0%,100%{opacity:.9}50%{opacity:.4}}
+  .counter{font-family:var(--mono);font-weight:600}
+  .cap{position:absolute;left:0;right:0;bottom:24px;text-align:center;font-family:var(--mono);font-size:13px;color:#7a7a72;letter-spacing:.1em;z-index:3}
+</style>
+</head>
+<body>
+<canvas id="topo"></canvas>
+<div class="stage">
+  <svg viewBox="0 0 760 800" id="svg">
+    <!-- connector wires -->
+    <path class="wire" d="M150 300 q-40 0 -40 40"/>
+    <path class="wire" d="M150 560 q-40 0 -40 -40"/>
+    <path class="wire r" d="M636 330 q40 0 40 40"/>
+    <path class="wire r" d="M636 520 q40 0 40 -40"/>
+
+    <!-- LEFT chip · Cross-pool arb -->
+    <g id="chipLeft">
+      <rect x="72" y="290" width="72" height="250" rx="30" fill="#6E8BFF" stroke="#0B0B0B" stroke-width="4"/>
+      <text x="108" y="415" fill="#0B0B0B" class="lbl" font-size="21" text-anchor="middle" transform="rotate(-90 108 415)">Cross-pool arb</text>
+    </g>
+
+    <!-- RIGHT chip · Regen treasury -->
+    <g id="chipRight">
+      <rect id="regenChip" x="640" y="320" width="72" height="210" rx="30" fill="#D6FE51" stroke="#0B0B0B" stroke-width="4"/>
+      <text x="676" y="425" fill="#0B0B0B" class="lbl" font-size="21" text-anchor="middle" transform="rotate(-90 676 425)">Regen treasury</text>
+    </g>
+
+    <!-- TOP chip · afterSwap -->
+    <g id="chipTop">
+      <rect id="afterSwapChip" class="flash" x="176" y="52" width="372" height="152" rx="28" fill="#F694FF" stroke="#0B0B0B" stroke-width="4"/>
+      <text x="204" y="176" fill="#0B0B0B" class="lbl" font-size="30">afterSwap</text>
+      <text x="452" y="120" fill="#0B0B0B" class="lbl" font-size="40">+</text>
+      <rect x="500" y="102" width="26" height="6" rx="3" fill="#0B0B0B"/>
+    </g>
+
+    <!-- POOL card (dark, chamfered bottom-right) -->
+    <path d="M188 224 h430 a28 28 0 0 1 28 28 v360 l-84 84 h-374 a28 28 0 0 1 -28 -28 v-416 a28 28 0 0 1 28 -28 z"
+          fill="#17181b" stroke="#3a3b34" stroke-width="5"/>
+    <!-- inner lime hairline for glow -->
+    <path d="M188 224 h430 a28 28 0 0 1 28 28 v360 l-84 84 h-374 a28 28 0 0 1 -28 -28 v-416 a28 28 0 0 1 28 -28 z"
+          fill="none" stroke="#D6FE51" stroke-opacity="0.10" stroke-width="1.5"/>
+
+    <!-- R00T logo badge (top-left, brand) -->
+    <svg x="212" y="256" width="44" height="55" viewBox="60 20 250 380">
+      <path fill="#D6FE51" d="M212.521332,290.474915C216.026886,293.578308 219.322052,296.383972 222.522064,299.294250C246.724380,321.305176 240.959717,358.669464 210.941635,374.454926C184.330643,388.448761 150.493912,376.351196 139.356140,348.861145C132.007019,330.722229 137.307526,309.935028 153.288895,297.728394C170.754272,284.388275 178.548080,266.483978 179.853516,245.218597C180.271378,238.411499 180.149384,231.556915 179.979416,224.731400C179.704697,213.700165 172.631454,208.843750 162.525558,213.085983C146.624115,219.761078 134.772034,230.160370 130.069855,247.764099C126.775711,260.096527 115.278198,267.565643 103.298645,266.709991C90.673042,265.808197 80.772224,257.257599 78.395973,245.203415C74.986389,227.907440 90.072647,212.085281 108.328331,214.581711C124.465866,216.788483 139.076263,213.570160 152.659683,204.883270C153.640869,204.255783 154.628738,203.633926 155.570190,202.949844C164.245544,196.646042 163.920959,190.078781 154.402817,185.055939C137.097687,175.923828 119.010185,170.310944 99.227829,175.000275C91.991035,176.715714 85.091179,179.956177 77.819023,181.399536C55.177525,185.893356 31.899712,168.176132 29.194962,144.854752C26.514469,121.742516 44.553093,100.230537 67.714584,98.918144C88.774246,97.724846 105.761673,107.864021 111.662323,126.968140C117.885674,147.117020 131.128784,160.201843 149.427246,169.064240C154.202042,171.376785 159.109528,173.548019 164.161819,175.124847C172.451981,177.712204 178.290359,174.859848 179.237686,166.384857C181.245087,148.425873 182.133347,130.260727 170.344818,114.623222C167.072876,110.282974 163.200592,106.232811 159.000763,102.783806C144.013870,90.476219 138.468826,74.397957 143.906677,57.632801C149.524445,40.312874 165.616028,28.091072 183.953751,27.216412C207.676666,26.084894 226.928665,40.454231 231.303680,63.474380C234.074249,78.052315 228.982788,90.655457 217.674240,100.003166C206.274933,109.425880 196.693283,119.976334 194.869156,135.052124C193.619614,145.379181 193.787811,155.994949 194.494431,166.402039C194.999908,173.846878 201.256699,177.794769 208.152130,175.581558C226.552719,169.675583 243.316544,160.954590 254.171051,144.101913C257.272125,139.287231 259.372894,133.680283 261.141907,128.182297C267.417511,108.678108 284.018829,97.648224 305.785278,98.942902C324.215332,100.039116 340.923798,114.938301 343.780029,133.706451C346.135376,149.183456 341.224304,162.574829 328.886292,172.352875C316.618256,182.075439 302.077057,185.867691 287.615265,179.463058C264.337555,169.154144 242.768265,173.267792 221.384979,183.860229C209.065811,189.962646 208.936813,196.890152 220.388611,204.482590C234.036942,213.531326 248.822662,216.926697 265.099243,214.557739C276.897339,212.840607 287.793793,218.720581 292.972046,228.881821C297.972198,238.693588 296.626465,249.794830 288.758881,258.007843C281.872650,265.196381 273.243683,268.130188 263.297852,266.019073C252.893829,263.810699 245.825165,257.388519 243.248672,247.271866C238.614639,229.076233 225.831207,219.109482 209.658676,212.446274C202.248154,209.393051 195.445404,212.720963 194.667419,220.562256C192.436142,243.051636 192.932022,265.279205 207.353485,284.573975C208.843903,286.568024 210.622177,288.346893 212.521332,290.474915z"/>
+    </svg>
+
+    <!-- toggle + settings circle -->
+    <rect x="486" y="278" width="78" height="40" rx="20" fill="#1d1e22" stroke="#4a4b44" stroke-width="4"/>
+    <circle id="knob" cx="508" cy="298" r="14" fill="#D6FE51"/>
+    <circle cx="612" cy="298" r="26" fill="#1d1e22" stroke="#4a4b44" stroke-width="3"/>
+    <line x1="600" y1="310" x2="624" y2="286" stroke="#D6FE51" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- split reserve bar (public ⇄ private) -->
+    <rect x="210" y="628" width="380" height="16" rx="8" fill="#0e0f10" stroke="#3a3b34" stroke-width="3"/>
+    <rect id="segA" x="212" y="630" width="188" height="12" rx="6" fill="#9B7BFF"/>
+    <rect id="segB" x="402" y="630" width="186" height="12" rx="6" fill="#FF7A45"/>
+
+    <!-- bottom pair pill -->
+    <rect x="196" y="668" width="404" height="72" rx="26" fill="#1d1e22" stroke="#3a3b34" stroke-width="5"/>
+    <circle cx="238" cy="704" r="12" fill="#D6FE51"/>
+    <text x="272" y="718" fill="#F5F5F3" class="lbl" font-size="40">R00T / ETH</text>
+
+    <!-- animated tokens -->
+    <circle id="token" cx="0" cy="0" r="13" fill="#F694FF" stroke="#0B0B0B" stroke-width="4" opacity="0"/>
+    <circle id="coin" cx="0" cy="0" r="12" fill="#D6FE51" stroke="#0B0B0B" stroke-width="4" opacity="0"/>
+
+    <text id="treasVal" x="676" y="560" fill="#D6FE51" class="counter" font-size="15" text-anchor="middle">0.00 Ξ</text>
+  </svg>
+  <div class="cap" id="cap">RegenArbHook · afterSwap back-runs cross-pool arb → regen treasury</div>
+</div>
+
+<script>
+// ---- topo backdrop (procedural drifting contours) ----
+const tc=document.getElementById('topo'), tx=tc.getContext('2d');
+function resize(){tc.width=innerWidth*devicePixelRatio;tc.height=innerHeight*devicePixelRatio;tx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+addEventListener('resize',resize); resize();
+let phase=0;
+function topo(){ const W=innerWidth,H=innerHeight; tx.clearRect(0,0,W,H); const cx=W*0.5,cy=H*0.5; phase+=0.0016; tx.lineWidth=1;
+  for(let k=0;k<26;k++){ const base=60+k*34; tx.beginPath();
+    for(let a=0;a<=Math.PI*2+0.1;a+=0.12){ const r=base+26*Math.sin(a*3+phase*2+k*0.5)+18*Math.cos(a*2-phase*3+k*0.3);
+      const x=cx+Math.cos(a)*r*1.35,y=cy+Math.sin(a)*r; a===0?tx.moveTo(x,y):tx.lineTo(x,y);} tx.closePath();
+    tx.strokeStyle='rgba(214,254,81,'+(0.05+0.02*Math.sin(k+phase))+')'; tx.stroke(); }
+  requestAnimationFrame(topo);
+}
+topo();
+
+// ---- live treasury ----
+const RPCS=['https://sepolia.drpc.org','https://ethereum-sepolia-rpc.publicnode.com'];
+let realTreas=0.27;
+(async()=>{ for(const u of RPCS){ try{
+  const r=await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBalance',params:['0xBe196EEfCD38593a681f906F11fa4832889e96F5','latest']})});
+  const j=await r.json(); if(j.result){realTreas=Number(BigInt(j.result))/1e18;break;} }catch(e){} } })();
+
+const $=id=>document.getElementById(id);
+const token=$('token'),coin=$('coin'),chip=$('afterSwapChip'),regen=$('regenChip'),segA=$('segA'),segB=$('segB'),knob=$('knob'),treasVal=$('treasVal');
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+let shown=0, ratio=0.5, ratioTarget=0.5;
+setTimeout(()=>knob.setAttribute('cx','544'),1400);
+function animate(from,to,dur,cb){const t0=performance.now();(function s(now){const k=Math.min(1,(now-t0)/dur);cb(from,to,ease(k));if(k<1)requestAnimationFrame(s);})(performance.now());}
+function loop(){ ratio+=(ratioTarget-ratio)*0.08; const total=376,aw=Math.max(24,Math.min(352,total*ratio));
+  segA.setAttribute('width',aw);segB.setAttribute('x',212+aw+2);segB.setAttribute('width',total-aw);
+  shown+=(realTreas-shown)*0.04; treasVal.textContent=shown.toFixed(3)+' Ξ'; requestAnimationFrame(loop);
+}
+loop();
+function swapBeat(){
+  token.setAttribute('opacity','1');
+  animate({x:60,y:704},{x:238,y:704},900,(f,t,e)=>{token.setAttribute('cx',f.x+(t.x-f.x)*e);token.setAttribute('cy',f.y);});
+  setTimeout(()=>token.setAttribute('opacity','0'),950);
+  setTimeout(()=>{chip.classList.add('on');setTimeout(()=>chip.classList.remove('on'),450);},850);
+  setTimeout(()=>{ratioTarget=0.34+Math.random()*0.32;},1000);
+  setTimeout(()=>{ regen.classList.add('on');setTimeout(()=>regen.classList.remove('on'),600);
+    coin.setAttribute('opacity','1');
+    animate({x:400,y:640},{x:676,y:470},800,(f,t,e)=>{coin.setAttribute('cx',f.x+(t.x-f.x)*e);coin.setAttribute('cy',f.y+(t.y-f.y)*e-Math.sin(e*Math.PI)*60);});
+    setTimeout(()=>{coin.setAttribute('opacity','0');realTreas+=0.0007+Math.random()*0.002;},820);
+  },1150);
+}
+setTimeout(()=>{swapBeat();setInterval(swapBeat,2600);},1900);
+</script>
+</body>
+</html>
