@@ -27,6 +27,12 @@ type Query {
   nullifierss(where: nullifiersFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): nullifiersPage!
   stats(id: String!): stats
   statss(where: statsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): statsPage!
+  v4Trades(id: String!): v4Trades
+  v4Tradess(where: v4TradesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): v4TradesPage!
+  v4Markets(id: String!): v4Markets
+  v4Marketss(where: v4MarketsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): v4MarketsPage!
+  v4Arbs(id: String!): v4Arbs
+  v4Arbss(where: v4ArbsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): v4ArbsPage!
   merkleTreeState(id: String!): merkleTreeState
   merkleTreeStates(where: merkleTreeStateFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): merkleTreeStatePage!
   merkleRoots(id: String!): merkleRoots
@@ -494,6 +500,320 @@ input statsFilter {
   updatedAt_lt: BigInt
   updatedAt_gte: BigInt
   updatedAt_lte: BigInt
+}
+
+type v4Trades {
+  id: String!
+  market: String!
+  poolId: String!
+  price1e18: String!
+  amount0: String!
+  amount1: String!
+  tick: Int!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+type v4TradesPage {
+  items: [v4Trades!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input v4TradesFilter {
+  AND: [v4TradesFilter]
+  OR: [v4TradesFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  market: String
+  market_not: String
+  market_in: [String]
+  market_not_in: [String]
+  market_contains: String
+  market_not_contains: String
+  market_starts_with: String
+  market_ends_with: String
+  market_not_starts_with: String
+  market_not_ends_with: String
+  poolId: String
+  poolId_not: String
+  poolId_in: [String]
+  poolId_not_in: [String]
+  poolId_contains: String
+  poolId_not_contains: String
+  poolId_starts_with: String
+  poolId_ends_with: String
+  poolId_not_starts_with: String
+  poolId_not_ends_with: String
+  price1e18: String
+  price1e18_not: String
+  price1e18_in: [String]
+  price1e18_not_in: [String]
+  price1e18_contains: String
+  price1e18_not_contains: String
+  price1e18_starts_with: String
+  price1e18_ends_with: String
+  price1e18_not_starts_with: String
+  price1e18_not_ends_with: String
+  amount0: String
+  amount0_not: String
+  amount0_in: [String]
+  amount0_not_in: [String]
+  amount0_contains: String
+  amount0_not_contains: String
+  amount0_starts_with: String
+  amount0_ends_with: String
+  amount0_not_starts_with: String
+  amount0_not_ends_with: String
+  amount1: String
+  amount1_not: String
+  amount1_in: [String]
+  amount1_not_in: [String]
+  amount1_contains: String
+  amount1_not_contains: String
+  amount1_starts_with: String
+  amount1_ends_with: String
+  amount1_not_starts_with: String
+  amount1_not_ends_with: String
+  tick: Int
+  tick_not: Int
+  tick_in: [Int]
+  tick_not_in: [Int]
+  tick_gt: Int
+  tick_lt: Int
+  tick_gte: Int
+  tick_lte: Int
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
+}
+
+type v4Markets {
+  id: String!
+  marketId: String!
+  hook: String!
+  privatePool: String!
+  treasury: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+type v4MarketsPage {
+  items: [v4Markets!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input v4MarketsFilter {
+  AND: [v4MarketsFilter]
+  OR: [v4MarketsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketId: String
+  marketId_not: String
+  marketId_in: [String]
+  marketId_not_in: [String]
+  marketId_contains: String
+  marketId_not_contains: String
+  marketId_starts_with: String
+  marketId_ends_with: String
+  marketId_not_starts_with: String
+  marketId_not_ends_with: String
+  hook: String
+  hook_not: String
+  hook_in: [String]
+  hook_not_in: [String]
+  hook_contains: String
+  hook_not_contains: String
+  hook_starts_with: String
+  hook_ends_with: String
+  hook_not_starts_with: String
+  hook_not_ends_with: String
+  privatePool: String
+  privatePool_not: String
+  privatePool_in: [String]
+  privatePool_not_in: [String]
+  privatePool_contains: String
+  privatePool_not_contains: String
+  privatePool_starts_with: String
+  privatePool_ends_with: String
+  privatePool_not_starts_with: String
+  privatePool_not_ends_with: String
+  treasury: String
+  treasury_not: String
+  treasury_in: [String]
+  treasury_not_in: [String]
+  treasury_contains: String
+  treasury_not_contains: String
+  treasury_starts_with: String
+  treasury_ends_with: String
+  treasury_not_starts_with: String
+  treasury_not_ends_with: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
+}
+
+type v4Arbs {
+  id: String!
+  market: String!
+  profit: String!
+  uniPrice1e18: String!
+  privPrice1e18: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+type v4ArbsPage {
+  items: [v4Arbs!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input v4ArbsFilter {
+  AND: [v4ArbsFilter]
+  OR: [v4ArbsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  market: String
+  market_not: String
+  market_in: [String]
+  market_not_in: [String]
+  market_contains: String
+  market_not_contains: String
+  market_starts_with: String
+  market_ends_with: String
+  market_not_starts_with: String
+  market_not_ends_with: String
+  profit: String
+  profit_not: String
+  profit_in: [String]
+  profit_not_in: [String]
+  profit_contains: String
+  profit_not_contains: String
+  profit_starts_with: String
+  profit_ends_with: String
+  profit_not_starts_with: String
+  profit_not_ends_with: String
+  uniPrice1e18: String
+  uniPrice1e18_not: String
+  uniPrice1e18_in: [String]
+  uniPrice1e18_not_in: [String]
+  uniPrice1e18_contains: String
+  uniPrice1e18_not_contains: String
+  uniPrice1e18_starts_with: String
+  uniPrice1e18_ends_with: String
+  uniPrice1e18_not_starts_with: String
+  uniPrice1e18_not_ends_with: String
+  privPrice1e18: String
+  privPrice1e18_not: String
+  privPrice1e18_in: [String]
+  privPrice1e18_not_in: [String]
+  privPrice1e18_contains: String
+  privPrice1e18_not_contains: String
+  privPrice1e18_starts_with: String
+  privPrice1e18_ends_with: String
+  privPrice1e18_not_starts_with: String
+  privPrice1e18_not_ends_with: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  transactionHash: String
+  transactionHash_not: String
+  transactionHash_in: [String]
+  transactionHash_not_in: [String]
+  transactionHash_contains: String
+  transactionHash_not_contains: String
+  transactionHash_starts_with: String
+  transactionHash_ends_with: String
+  transactionHash_not_starts_with: String
+  transactionHash_not_ends_with: String
 }
 
 type merkleTreeState {

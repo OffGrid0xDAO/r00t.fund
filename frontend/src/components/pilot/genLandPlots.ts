@@ -36,8 +36,9 @@ export function genLandPlots(boundary: number[][], parcels: LandParcel[]): Plot[
     const x0 = xmin + c * cw, y0 = ymin + r * ch;
     const cx = x0 + cw / 2, cy = y0 + ch / 2;
     if (!pointInPoly(cx, cy, boundary)) continue; // clip to the land shape
-    // inset the cell slightly so parcels read as separate fields
-    const pad = 0.12;
+    // hairline gutter only — parcels SHARE edges so they read as a real subdivision OF the land
+    // (a contiguous division grid), not floating squares. Their own strokes draw the division lines.
+    const pad = 0.02;
     cells.push([[x0 + cw * pad, y0 + ch * pad], [x0 + cw * (1 - pad), y0 + ch * pad], [x0 + cw * (1 - pad), y0 + ch * (1 - pad)], [x0 + cw * pad, y0 + ch * (1 - pad)]]);
   }
 

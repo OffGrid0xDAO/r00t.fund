@@ -351,7 +351,7 @@ export function PriceChart({ zkAMMAddress, onExpand, isExpanded = false, marketK
         <span className="px-2.5 py-1 rounded-md text-[11px] font-mono border text-black" style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>
           {isV4 ? v4Market!.label : `$${TOKEN.symbol}`}
         </span>
-        {isV4 && <span className="px-2 py-1 text-[10px] rounded-full border" style={{ color: '#7CFFB2', borderColor: '#7CFFB2' }}>● Sepolia v4</span>}
+        {isV4 && <span className="px-2 py-1 text-[10px] rounded-full border" style={{ color: '#D6FE51', borderColor: '#D6FE51' }}>● Sepolia v4</span>}
         <span className="text-[10px] text-[var(--text-muted)]">follows your swap ↗</span>
       </div>
 

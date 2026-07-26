@@ -20,7 +20,7 @@ import { zonesToPlots, type Zone } from './data';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { MachinesPanel } from './MachinesPanel';
 import { useAccount } from 'wagmi';
-import { loadMyLand } from './myLand';
+import { loadMyLand, saveMyLand, fetchLandGeometry, MYLAND_EVENT } from './myLand';
 import { genLandPlots } from './genLandPlots';
 import { useCCAAuctions } from '../../hooks/useCCAAuctions';
 
@@ -58,30 +58,64 @@ export function PlotMapTopo({ className = '', onStartLand, demo = false }: { cla
   const [contours, setContours] = useState<{ l: string; p: number[][] }[]>([]);
   const [river, setRiver] = useState<number[][] | null>(null);
   const [plots, setPlots] = useState<Plot[] | null>(null);
+  const [aspect, setAspect] = useState(1); // real extent w/h — corrects the horizontal squeeze
+  const [ownLand, setOwnLand] = useState(false); // true only when rendering the connected steward's OWN land
   const [noLand, setNoLand] = useState(false);
+  const [landNonce, setLandNonce] = useState(0); // bumped when the saved land changes → re-read below
+
+  // live refresh: when a land is created/updated (saveMyLand) or changed in another tab, re-read it so
+  // the map shows the steward's land automatically — no page reload needed.
+  useEffect(() => {
+    const bump = () => setLandNonce((n) => n + 1);
+    window.addEventListener(MYLAND_EVENT, bump);
+    window.addEventListener('storage', bump);
+    return () => { window.removeEventListener(MYLAND_EVENT, bump); window.removeEventListener('storage', bump); };
+  }, []);
   const { address } = useAccount();
   const { auctions } = useCCAAuctions(address);
 
   // App: ONLY the steward's own land (no hardcoded pilot) — prompt to create if none. Landing (demo):
   // the static Pilot Project terrain as the showcase/template.
   useEffect(() => {
+    // The shared store (Railway) is the SOURCE OF TRUTH: always reconcile against it. If the DB has a
+    // NEWER land than what's cached locally, cache it → MYLAND_EVENT → this effect re-runs and renders
+    // the fresh land. Strict `>` on createdAt avoids a save↔event loop and never regresses a land you
+    // just created locally (its DB copy carries the same createdAt). Fixes stale local lands winning.
+    if (address) fetchLandGeometry(address).then((remote) => {
+      if (!remote || !Array.isArray(remote.boundary) || remote.boundary.length < 3) return;
+      const local = loadMyLand(address);
+      if (!local || (remote.createdAt ?? 0) > (local.createdAt ?? 0)) saveMyLand(address, { ...remote, launched: true });
+    });
+
     const mine = loadMyLand(address);
-    if (mine && mine.boundary?.length >= 3) {
+    // Only render a FULLY-launched land — a half-finished/abandoned wizard run never overrides the
+    // hardcoded pilot showcase. (Lands saved before the `launched` flag existed are treated as stale.)
+    if (mine && mine.launched && mine.boundary?.length >= 3) {
       setNoLand(false);
+      setOwnLand(true);
       setBoundary(mine.boundary);
       setRiver(mine.river ?? null);
       setContours(mine.contours ?? []);
-      setPlots(genLandPlots(mine.boundary, auctions.map((a) => ({ ticker: a.ticker, name: a.token ? `$${a.ticker}` : a.ticker, phase: a.phase, raised: a.raised, clearedPrice: a.clearedPrice }))));
+      setAspect(mine.aspect && mine.aspect > 0 ? mine.aspect : 1);
+      // Precomputed terrain zones → the EXACT same organic parcels as the pilot demo (zonesToPlots).
+      // Only when a steward has no zones do we auto-grid their boundary into parcels (genLandPlots).
+      setPlots(mine.zones?.length
+        ? zonesToPlots(mine.zones)
+        : genLandPlots(mine.boundary, auctions.map((a) => ({ ticker: a.ticker, name: a.token ? `$${a.ticker}` : a.ticker, phase: a.phase, raised: a.raised, clearedPrice: a.clearedPrice }))));
       return;
     }
+    setOwnLand(false); // demo/showcase or no-land → not the steward's own launchable land
     if (!demo) { setNoLand(true); setBoundary(null); setPlots(null); return; }
     // demo (landing showcase) → static Pilot Project terrain
     const getJson = async (url: string) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} → ${r.status}`); return r.json(); };
-    getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][] }) => setBoundary(d.propertyBoundary)).catch((e) => console.error('[PlotMap] boundary', e));
+    getJson('/terrain/heightmap.json').then((d: { propertyBoundary: number[][]; extentMeters?: { width: number; height: number } }) => {
+      setBoundary(d.propertyBoundary);
+      if (d.extentMeters?.width && d.extentMeters?.height) setAspect(d.extentMeters.width / d.extentMeters.height);
+    }).catch((e) => console.error('[PlotMap] boundary', e));
     getJson('/terrain/zones.json').then((z: Zone[]) => setPlots(zonesToPlots(z))).catch((e) => console.error('[PlotMap] zones', e));
     getJson('/terrain/contours.json').then((d: { contours: { l: string; p: number[][] }[] }) => setContours(d.contours || [])).catch(() => {});
-    getJson('/terrain/river.json').then((d: { centerline: number[][] }) => setRiver(d.centerline)).catch(() => {});
-  }, [address, auctions.length, demo]);
+    getJson('/terrain/river.json').then((d: { centerline?: number[][]; points?: number[][] }) => setRiver(d.centerline ?? d.points ?? null)).catch(() => {});
+  }, [address, auctions.length, demo, landNonce]);
 
   if (noLand) {
     return (
@@ -96,16 +130,20 @@ export function PlotMapTopo({ className = '', onStartLand, demo = false }: { cla
   if (!boundary || !plots) {
     return <div className={`grid place-items-center aspect-[16/9] text-xs font-mono text-[var(--text-muted)] ${className}`}>dividing the land…</div>;
   }
+  // steward (per-parcel launch) only when the connected wallet is viewing its OWN land
+  const steward = ownLand && address ? { address, treasury: address } : undefined;
   // key on plot ids so usePilotState re-inits if zones change
-  return <LandMap key={plots.map(p => p.id).join()} className={className} initialPlots={plots} boundary={boundary} contours={contours} river={river} />;
+  return <LandMap key={plots.map(p => p.id).join()} className={className} initialPlots={plots} boundary={boundary} contours={contours} river={river} aspect={aspect} steward={steward} />;
 }
 
-function LandMap({ className = '', initialPlots, boundary, contours, river }: {
+function LandMap({ className = '', initialPlots, boundary, contours, river, aspect = 1, steward }: {
   className?: string;
   initialPlots: Plot[];
   boundary: number[][];
   contours: { l: string; p: number[][] }[];
   river: number[][] | null;
+  aspect?: number;
+  steward?: { address: string; treasury: string };
 }) {
   // Real Land pledges when the pilot Land is deployed + wallet connected; mock otherwise.
   const { backend } = useLandBackend();
@@ -170,17 +208,20 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
   const hottestId = maxHeat > 30 && hottestIdx >= 0 ? plots[hottestIdx].id : null;
 
   const view = useMemo(() => {
-    const xs = boundary.map(p => p[0]), ys = boundary.map(p => p[1]);
+    // stretch X by the real extent ratio (width/height) so pixels-per-metre match on both axes —
+    // otherwise the normalized [0,1]² coords render the land horizontally squeezed.
+    const A = aspect > 0 ? aspect : 1;
+    const xs = boundary.map(p => p[0] * A), ys = boundary.map(p => p[1]);
     const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
     const pad = 0.12 * Math.max(xmax - xmin, ymax - ymin);
     const vx0 = xmin - pad, vy0 = ymin - pad;
     const vw = (xmax - xmin) + 2 * pad, vh = (ymax - ymin) + 2 * pad;
     const S = 1000 / vw;
     const H = vh * S;
-    const project = (nx: number, ny: number): [number, number] => [(nx - vx0) * S, (ny - vy0) * S];
-    const inPad = (nx: number, ny: number) => nx >= vx0 && nx <= vx0 + vw && ny >= vy0 && ny <= vy0 + vh;
+    const project = (nx: number, ny: number): [number, number] => [(nx * A - vx0) * S, (ny - vy0) * S];
+    const inPad = (nx: number, ny: number) => nx * A >= vx0 && nx * A <= vx0 + vw && ny >= vy0 && ny <= vy0 + vh;
     return { S, H, project, inPad };
-  }, [boundary]);
+  }, [boundary, aspect]);
 
   const borderPath = useMemo(() =>
     boundary.map((p, i) => `${i === 0 ? 'M' : 'L'}${view.project(p[0], p[1]).map(n => n.toFixed(1)).join(' ')}`).join(' ') + ' Z',
@@ -411,7 +452,7 @@ function LandMap({ className = '', initialPlots, boundary, contours, river }: {
           <PlotDetailPanel plot={selected} busy={!!pending[selected.id]} verifying={!!pending[selected.id + ':verify']}
             onClose={() => setSelectedId(null)}
             onChooseCrop={(cid) => state.chooseCrop(selected.id, cid)} onPlant={() => state.plantPlot(selected.id)} onVerify={() => state.verifyPlot(selected.id)}
-            onRename={(name) => state.renamePlot(selected.id, name)} />
+            onRename={(name) => state.renamePlot(selected.id, name)} steward={steward} />
         )}
       </AnimatePresence>
 

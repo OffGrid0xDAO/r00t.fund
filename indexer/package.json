@@ -18,10 +18,12 @@
     "@ponder/core": "^0.7.17",
     "circomlibjs": "^0.1.7",
     "hono": "^4.11.4",
+    "pg": "^8.17.1",
     "tsx": "^4.21.0",
     "viem": "^2.0.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "typescript": "^5.9.3"
   }
 }

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import { defineChain } from 'viem';
+import { mainnet } from 'viem/chains';
 import App from './App';
 import { CHAIN, NETWORK, HACKATHON } from './config';
 import './index.css';
@@ -50,7 +51,9 @@ const rabby = injected({
 });
 
 const config = createConfig({
-  chains: [CHAIN, SEPOLIA],
+  // mainnet is read-only here — it's ONLY for ENS resolution (names + avatars live on L1). wagmi's
+  // useEnsName/useEnsAvatar automatically use it; the wallet never switches to it.
+  chains: [CHAIN, SEPOLIA, mainnet],
   // EIP-6963 discovery (default true) surfaces every installed wallet — Rabby, MetaMask, … — as its
   // own connector; the explicit ones below guarantee Rabby + a generic browser-wallet fallback.
   multiInjectedProviderDiscovery: true,
@@ -58,6 +61,7 @@ const config = createConfig({
   transports: {
     [CHAIN.id]: http(NETWORK.rpcUrl),
     [SEPOLIA.id]: http(HACKATHON.rpcUrl),
+    [mainnet.id]: http('https://eth.llamarpc.com'), // public L1 RPC for ENS reads
   },
 });
 

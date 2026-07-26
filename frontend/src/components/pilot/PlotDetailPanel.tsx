@@ -9,10 +9,11 @@ import type { Plot } from './types';
 import { STATUS_ORDER, STATUS_LABEL, TYPE_LABEL } from './types';
 import { CROPS } from './data';
 import { PlotFundSection } from './PlotFundSection';
+import { ParcelLaunchSection } from './ParcelLaunchSection';
 import { TYPE_COLOR, REWARD_LABEL, usd, tickerFromName, tokenPriceR00T, landValueR00T, fmtR00T, fmtPrice } from './ui';
 
 export function PlotDetailPanel({
-  plot, verifying, onClose, onChooseCrop, onPlant, onVerify, onRename,
+  plot, verifying, onClose, onChooseCrop, onPlant, onVerify, onRename, steward,
 }: {
   plot: Plot;
   busy: boolean;
@@ -22,6 +23,7 @@ export function PlotDetailPanel({
   onPlant: () => void;
   onVerify: () => void;
   onRename?: (name: string) => void;
+  steward?: { address: string; treasury: string }; // set when the viewer stewards this land → per-parcel launch
 }) {
   const [nameInput, setNameInput] = useState('');
   const color = TYPE_COLOR[plot.type];
@@ -44,12 +46,28 @@ export function PlotDetailPanel({
       <div className="p-5 md:p-6">
         {/* header */}
         <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.15em]" style={{ color }}>
               <span className="w-2 h-2 rounded-full" style={{ background: color }} />
               {TYPE_LABEL[plot.type]}{plot.areaHa != null ? ` · ${plot.areaHa.toFixed(2)} ha` : ''}
             </span>
-            <h3 className="font-display text-2xl text-[var(--text-primary)] mt-1 leading-tight">{plot.emoji} {plot.name}</h3>
+            {steward && onRename ? (
+              // steward can rename this parcel inline — dashed underline signals it's editable
+              <div className="flex items-center gap-2 mt-1 group/name">
+                <span className="text-2xl leading-none shrink-0">{plot.emoji}</span>
+                <input
+                  key={plot.id}
+                  defaultValue={plot.name}
+                  aria-label="Parcel name"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== plot.name) onRename(v); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  className="min-w-0 flex-1 font-display text-2xl leading-tight text-[var(--text-primary)] bg-transparent border-b border-dashed border-[var(--border)] outline-none focus:border-[var(--accent)] transition-colors"
+                />
+                <svg className="w-3.5 h-3.5 text-[var(--text-muted)] opacity-0 group-hover/name:opacity-100 group-focus-within/name:opacity-100 transition-opacity shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              </div>
+            ) : (
+              <h3 className="font-display text-2xl text-[var(--text-primary)] mt-1 leading-tight">{plot.emoji} {plot.name}</h3>
+            )}
           </div>
           <button onClick={onClose} className="shrink-0 p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -64,7 +82,7 @@ export function PlotDetailPanel({
         </div>
 
         {/* culture — the crop that defines this parcel's token */}
-        {crop && (
+        {crop && !steward && (
           <div className="flex items-center gap-2 mb-3 text-sm">
             <span className="text-lg leading-none">{crop.emoji}</span>
             <span className="text-[var(--text-primary)] font-medium">{crop.label}</span>
@@ -73,6 +91,9 @@ export function PlotDetailPanel({
         )}
 
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">{plot.blurb}</p>
+
+        {/* steward: launch this parcel (open CCA) + live zkAMM/v4/hook verification */}
+        {steward && <ParcelLaunchSection plot={plot} steward={steward} color={color} />}
 
         {/* naming right — the pledger who names it sets the token name */}
         {!plot.named && onRename && (
@@ -101,6 +122,8 @@ export function PlotDetailPanel({
           </div>
         )}
 
+        {/* backer-facing detail — hidden while the steward is focused on launching this parcel */}
+        {!steward && (<>
         {/* lifecycle stepper */}
         <div className="flex items-center gap-1 mb-5">
           {STATUS_ORDER.map((s, i) => (
@@ -189,6 +212,7 @@ export function PlotDetailPanel({
             </ul>
           </div>
         )}
+        </>)}
       </div>
     </motion.div>
   );

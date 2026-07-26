@@ -201,6 +201,14 @@ export const HACKATHON = {
   launchpad: '0xC6d8369d72dAC352Ef439Aa37a81355ED442CB11',
   hook: '0x2B019cC4D35CeB177fe41a4A8b4D873494C20040',
   root: '0x70E3432B83a83Caa818a98010DF87AF6daa6AbC9',
+  // one-tx parcel launch (deploy+mint+approve+createParcel in a single call). Empty = fall back to the
+  // 4-signature browser flow. Deploy via DeployParcelLauncher.s.sol → set VITE_PARCEL_LAUNCHER.
+  parcelLauncher: (import.meta.env.VITE_PARCEL_LAUNCHER as string) || '',
+  // Multi-tenant Land rail on Sepolia (mirrors the RH LandFactory so the FULL steward flow —
+  // createLand → validate → createParcel → seed v4 liquidity — is testable before going live on
+  // Robinhood). Reuses the hackathon $R00T + canonical Sepolia v4 PoolManager. (DeployLandFactorySepolia.)
+  landFactory: '0x38c1549eaF13c5c40ff5Fd81E0Ce8Cef749dC2eB',
+  usdc: '0xaa6b3dF742546247f4A05025645266A68196AB10', // mock USDC (USD-accounting path)
   // the demo parcel launched via the CCA (addresses + poolId read from the live Initialize event)
   parcel: { id: '0x4f414b2d50415243454c2d4c4956450000000000000000000000000000000000', ticker: 'OAK',
     token: '0x48b1ccf919a676f3108106d0ef7db767821258d0',
@@ -233,6 +241,16 @@ export const HACKATHON = {
     treasuryIsEth: boolean; currency0IsRoot: boolean; currency0: string; currency1: string; fee: number; tickSpacing: number;
   }[],
 } as const;
+
+// ENS — each launched parcel gets its own subname <ticker>.<parent> (e.g. hay.r00tfund.eth) minted via
+// the ENS Name Wrapper on Sepolia. The caller must own the (wrapped) parent name. Empty parent = the UI
+// still shows the intended subname as the parcel's identity, but skips the on-chain write.
+export const ENS_CFG = {
+  chainId: 11155111, // ENS on Sepolia (same chain the hackathon stack runs on)
+  nameWrapper: (import.meta.env.VITE_ENS_NAME_WRAPPER as string) || '0x0635513f179D50A207757E05759CbD106d7dFcE8', // Sepolia NameWrapper
+  resolver: (import.meta.env.VITE_ENS_RESOLVER as string) || '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD',       // Sepolia PublicResolver
+  parentName: (import.meta.env.VITE_ENS_PARENT_NAME as string) || 'r00tfund.eth',
+};
 
 // External contract addresses (Arbitrum mainnet)
 export const EXTERNAL = {

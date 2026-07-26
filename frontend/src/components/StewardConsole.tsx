@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { useAccount } from 'wagmi';
 import { HACKATHON } from '../config';
 import { CCAPanel } from './CCAPanel';
+import { TopoBackdrop } from './pilot/TopoBackdrop';
 import { useCCAAuctions } from '../hooks/useCCAAuctions';
 
 const LIME = '#D6FE51';
@@ -55,33 +56,48 @@ export function StewardConsole({ landName, landAddress, onOpenLand, onStartLand 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="relative overflow-hidden rounded-2xl border border-[#222] p-6 md:p-8 mb-6"
         style={{ background: 'radial-gradient(120% 140% at 100% 0%, rgba(214,254,81,0.10) 0%, transparent 55%), #0a0b09' }}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        <TopoBackdrop color={LIME} />
+        <div className="relative z-10 flex items-start justify-between gap-4 flex-wrap">
           <div className="max-w-xl">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] font-mono tracking-[0.22em] uppercase text-[#7a7a72]">// Steward Console</span>
-              <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border" style={{ color: GREEN, borderColor: `${GREEN}55` }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GREEN }} />LIVE · Sepolia
+              <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border" style={{ color: LIME, borderColor: `${LIME}55` }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: LIME }} />LIVE · Sepolia
               </span>
             </div>
-            <h1 className="text-2xl md:text-[28px] font-semibold leading-tight text-[#f3f3ec]">
-              Fair-launch your land’s <span style={{ color: LIME, ...glow }}>parcel tokens</span>.
-            </h1>
-            <p className="text-sm text-[#9a9a90] mt-2 leading-relaxed">
-              Set up your land, name your parcels, and open them — each becomes a token on a private zkAMM + a
-              public Uniswap v4 pool, wired to one arb hook that turns every trade into regeneration.
-            </p>
+            {hasLand ? (
+              <>
+                <h1 className="text-2xl md:text-[28px] font-semibold leading-tight text-[#f3f3ec]">
+                  {landName ? <>Steward <span style={{ color: LIME, ...glow }}>{landName}</span>.</> : <>Your land is <span style={{ color: LIME, ...glow }}>live</span>.</>}
+                </h1>
+                <p className="text-sm text-[#9a9a90] mt-2 leading-relaxed">
+                  Open your map to launch each parcel token — a private zkAMM + a public Uniswap v4 pool, wired to one
+                  arb hook that turns every trade into regeneration. Track your raises below.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl md:text-[28px] font-semibold leading-tight text-[#f3f3ec]">
+                  Fair-launch your land’s <span style={{ color: LIME, ...glow }}>parcel tokens</span>.
+                </h1>
+                <p className="text-sm text-[#9a9a90] mt-2 leading-relaxed">
+                  Set up your land, name your parcels, and open them — each becomes a token on a private zkAMM + a
+                  public Uniswap v4 pool, wired to one arb hook that turns every trade into regeneration.
+                </p>
+              </>
+            )}
           </div>
-          <button onClick={onStartLand}
+          <button onClick={hasLand ? onOpenLand : onStartLand}
             className="group inline-flex items-center gap-2 px-5 py-3 rounded-xl text-black font-semibold text-sm shrink-0 cursor-pointer transition-transform duration-200 hover:-translate-y-0.5"
             style={{ background: LIME, boxShadow: `0 0 30px ${LIME}40` }}>
-            <Icon.plus className="w-4 h-4" /> Create your land
+            {hasLand ? <><Icon.map className="w-4 h-4" /> Launch a parcel</> : <><Icon.plus className="w-4 h-4" /> Create your land</>}
           </button>
         </div>
 
         {/* your land pill */}
         {hasLand && (
           <button onClick={onOpenLand}
-            className="mt-5 inline-flex items-center gap-2.5 rounded-xl border border-[#2a2a2a] bg-black/40 pl-3 pr-4 py-2 hover:border-[#444] transition-colors cursor-pointer text-left">
+            className="relative z-10 mt-5 inline-flex items-center gap-2.5 rounded-xl border border-[#2a2a2a] bg-black/40 pl-3 pr-4 py-2 hover:border-[#444] transition-colors cursor-pointer text-left">
             <Icon.map className="w-4 h-4" style={{ color: LIME }} />
             <div>
               <div className="text-xs text-[#ddd] leading-tight">Stewarding{landName ? ` ${landName}` : ' your land'}</div>
@@ -115,7 +131,8 @@ export function StewardConsole({ landName, landAddress, onOpenLand, onStartLand 
 
       {/* ── LIVE RAISES ── */}
       <SectionHeader icon={<Icon.sprout className="w-4 h-4" />} title="Your raises" sub={`${raisingCount} raising · ${liveCount} live`} />
-      <div className="mb-6"><CCAPanel /></div>
+      {/* no land yet → "Launch a parcel" starts the land wizard; with a land → jump to the map to click a plot */}
+      <div className="mb-6"><CCAPanel onOpenMap={hasLand ? onOpenLand : onStartLand} /></div>
 
       {/* Markets / rebalancing viz moved off the console (lives with the swap chart). Re-enable here if
           a compact steward-facing rebalancing card is wanted:

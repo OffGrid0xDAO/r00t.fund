@@ -6,10 +6,10 @@
  */
 import { useState } from 'react';
 import { useAccount, useChainId, useWalletClient, useSwitchChain, usePublicClient } from 'wagmi';
-import { parseEther, stringToHex, padHex } from 'viem';
+import { parseEther } from 'viem';
 import { HACKATHON } from '../config';
 import { useCCAAuctions, Auction } from '../hooks/useCCAAuctions';
-import { TEST_TOKEN_ABI, TEST_TOKEN_BYTECODE } from '../lib/testToken';
+import { UniswapLogo } from './pilot/UniswapLogo';
 
 const LIME = '#D6FE51', GREEN = '#7CFFB2', MUTE = '#888';
 const erc20 = [
@@ -33,7 +33,7 @@ function fmtLeft(end: number): string {
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
-export function CCAPanel() {
+export function CCAPanel({ onOpenMap }: { onOpenMap?: () => void } = {}) {
   const { address } = useAccount();
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
@@ -44,47 +44,10 @@ export function CCAPanel() {
   const [amt, setAmt] = useState<Record<string, string>>({});
   const onSepolia = chainId === HACKATHON.chainId;
 
-  // "Start a raise" form
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ ticker: 'CACTUS', sale: '100000', pool: '100000', floor: '0.01', hours: '1' });
-  const [steps, setSteps] = useState<string[]>([]);
-  const step = (s: string) => setSteps((p) => [...p, s]);
-
   async function ensureChain() {
     if (!onSepolia) await switchChainAsync({ chainId: HACKATHON.chainId });
   }
   async function tx(hash: `0x${string}`) { await publicClient!.waitForTransactionReceipt({ hash }); }
-
-  // Full create flow: deploy a parcel token → mint supply → approve → createParcel (opens the CCA).
-  async function createRaise() {
-    if (!walletClient || !address) return;
-    setBusy('create'); setSteps([]);
-    try {
-      await ensureChain();
-      const sale = parseEther(form.sale), pool = parseEther(form.pool);
-      const supply = sale + pool + parseEther('10000'); // + slack
-
-      step(`deploying $${form.ticker} token…`);
-      const deployHash = await walletClient.deployContract({ abi: TEST_TOKEN_ABI as any, bytecode: TEST_TOKEN_BYTECODE, args: [`${form.ticker} Parcel`, form.ticker] });
-      const rc = await publicClient!.waitForTransactionReceipt({ hash: deployHash });
-      const token = rc.contractAddress as `0x${string}`;
-      step(`token ${token.slice(0, 8)}… deployed`);
-
-      step('minting parcel supply…');
-      await tx(await walletClient.writeContract({ address: token, abi: TEST_TOKEN_ABI as any, functionName: 'mint', args: [address, supply] }));
-      step('approving launchpad…');
-      await tx(await walletClient.writeContract({ address: token, abi: TEST_TOKEN_ABI as any, functionName: 'approve', args: [HACKATHON.launchpad, supply] }));
-
-      const parcelId = padHex(stringToHex(`${form.ticker}-RAISE`), { size: 32, dir: 'right' });
-      const treasury = ('0x' + '00'.repeat(19) + '01') as `0x${string}`; // demo treasury sentinel
-      step('opening the CCA (createParcel)…');
-      await tx(await walletClient.writeContract({ address: HACKATHON.launchpad as `0x${string}`, abi: lpWrite, functionName: 'createParcel',
-        args: [parcelId, token, treasury, sale, pool, parseEther(form.floor), BigInt(Math.round(Number(form.hours) * 3600))] }));
-      step(`✓ $${form.ticker} raise is LIVE — bid below, then launch`);
-      setShowCreate(false); refetch();
-    } catch (e: any) { step('✗ ' + (e?.shortMessage || e?.message || 'failed').slice(0, 80)); }
-    finally { setBusy(''); }
-  }
 
   async function getTestR00T() {
     if (!walletClient || !address) return;
@@ -136,46 +99,40 @@ export function CCAPanel() {
   return (
     <div className="bg-[#0a0a0a] border border-[#333] rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-sm font-semibold text-[#ddd]">Continuous Clearing Auctions — fair-launch a parcel</div>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <UniswapLogo size={38} className="shrink-0 text-[#D6FE51]" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#ddd]"><span style={{ color: LIME }}>CCA</span> — fair-launch a parcel</div>
+            <div className="text-[10px] font-mono text-[#888] truncate">Continuous Clearing Auction · seeds a UniV4 Arb Hook pool</div>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {!onSepolia && address && <button onClick={ensureChain} className="text-[10px] px-2 py-1 rounded border border-[var(--warning)] text-[var(--warning)]">switch to Sepolia</button>}
           <button onClick={getTestR00T} disabled={!address || busy === 'mint'}
             className="text-[10px] px-2 py-1 rounded border border-[#444] text-[#aaa] hover:border-[#666] disabled:opacity-40">
             {busy === 'mint' ? 'minting…' : 'get test R00T'}
           </button>
-          <button onClick={() => setShowCreate((v) => !v)} disabled={!address}
-            className="text-[10px] px-2 py-1 rounded text-black font-medium disabled:opacity-40" style={{ background: LIME }}>
-            + Start a raise
-          </button>
+          {onOpenMap && (
+            <button onClick={onOpenMap} disabled={!address}
+              className="text-[10px] px-2 py-1 rounded text-black font-medium disabled:opacity-40" style={{ background: LIME }}>
+              + Launch a parcel
+            </button>
+          )}
         </div>
       </div>
 
-      {/* CREATE a raise — deploy a parcel token + open the CCA, all from the browser */}
-      {showCreate && (
-        <div className="mb-4 rounded-lg border border-[#2a2a2a] bg-[#111] p-3">
-          <div className="text-[11px] text-[#aaa] mb-2">Launch a parcel: deploy its token → open a Continuous Clearing Auction (floor ≥ R00T OTC).</div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
-            {([['ticker', 'ticker'], ['sale', 'sale supply'], ['pool', 'pool supply'], ['floor', 'floor R00T'], ['hours', 'window (h)']] as const).map(([k, label]) => (
-              <label key={k} className="text-[10px] text-[#777]">{label}
-                <input value={(form as any)[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
-                  className="w-full mt-0.5 bg-[#0a0a0a] border border-[#333] rounded px-2 py-1 text-xs font-mono outline-none focus:border-[var(--accent)]" />
-              </label>
-            ))}
-          </div>
-          <button onClick={createRaise} disabled={busy === 'create'}
-            className="w-full px-3 py-1.5 rounded text-sm font-medium text-black disabled:opacity-40" style={{ background: LIME }}>
-            {busy === 'create' ? 'launching raise…' : `Deploy $${form.ticker} + open CCA`}
-          </button>
-          {steps.length > 0 && (
-            <div className="mt-2 flex flex-col gap-0.5">
-              {steps.map((s, i) => <div key={i} className="text-[10px] font-mono" style={{ color: s.startsWith('✓') ? GREEN : s.startsWith('✗') ? '#e05555' : '#888' }}>{s}</div>)}
-            </div>
-          )}
-        </div>
+      {/* Parcels are launched from the land MAP (each plot is already drawn); this panel tracks the
+          raises and lets the steward clearAndLaunch them into the zkAMM + Uniswap v4 pool + hook. */}
+      {onOpenMap && (
+        <button onClick={onOpenMap}
+          className="w-full mb-4 rounded-lg border border-dashed border-[#2a2a2a] p-3 text-left hover:border-[var(--accent)] transition-colors">
+          <div className="text-[12px] text-[#ddd] font-medium">Launch parcels from your land map →</div>
+          <div className="text-[11px] text-[#888] mt-0.5">Your land is already divided into parcels — click a plot to open its CCA. Each raise then appears here to bid on and <span style={{ color: LIME }}>clearAndLaunch</span> into the zkAMM + Uniswap v4 pool.</div>
+        </button>
       )}
 
       {loading && <div className="text-xs text-[#666] py-8 text-center">loading raises…</div>}
-      {!loading && auctions.length === 0 && <div className="text-xs text-[#666] py-8 text-center">no raises yet</div>}
+      {!loading && auctions.length === 0 && <div className="text-xs text-[#666] py-8 text-center">No raises yet — open your land map and click a parcel to launch one.</div>}
 
       <div className="flex flex-col gap-3">
         {auctions.map((a) => {

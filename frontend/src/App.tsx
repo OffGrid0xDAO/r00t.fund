@@ -13,15 +13,7 @@ import { useWalletSession } from './hooks/useWalletSession';
 import { useTradeSubscription } from './hooks/useTradeSubscription';
 import { CONTRACTS, TOKEN, NETWORK, HACKATHON } from './config';
 import { switchToRobinhood } from './utils/switchChain';
-import { fetchParcelTokens } from './components/pilot/parcelTokens';
-
-// Deterministic synthetic address for a parcel token until its real pool exists
-// post-TGE. Valid 0x + 40-hex so viem reads fail gracefully (try/catch in SwapPanel).
-function parcelTokenAddress(ticker: string): string {
-  const hex = Array.from(ticker.toLowerCase())
-    .map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-  return ('0x' + hex.padEnd(40, '0')).slice(0, 42);
-}
+import { useV4Markets } from './hooks/useV4Markets';
 
 // Lazy load heavy components for better initial load
 const PortfolioPanel = lazy(() => import('./components/PortfolioPanel').then(m => ({ default: m.PortfolioPanel })));
@@ -366,6 +358,7 @@ function App() {
 
   const [selectedToken, setSelectedToken] = useState<string>(CONTRACTS.zkAMM);
   const [availableTokens, setAvailableTokens] = useState<TokenOption[]>(DEMO_TOKENS);
+  const { markets: v4Markets } = useV4Markets(); // on-chain discovered R00T/<parcel> markets (real tokens)
   const [portfolioInitialTab] = useState<'overview' | 'transfer' | 'withdraw' | undefined>(undefined);
   // the chart follows the SWAP pair: map the swapper's selected token (by symbol) to a v4 market key.
   // 'root' = the RH main pool; a parcel symbol (OAK) → its market; R00T/ETH → the base v4 market.
@@ -373,11 +366,12 @@ function App() {
   const swapMarketKey = useMemo(() => {
     const sym = (availableTokens.find(t => t.address === selectedToken)?.symbol || '').toUpperCase();
     if (!sym) return 'root';
-    const m = HACKATHON.markets.find(mk => mk.base.toUpperCase() === sym);
-    if (m) return m.key;                    // e.g. OAK → 'oak'
+    const m = HACKATHON.markets.find(mk => mk.base.toUpperCase() === sym)
+           || v4Markets.find(mk => (mk.base || '').toUpperCase() === sym); // discovered parcels too
+    if (m) return m.key;                    // e.g. OAK → 'oak', HAY → its discovered key
     if (sym === 'ROOT' || sym === 'R00T' || sym === 'ETH') return 'roeth'; // R00T/ETH base market
     return 'root';
-  }, [selectedToken, availableTokens]);
+  }, [selectedToken, availableTokens, v4Markets]);
   const chartMarketKey = chartOverride ?? swapMarketKey; // swap drives it; a chart chip can override
   // when the swap token changes, hand control back to the swap (clear any manual chart override)
   useEffect(() => { setChartOverride(null); }, [selectedToken]);
@@ -435,28 +429,25 @@ function App() {
     })();
   }, [publicClient, handleLiveTokensDiscovered]);
 
-  // Add live (tradable) parcel tokens to the swap token list. Pledging/launching
-  // parcels are NOT tradable yet, so they're excluded here (see LandsPanel).
+  // Add live parcel tokens to the swap list from ON-CHAIN discovery (RegenArbHook.MarketRegistered via
+  // useV4Markets) — REAL deployed tokens/pools, nothing hardcoded. Every clearAndLaunch shows up here.
   useEffect(() => {
-    let cancelled = false;
-    fetchParcelTokens().then(tokens => {
-      if (cancelled) return;
-      const live = tokens.filter(t => t.tradable).map(t => ({
-        address: parcelTokenAddress(t.ticker),
-        name: `${t.emoji} ${t.name}`,
-        symbol: t.ticker,
+    const parcels = v4Markets
+      .filter((m) => { const b = (m.base || '').toUpperCase(); return b && b !== 'ROOT' && b !== 'R00T' && b !== 'ETH'; })
+      .map((m) => ({
+        address: (m.currency0IsRoot ? m.currency1 : m.currency0) as string, // the REAL parcel token
+        name: m.label || `$${m.base}`,
+        symbol: m.base,
         isRoot: false,
-      }));
-      if (live.length) {
-        setAvailableTokens(prev => {
-          const seen = new Set(prev.map(t => t.address));
-          const add = live.filter(t => !seen.has(t.address));
-          return add.length ? [...prev, ...add] : prev;
-        });
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+      }))
+      .filter((t) => t.address && /^0x[0-9a-fA-F]{40}$/.test(t.address));
+    if (!parcels.length) return;
+    setAvailableTokens((prev) => {
+      const seen = new Set(prev.map((t) => t.symbol.toUpperCase()));
+      const add = parcels.filter((t) => !seen.has(t.symbol.toUpperCase()));
+      return add.length ? [...prev, ...add] : prev;
+    });
+  }, [v4Markets]);
 
   const { balance, commitments, storeCommitment, spendCommitment, removeCommitment, fetchAllOnChainCommitments, resetWallet, scan } = usePrivateWallet(CONTRACTS.zkAMM, CONTRACTS.zkAMMPair, session.viewingKey);
   // Both chains are first-class: Robinhood (production stack) + Sepolia (hackathon Steward Console).
@@ -909,7 +900,7 @@ function App() {
                           </button>
                         )}
                         <div className="flex items-center gap-3">
-                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">Pilot Project · Land Map</span>
+                          <span className="text-xs tracking-[0.2em] text-[var(--accent-on-bg)] uppercase font-mono">{steward.landName ? `${steward.landName} · Land Map` : 'Land Map'}</span>
                           <span className="text-[10px] font-mono text-[var(--text-muted)]">top-down · fund a plot or infrastructure</span>
                         </div>
                         <div className="rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>

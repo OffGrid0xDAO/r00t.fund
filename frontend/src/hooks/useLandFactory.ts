@@ -1,14 +1,15 @@
 /**
  * useLandFactory — open a new Land from the browser (StartYourLand onboarding).
  *
- * Approves the steward's $R00T pledge to the factory, calls createLand, and
- * decodes the LandCreated event for the new Land address. No-ops with a clear
- * status when the factory isn't deployed or no wallet is connected.
+ * Targets the multi-tenant LandFactory LIVE on Ethereum Sepolia (the hackathon chain) — mirrors the
+ * Robinhood Chain rail so the full steward flow is testable before mainnet. Approves the steward's
+ * $R00T pledge, calls createLand, and decodes the LandCreated event for the new Land address.
+ * Switches the wallet to Sepolia first (like useLaunchParcel). No-ops with a clear status otherwise.
  */
 import { useCallback, useState } from 'react';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useAccount, usePublicClient, useWalletClient, useSwitchChain, useChainId } from 'wagmi';
 import { decodeEventLog, keccak256, toBytes, parseUnits } from 'viem';
-import { CONTRACTS, isContractDeployed, CHAIN } from '../config';
+import { HACKATHON, isContractDeployed } from '../config';
 import { LAND_FACTORY_ABI, ERC20_ABI } from '../abis/land';
 
 export type CreateLandStatus = 'idle' | 'approving' | 'creating' | 'done' | 'error';
@@ -29,9 +30,12 @@ const hashOf = (text?: string): `0x${string}` =>
 
 export function useLandFactory() {
   const { address } = useAccount();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: HACKATHON.chainId });
   const { data: walletClient } = useWalletClient();
-  const factory = CONTRACTS.landFactory as `0x${string}`;
+  const { switchChainAsync } = useSwitchChain();
+  const chainId = useChainId();
+  const factory = HACKATHON.landFactory as `0x${string}`;
+  const root = HACKATHON.root as `0x${string}`;
   const configured = isContractDeployed(factory);
 
   const [status, setStatus] = useState<CreateLandStatus>('idle');
@@ -48,9 +52,7 @@ export function useLandFactory() {
       return null;
     }
     try {
-      const root = (await publicClient.readContract({
-        address: factory, abi: LAND_FACTORY_ABI, functionName: 'root',
-      })) as `0x${string}`;
+      if (chainId !== HACKATHON.chainId) await switchChainAsync({ chainId: HACKATHON.chainId });
 
       const allowance = (await publicClient.readContract({
         address: root, abi: ERC20_ABI, functionName: 'allowance', args: [address, factory],
@@ -59,7 +61,7 @@ export function useLandFactory() {
         setStatus('approving');
         const approveHash = await walletClient.writeContract({
           address: root, abi: ERC20_ABI, functionName: 'approve', args: [factory, input.r00tPledge],
-          chain: CHAIN, account: address,
+          account: address,
         });
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
@@ -77,7 +79,7 @@ export function useLandFactory() {
           ethPriceE6: input.ethPriceE6 ?? 3000_000000n,
           r00tPledge: input.r00tPledge,
         }],
-        chain: CHAIN, account: address,
+        account: address,
       });
       setTxHash(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -103,7 +105,7 @@ export function useLandFactory() {
       setStatus('error');
       return null;
     }
-  }, [configured, address, publicClient, walletClient, factory]);
+  }, [configured, address, publicClient, walletClient, factory, root, chainId, switchChainAsync]);
 
   // Convenience: pledge amount helper for the UI (whole $R00T → 18dp)
   const toPledge = (whole: number) => parseUnits(String(whole), 18);

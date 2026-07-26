@@ -11,7 +11,8 @@
  */
 import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient } from 'wagmi';
-import { CONTRACTS, HACKATHON, isContractDeployed } from '../config';
+import { HACKATHON, isContractDeployed } from '../config';
+import { MYLAND_EVENT } from '../components/pilot/myLand';
 
 const factoryAbi = [
   { type: 'function', name: 'landCount', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
@@ -45,8 +46,19 @@ const GATEKEEPER = (HACKATHON as any).stewardGatekeeper as string | undefined;
 
 export function useStewardStatus(): StewardStatus {
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
+  // Pin land reads to the hackathon chain (Sepolia) — the multi-tenant LandFactory + every
+  // steward's Land live there, regardless of which chain the wallet is momentarily on.
+  const publicClient = usePublicClient({ chainId: HACKATHON.chainId });
   const [s, setS] = useState<StewardStatus>(EMPTY);
+  const [nonce, setNonce] = useState(0);
+
+  // re-scan when a land is created/updated (saveMyLand fires MYLAND_EVENT) so the console detects a
+  // freshly-created land without a reload.
+  useEffect(() => {
+    const bump = () => setNonce((n) => n + 1);
+    window.addEventListener(MYLAND_EVENT, bump);
+    return () => window.removeEventListener(MYLAND_EVENT, bump);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -58,26 +70,34 @@ export function useStewardStatus(): StewardStatus {
       let landAddress: string | null = null;
       let landName: string | null = null;
 
-      // 1) does the wallet steward a Land? check the pilot Land first, then scan the factory.
+      // 1) does the wallet steward a Land? scan the Sepolia LandFactory for lands it created.
       const candidates: string[] = [];
-      if (isContractDeployed(CONTRACTS.pilotLand)) candidates.push(CONTRACTS.pilotLand);
+      const factory = HACKATHON.landFactory as string;
       try {
-        if (isContractDeployed(CONTRACTS.landFactory)) {
-          const n = (await publicClient.readContract({ address: CONTRACTS.landFactory as `0x${string}`, abi: factoryAbi, functionName: 'landCount' })) as bigint;
-          const cap = Number(n > 50n ? 50n : n);
-          const idxs = await Promise.all(Array.from({ length: cap }, (_, i) =>
-            publicClient.readContract({ address: CONTRACTS.landFactory as `0x${string}`, abi: factoryAbi, functionName: 'lands', args: [BigInt(i)] }).catch(() => null)));
+        if (isContractDeployed(factory)) {
+          const n = (await publicClient.readContract({ address: factory as `0x${string}`, abi: factoryAbi, functionName: 'landCount' })) as bigint;
+          const total = Number(n);
+          // scan the NEWEST lands (highest indices) — a freshly-created land is at the END of the
+          // factory list, so scanning the first 50 would miss it once there are >50 lands.
+          const window = 80;
+          const start = total > window ? total - window : 0;
+          const idxs = await Promise.all(Array.from({ length: total - start }, (_, k) =>
+            publicClient.readContract({ address: factory as `0x${string}`, abi: factoryAbi, functionName: 'lands', args: [BigInt(start + k)] }).catch(() => null)));
           for (const a of idxs) if (a) candidates.push(a as string);
         }
-      } catch { /* factory not reachable — pilot check still applies */ }
+      } catch { /* factory not reachable */ }
 
+      // Candidates are in factory index order; scan all and keep the NEWEST land the wallet
+      // stewards (highest index) so a freshly-created land wins over any earlier/smoke land.
       for (const land of Array.from(new Set(candidates))) {
         try {
           const st = (await publicClient.readContract({ address: land as `0x${string}`, abi: landAbi, functionName: 'steward' })) as string;
           if (st.toLowerCase() === me) {
+            const nm = await publicClient.readContract({ address: land as `0x${string}`, abi: landAbi, functionName: 'name' }).catch(() => null) as string | null;
+            // ignore throwaway smoke/test lands so they never surface as "the land you steward"
+            if (nm && /\b(smoke|test|demo|dummy)\b/i.test(nm)) continue;
             landAddress = land;
-            landName = await publicClient.readContract({ address: land as `0x${string}`, abi: landAbi, functionName: 'name' }).catch(() => null) as string | null;
-            break;
+            landName = nm;
           }
         } catch { /* not a Land / no steward view */ }
       }
@@ -101,7 +121,7 @@ export function useStewardStatus(): StewardStatus {
     })();
 
     return () => { alive = false; };
-  }, [address, isConnected, publicClient]);
+  }, [address, isConnected, publicClient, nonce]);
 
   return s;
 }

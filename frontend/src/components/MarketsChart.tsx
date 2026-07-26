@@ -65,7 +65,7 @@ export function MarketsChart({ onExpand }: { onExpand?: () => void } = {}) {
         <div>
           <div className="flex items-center gap-2 text-[11px] text-[#777] font-mono">
             <span>// {market.priceLabel}</span>
-            <span className="px-1.5 py-0.5 rounded-full border animate-pulse text-[9px]" style={{ color: GREEN, borderColor: GREEN }}>● LIVE · Sepolia v4</span>
+            <span className="px-1.5 py-0.5 rounded-full border animate-pulse text-[9px]" style={{ color: LIME, borderColor: LIME }}>● LIVE · Sepolia v4</span>
           </div>
           <div className="text-2xl font-mono mt-0.5" style={{ color: LIME }}>{c.livePub != null ? c.livePub.toPrecision(5) : '…'}</div>
         </div>

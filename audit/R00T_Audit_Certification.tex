@@ -1,0 +1,451 @@
+\documentclass[11pt,a4paper]{article}
+
+% ============================================================================
+%  R00T.fund — Smart Contract & ZK Infrastructure Security Audit Certification
+%  Generated as part of the /solidity-auditor full-audit engagement.
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tcolorbox}
+\usepackage{amssymb}
+
+% ---- palette ----------------------------------------------------------------
+\definecolor{r00tgreen}{RGB}{20,120,70}
+\definecolor{r00tdark}{RGB}{18,32,26}
+\definecolor{sevcrit}{RGB}{176,0,32}
+\definecolor{sevhigh}{RGB}{200,80,0}
+\definecolor{sevmed}{RGB}{190,150,0}
+\definecolor{sevlow}{RGB}{40,110,160}
+\definecolor{sevinfo}{RGB}{110,110,110}
+\definecolor{codebg}{RGB}{245,245,242}
+\definecolor{codeframe}{RGB}{210,210,205}
+
+% ---- headings ---------------------------------------------------------------
+\titleformat{\section}{\Large\bfseries\color{r00tdark}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{r00tgreen}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.6em}{}
+
+% ---- header / footer --------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small\color{r00tgreen}\textbf{R00T.fund} Security Audit}
+\rhead{\small Certification of Review}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{r00tgreen}\leaders\hrule height \headrulewidth\hfill}}
+
+% ---- code listing style -----------------------------------------------------
+\lstdefinestyle{sol}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{codeframe},
+  numbers=none,
+  showstringspaces=false,
+  keywordstyle=\color{r00tgreen}\bfseries,
+  commentstyle=\color{sevinfo}\itshape,
+  morekeywords={function,external,internal,public,view,payable,returns,revert,require,uint256,address,bool,if,else,mapping,memory,calldata,nonReentrant,onlyOwner,signal,template,component,input,output}
+}
+\lstset{style=sol}
+
+% ---- severity badge ---------------------------------------------------------
+\newcommand{\sev}[2]{\textcolor{#1}{\textbf{#2}}}
+\newcommand{\badge}[2]{\colorbox{#1}{\textcolor{white}{\bfseries\,#2\,}}}
+
+\begin{document}
+
+% ============================== COVER =======================================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\color{r00tgreen}\rule{\textwidth}{2pt}}\\[0.4cm]
+{\Huge\bfseries\color{r00tdark} Smart Contract \& ZK Infrastructure}\\[0.3cm]
+{\Huge\bfseries\color{r00tgreen} Security Audit Certification}\\[0.5cm]
+{\color{r00tgreen}\rule{\textwidth}{2pt}}\\[1.2cm]
+
+{\LARGE\bfseries R00T.fund Protocol}\\[0.4cm]
+{\large Private zkAMM $\cdot$ Anonymous Land Funding $\cdot$ 1x Shorts}\\[2.0cm]
+
+\begin{tabular}{rl}
+\textbf{Auditor:} & Claude Solidity Auditor (Opus 4.8) \\[4pt]
+\textbf{Engagement:} & Full Audit — Contracts + ZK Circuits \\[4pt]
+\textbf{Report Date:} & 12 July 2026 \\[4pt]
+\textbf{Commit (HEAD):} & \texttt{e3be8ed} (main) \\[4pt]
+\textbf{Toolchain:} & Foundry (solc 0.8.26, via-IR, Cancun) \\[4pt]
+\textbf{Circuits:} & Circom 2.1.0 / Groth16 (BN254) \\[4pt]
+\end{tabular}
+
+\vspace{2.0cm}
+\begin{tcolorbox}[colback=r00tgreen!8,colframe=r00tgreen,width=0.85\textwidth,
+  arc=3pt,boxrule=1pt]
+\centering\large
+\textbf{Verdict: \sev{r00tgreen}{PASS — with remediations applied}}\\[4pt]
+\normalsize All identified Critical/High issues were previously remediated by the
+team and verified in this review. Two Medium and one Low issue found in this pass
+were \textbf{fixed and regression-tested} during the engagement.
+\end{tcolorbox}
+
+\vfill
+{\small\itshape This certification attests to a best-effort manual and tool-assisted
+review. It is not a warranty. See \S\ref{sec:disclaimer}.}
+\end{titlepage}
+
+% ============================== TOC =========================================
+\tableofcontents
+\newpage
+
+% ============================== 1. SUMMARY ==================================
+\section{Executive Summary}
+
+R00T.fund is a privacy-first DeFi stack deployed on an Arbitrum-Orbit L2. This
+engagement covered the complete on-chain surface and the zero-knowledge circuit
+suite that underpins it:
+
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{zkAMM} — a shielded constant-product AMM (\texttt{ZkAMMPair},
+        \texttt{ZkAMMRouter}, \texttt{ZkAMMAdmin}, \texttt{TokenPool}) with
+        Poseidon-Merkle commitment trees and Groth16 note spends.
+  \item \textbf{Shared NullifierRegistry} — a single global spent-nullifier set
+        preventing cross-domain double-spend between the DEX and the pledge rail.
+  \item \textbf{Land system} — \texttt{LandFactory}, \texttt{Land} (real Uniswap
+        v4 parcel pools), and \texttt{LandVault} (anonymous fund $\rightarrow$
+        dual-claim rail).
+  \item \textbf{R00TShorts} — 1x leverage shorts with a self-contained,
+        manipulation-resistant TWAP liquidation oracle.
+  \item \textbf{Namespace registries} — \texttt{ParcelRegistry},
+        \texttt{TickerRegistry} (Harberger-style ticker market).
+  \item \textbf{ZK circuits} — 15 Circom circuits: deposit/land-deposit binding,
+        sell, swap, transfer, merge, withdraw, add/remove-liquidity,
+        claim-LP-fees, vote, pledge, claim.
+\end{itemize}
+
+The codebase shows evidence of multiple prior hardening rounds (extensive
+\texttt{SECURITY FIX} provenance for Vulns 1--18 and audit Vulns 2--10). This
+review re-verified those remediations and swept for anything outstanding.
+
+\subsection{Findings at a Glance}
+
+\begin{center}
+\begin{tabular}{lccl}
+\toprule
+\textbf{Severity} & \textbf{New this pass} & \textbf{Status} & \textbf{Area} \\
+\midrule
+\badge{sevcrit}{CRITICAL} & 0 & --- & --- \\
+\badge{sevhigh}{HIGH}     & 0 & --- & --- \\
+\badge{sevmed}{MEDIUM}    & 2 & \sev{r00tgreen}{Fixed} & OTC buy slippage (2 registries) \\
+\badge{sevlow}{LOW}       & 1 & \sev{r00tgreen}{Fixed} & Fee-accounting order (add-liquidity) \\
+\badge{sevinfo}{INFO}     & 4 & Acknowledged & Centralization / design notes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Test Baseline}
+The full Foundry suite was executed before and after remediation:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & \textbf{Before} & \textbf{After} \\
+\midrule
+Test suites & 10 & 10 \\
+Tests passing & 111 / 111 & \textbf{113 / 113} \\
+Regression tests added & --- & +2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The two additional tests exercise the newly added slippage guards
+(\S\ref{sec:m02}).
+
+% ============================== 2. SCOPE ====================================
+\section{Scope \& Methodology}
+
+\subsection{In-Scope Source}
+Production Solidity under \texttt{contracts/src/} ($\approx$5{,}930 LoC) and the
+Circom circuits under \texttt{circuits/} ($\approx$1{,}695 LoC). Build artifacts
+(\texttt{out/}, \texttt{cache/}, \texttt{broadcast/}, \texttt{circuits/build/})
+and vendored dependencies (OpenZeppelin, Uniswap v4-core, circomlib) were treated
+as out of scope except where they define trust boundaries.
+
+\subsection{Out of Scope}
+\texttt{LiquidationExecutor} and \texttt{R00tCREReceiver} exist only as compiled
+artifacts (Chainlink CRE off-chain workflow, external repository) and were not
+audited at source level. Off-chain proof generation, the indexer, and frontend
+were not in scope.
+
+\subsection{Methodology}
+Manual line-by-line review guided by the OWASP Smart Contract Top~10 (2025),
+supplemented by: control-flow and CEI analysis of every state-changing external
+function; access-control matrix construction; ZK soundness review (public-signal
+ordering, binding hashes, range checks, nullifier derivation, field-membership
+enforcement); and full test-suite execution with targeted regression additions.
+
+% ============================== 3. ARCHITECTURE =============================
+\section{Architecture \& Trust Model}
+
+\textbf{State/logic separation.} \texttt{ZkAMMPair} is the sole custodian of ETH
+and R00T; only \texttt{ZkAMMRouter} may mutate reserves and insert commitments,
+enforced by \texttt{onlyRouter}. \texttt{ZkAMMAdmin} owns the timelocked governance
+surface (verifier swaps, router upgrade, treasury, launchpad, 2-of-3 emergency
+multisig). This keeps each contract below the EIP-170 size limit and narrows the
+attack surface per component.
+
+\textbf{Shared nullifier domain.} A single \texttt{NullifierRegistry} is consulted
+by both the Router (note spends) and \texttt{LandVault} (pledge/claim). Every spend
+path funnels through \texttt{checkAndMark}, which reverts atomically on re-spend, so
+a shielded R00T note cannot be simultaneously sold on the DEX and pledged to a plot.
+
+\textbf{ZK soundness spine.} All value-bearing circuits (i) recompute the leaf
+commitment from private preimages, (ii) prove Merkle membership with a leaf-index
+extractor, (iii) derive the nullifier as \texttt{Poseidon(nullifier, leafIndex)}
+to resist grinding, (iv) enforce \texttt{LessEqThan(128)} range checks before any
+field subtraction, and (v) emit a Poseidon binding of the public inputs to defeat
+proof malleability. The contract layer additionally rejects any public signal
+$\geq$ the BN254 scalar field.
+
+% ============================== 4. FINDINGS =================================
+\section{Detailed Findings}
+
+% ---- M-01 ----
+\subsection{[M-01] Missing buyer slippage bound in \texttt{ParcelRegistry.buy}}
+\label{sec:m02}
+\noindent\badge{sevmed}{MEDIUM}\quad\textbf{Status: \sev{r00tgreen}{Fixed}}
+
+\textbf{Location:} \texttt{contracts/src/ParcelRegistry.sol} — \texttt{buy()}.
+
+\textbf{Description.} The inter-land OTC \texttt{buy} priced the fill from the
+seller-controlled, mutable \texttt{offer.priceRootPerUnitE18} and pulled the
+resulting R00T cost with no upper bound supplied by the buyer. A seller can
+\texttt{reprice()} upward in the same block a buy is pending. Because ERC-20
+integrations commonly grant broad (or unlimited) allowances, the buyer's
+\texttt{safeTransferFrom} would settle at the inflated price, transferring far
+more R00T than quoted.
+
+\textbf{Impact.} Loss of funds for the buyer up to their standing allowance;
+a griefing/theft vector executable by any listing seller (SC-10 front-running,
+SC-05 input validation).
+
+\textbf{Proof of Concept.} \texttt{test\_buy\_repriceFrontRun\_REJECTED} — seller
+lists at 1 R00T/unit, reprices to 100 R00T/unit, buyer has an unlimited allowance
+and would have overpaid 100$\times$.
+
+\textbf{Remediation (applied).} Added an explicit \texttt{maxRootCost} parameter and
+a check before settlement:
+\begin{lstlisting}
+function buy(uint256 offerId, uint256 amount, uint256 maxRootCost) external nonReentrant {
+    ...
+    uint256 cost = (amount * o.priceRootPerUnitE18 + 1e18 - 1) / 1e18;
+    if (cost > maxRootCost) revert ExceedsMaxCost();
+    ...
+}
+\end{lstlisting}
+
+% ---- M-02 ----
+\subsection{[M-02] Missing buyer price bound in \texttt{TickerRegistry.buy}}
+\noindent\badge{sevmed}{MEDIUM}\quad\textbf{Status: \sev{r00tgreen}{Fixed}}
+
+\textbf{Location:} \texttt{contracts/src/TickerRegistry.sol} — \texttt{buy()}.
+
+\textbf{Description.} Identical class to M-01 on the Harberger ticker market: the
+current holder sets \texttt{buyoutPrice}, and \texttt{buy} charged that mutable
+value with no buyer-side cap. A holder can \texttt{setBuyoutPrice()} upward ahead
+of a pending buyout to drain the buyer's allowance.
+
+\textbf{Impact.} Buyer overpayment up to standing allowance; self-dealing theft by
+the ticker holder.
+
+\textbf{Proof of Concept.} \texttt{test\_buy\_priceFrontRun\_REJECTED} — price
+quoted at 1000 R00T, holder jumps it to 50{,}000 R00T, buyout reverts under the cap.
+
+\textbf{Remediation (applied).}
+\begin{lstlisting}
+function buy(string calldata symbol, uint256 maxPrice) external nonReentrant {
+    ...
+    uint256 price = t.buyoutPrice;
+    if (price == 0) revert NotForSale();
+    if (price > maxPrice) revert ExceedsMaxPrice();
+    ...
+}
+\end{lstlisting}
+
+% ---- L-01 ----
+\subsection{[L-01] Fee booked before ETH credited in \texttt{addLiquidityPrivate}}
+\noindent\badge{sevlow}{LOW}\quad\textbf{Status: \sev{r00tgreen}{Fixed}}
+
+\textbf{Location:} \texttt{contracts/src/ZkAMMRouter.sol} — \texttt{addLiquidityPrivate()}.
+
+\textbf{Description.} \texttt{ZkAMMPair.addProtocolFees} enforces invariant M-4
+(\texttt{accumulatedProtocolFees + accumulatedLPFees} $\leq$ \texttt{ethReserve})
+by \emph{clamping} the booked fee to the \emph{current} reserve. In the add-liquidity
+path the protocol fee was booked \emph{before} the newly supplied \texttt{ethAfterFee}
+was credited to \texttt{ethReserve}. When the pool's prior reserve was small relative
+to the deposit, the clamp truncated legitimately-earned protocol fees. Every other
+flow (buy/sell/swap) credits the reserve first.
+
+\textbf{Impact.} Under-collection of protocol fees on add-liquidity (accounting
+precision, no fund loss / no user harm). Low severity.
+
+\textbf{Remediation (applied).} Reordered so reserves are credited before the fee is
+booked, matching the rest of the codebase:
+\begin{lstlisting}
+pair.updateReserves(ethAfterFee, 0, true);   // ETH into pool FIRST
+pair.updateReserves(0, tokenAmount, false);  // tokens into pool
+pair.addProtocolFees(protocolFee);           // then book the fee (clamp now correct)
+\end{lstlisting}
+
+% ---- INFO ----
+\subsection{Informational Observations}
+\noindent\badge{sevinfo}{INFO}\quad\textbf{Status: Acknowledged}
+
+\begin{description}[leftmargin=1.2em,style=nextline]
+  \item[I-01 — Launch-time centralization / short timelocks.] Governance,
+    pool-authorization, and epoch timelocks (\texttt{ADMIN\_TIMELOCK},
+    \texttt{GOVERNANCE\_TIMELOCK}, \texttt{POOL\_AUTHORIZATION\_COOLDOWN},
+    \texttt{LP\_LOCK\_PERIOD}) ship at 1 minute and are owner-mutable up to 30 days.
+    The in-code intent (``raise toward 48h/24h for mainnet'') is correct; these
+    \emph{must} be raised before mainnet value is at risk. Until then the owner/
+    governance keys are effectively trusted. Recommend a documented pre-mainnet
+    checklist and, ideally, hard-coding higher floors post-launch.
+  \item[I-02 — Owner reserve controls on \texttt{ZkAMMPair}.] \texttt{rescueETH},
+    \texttt{rescueTokens}, and \texttt{setReserves} give the admin-owner broad power
+    over pool reserves (by design, for re-liquification and non-custodial rescue).
+    This is a trusted-owner assumption that should be disclosed to LPs; consider
+    routing these through the same timelock as other admin actions.
+  \item[I-03 — TWAP warm-up window in \texttt{R00TShorts}.] Liquidations correctly
+    revert with \texttt{OracleNotReady} until a full \texttt{TWAP\_PERIOD} (30 min)
+    of history exists, and eligibility uses the manipulation-resistant TWAP rather
+    than spot — a sound design. Operators should ``poke'' the oracle
+    (\texttt{pokeOracle}) during low-activity periods so eligibility stays fresh.
+  \item[I-04 — AMM formula in \texttt{swapETHForProjectToken} entropy.] The ephemeral
+    R00T commitment mixes \texttt{blockhash}/\texttt{prevrandao}; security correctly
+    rests on the atomic-swap nonce, the user's project-token secret, and
+    \texttt{minTokensOut}, not on the block randomness. No action required; noted so
+    future refactors preserve those real guarantees.
+\end{description}
+
+% ============================== 5. ZK REVIEW ================================
+\section{Zero-Knowledge Circuit Review}
+
+All 15 circuits were reviewed for the standard shielded-pool soundness properties.
+Summary of the verification matrix:
+
+\begin{center}
+\small
+\begin{longtable}{l c c c c}
+\toprule
+\textbf{Circuit} & \textbf{Commit re-derive} & \textbf{Merkle+index} & \textbf{Range check} & \textbf{Pub binding} \\
+\midrule
+\endhead
+deposit / landdeposit & \checkmark & n/a & value-bind & \checkmark \\
+sell           & \checkmark & \checkmark & \checkmark & \checkmark \\
+swap           & \checkmark & \checkmark & \checkmark & \checkmark \\
+transfer       & \checkmark & \checkmark & \checkmark & \checkmark \\
+merge          & \checkmark & \checkmark (x2) & \checkmark & \checkmark \\
+withdraw       & \checkmark & \checkmark & implicit & \checkmark \\
+addLiquidity   & \checkmark & \checkmark & \checkmark & \checkmark \\
+removeLiquidity& \checkmark & \checkmark & \checkmark & \checkmark \\
+claimLPFees    & \checkmark & \checkmark & shares$>$0 & \checkmark \\
+vote           & \checkmark & \checkmark & \checkmark & \checkmark \\
+pledge / claim & \checkmark & \checkmark & 4-input bind & \checkmark \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+\textbf{Positive findings.}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{Value forgery closed.} \texttt{deposit.circom} /
+    \texttt{landdeposit.circom} bind the public \texttt{amount} (and \texttt{parcelId})
+    to the inserted commitment, and the contracts require the proof before
+    inserting. A note can never claim more value than was deposited.
+  \item \textbf{Underflow-safe arithmetic.} Every circuit that computes
+    $\texttt{change} = \texttt{amount} - \texttt{spent}$ first enforces
+    \texttt{LessEqThan(128)}, preventing field wrap-around into a huge change value.
+  \item \textbf{Grinding resistance.} Nullifiers uniformly bind the Merkle
+    \texttt{leafIndex}, so the same preimage at different tree positions yields
+    distinct nullifiers and double-spend is blocked at the registry.
+  \item \textbf{Malleability resistance.} Each circuit emits a Poseidon binding of
+    its public inputs as a constrained \emph{output} signal, and the on-chain
+    verifier includes it in the public-signal vector in the documented order.
+  \item \textbf{Change/zero handling.} The
+    \texttt{expectedChange = hasChange * computed} pattern correctly forces
+    \texttt{changeCommitment == 0} when there is no change and the computed value
+    otherwise.
+\end{itemize}
+
+\textbf{ZK observations (no action required).}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \emph{Public-signal ordering is load-bearing.} The Router hard-codes each
+    \texttt{pubSignals} array to match the circuit's output-then-input emission
+    order (snarkjs emits outputs first). Any verifier or circuit re-generation must
+    preserve this exact order; the code comments already flag it as ``CRITICAL FIX''.
+  \item \emph{Trusted setup.} Groth16 requires a per-circuit trusted setup. The
+    integrity of the proving/verifying keys is assumed; publishing the ceremony
+    transcript and pinning verifier bytecode hashes is recommended for public
+    verifiability (out of scope for source review).
+\end{itemize}
+
+% ============================== 6. REMEDIATION ==============================
+\section{Remediation Summary}
+
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+\textbf{ID} & \textbf{File} & \textbf{Change} & \textbf{Verified by} \\
+\midrule
+M-01 & \texttt{ParcelRegistry.sol} & \texttt{maxRootCost} bound + \texttt{ExceedsMaxCost} & new test \\
+M-02 & \texttt{TickerRegistry.sol} & \texttt{maxPrice} bound + \texttt{ExceedsMaxPrice} & new test \\
+L-01 & \texttt{ZkAMMRouter.sol} & reserve credited before fee booking & full suite \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All three fixes are minimal, localized, and preserve existing behaviour for
+honest actors. Post-remediation the full suite reports
+\textbf{113 passing / 0 failing}.
+
+% ============================== 7. CONCLUSION ===============================
+\section{Certification Statement}
+
+Based on the manual and tool-assisted review described herein, the R00T.fund
+smart-contract and ZK circuit suite at commit \texttt{e3be8ed} exhibits a mature,
+defense-in-depth security posture. No Critical or High severity issues were
+outstanding at the conclusion of this engagement; the two Medium and one Low issue
+discovered were remediated and regression-tested in place.
+
+\begin{tcolorbox}[colback=r00tgreen!8,colframe=r00tgreen,arc=3pt,boxrule=1pt]
+\centering
+\textbf{This certifies that the R00T.fund protocol has undergone a full security
+audit of its Solidity contracts and zero-knowledge circuits, with all findings
+from this engagement remediated and verified against a green test suite (113/113).}
+\end{tcolorbox}
+
+\vspace{0.6cm}
+\noindent\textbf{Conditions to certification.} This attestation is contingent on the
+pre-mainnet hardening of launch-time timelock/cooldown parameters (I-01) and
+disclosure of the trusted-owner reserve controls (I-02) to liquidity providers.
+
+% ============================== 8. DISCLAIMER ==============================
+\section{Disclaimer}
+\label{sec:disclaimer}
+\small
+This report reflects a point-in-time, best-effort review of the specified source at
+the stated commit. It does not constitute a warranty, guarantee, or insurance of any
+kind, and does not cover: economic/game-theoretic design risk, off-chain components
+(proof generation, indexer, frontend, CRE workflows), trusted-setup ceremony
+integrity, compiler or dependency vulnerabilities, or code changed after the audited
+commit. Smart contracts are experimental; deploying them carries inherent risk. The
+authors accept no liability for losses arising from the use of the reviewed software.
+
+\end{document}

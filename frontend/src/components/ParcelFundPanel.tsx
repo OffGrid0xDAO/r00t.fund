@@ -123,6 +123,9 @@ export function ParcelFundPanel() {
             ? <> You get a <span className="text-[var(--accent)]">private note</span> you can claim to any wallet, unlinked from the one that paid.</>
             : <> Your patronage is split across <span className="text-[var(--accent)]">all {PARCELS.length} parcels</span> — a basket of every land token — as {PARCELS.length} private notes, each claimable to any wallet.</>}
         </p>
+        <p className="text-[10px] font-mono text-[var(--text-muted)] mt-1.5 leading-relaxed">
+          Patronage funds the land directly — it's a <span className="text-[var(--text-secondary)]">separate rail</span> from the token's CCA raise (R00T bids) and its market price. Your note redeems to $R00T (or the token) with anti-dump vesting.
+        </p>
         {/* target: one parcel vs the whole-land basket */}
         <div className="inline-flex gap-1 p-1 mt-2 rounded-lg border border-[var(--border)]" style={{ background: 'var(--bg-elevated)' }}>
           <button onClick={() => setTarget('parcel')}

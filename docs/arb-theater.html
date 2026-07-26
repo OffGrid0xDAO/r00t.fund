@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r00t.fund · Live Arb Terminal — R00T/ETH</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    /* r00t.fund dark theme tokens (match frontend/src/index.css) */
+    --bg:#121210; --panel:#1A1A18; --panel2:#242422; --border:#2A2A28;
+    --lime:#D6FE51; --lime-glow:#E4FF7A; --green:#5DA870; --up:#7CFFB2; --red:#ff5c6c;
+    --pink:#FF007A; --violet:#9B7BFF;
+    --muted:#6C6C68; --muted2:#A8A8A4; --ink:#F5F5F3; --ink-on-accent:#10140A;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --display:'Newsreader',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:radial-gradient(120% 90% at 50% -10%,rgba(214,254,81,.05),transparent 55%),var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px 22px;height:100%;display:flex;flex-direction:column;gap:12px}
+  header{display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:baseline;gap:12px}
+  .logo{font-weight:700;font-size:19px;letter-spacing:-.5px}
+  .logo b{color:var(--lime)}
+  .pair{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+  .live{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--green);border:1px solid rgba(124,255,178,.35);padding:4px 10px;border-radius:999px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  /* price ribbon */
+  .ribbon{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+  .stat .k{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;display:flex;align-items:center;gap:7px}
+  .stat .v{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:6px;letter-spacing:-.5px}
+  .swatch{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .v.lime{color:var(--lime)} .v.pink{color:var(--pink)} .v.violet{color:var(--violet)}
+  .bump{animation:bump .3s}
+  @keyframes bump{50%{transform:scale(1.12)}}
+  /* main */
+  .main{display:grid;grid-template-columns:1.9fr 1fr;gap:12px;flex:1;min-height:0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;min-height:0}
+  .card h3{margin:0 0 4px;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.14em;font-weight:500;display:flex;justify-content:space-between}
+  canvas#chart{width:100%;flex:1;min-height:0}
+  .legend{display:flex;gap:16px;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  /* arb table */
+  .arblist{overflow:auto;flex:1;min-height:0;margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+  th{position:sticky;top:0;background:var(--panel);color:var(--muted);text-align:left;font-weight:500;padding:6px 6px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.08em;font-size:9px}
+  td{padding:7px 6px;border-bottom:1px solid rgba(28,31,26,.6);white-space:nowrap}
+  td.profit{color:var(--green)}
+  tr.new{animation:flash 1.4s}
+  @keyframes flash{0%{background:rgba(214,254,81,.18)}100%{background:transparent}}
+  a{color:var(--violet);text-decoration:none} a:hover{text-decoration:underline}
+  .empty{font-family:var(--mono);font-size:11px;color:var(--muted);padding:14px 4px}
+  .treasrow{display:flex;align-items:baseline;gap:8px;margin-top:2px}
+  .treasrow .big{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--lime);letter-spacing:-1px}
+  .foot{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:10px;color:#565952}
+  .foot a{color:var(--muted)}
+  .hookflash{color:var(--lime);opacity:0;transition:opacity .2s}
+  .hookflash.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="logo">r<b>00</b>t.fund</span>
+      <span class="pair">R00T / ETH</span>
+      <span class="sub">live arb terminal · public Uniswap v4 ⇄ private zkAMM</span>
+    </div>
+    <span class="live"><span class="dot"></span> LIVE · Sepolia</span>
+  </header>
+
+  <div class="ribbon">
+    <div class="stat"><div class="k"><span class="swatch" style="background:var(--pink)"></span> public · Uniswap v4</div><div class="v pink" id="pubPrice">—</div></div>
+    <div class="stat"><div class="k"><span class="swatch" style="background:var(--violet)"></span> private · zkAMM 🛡</div><div class="v violet" id="privPrice">—</div></div>
+    <div class="stat"><div class="k">spread <span class="hookflash" id="hookflash">· hook firing</span></div><div class="v" id="spread">—</div></div>
+    <div class="stat"><div class="k"><span class="swatch" style="background:var(--lime)"></span> regen treasury</div><div class="v lime" id="treas">— <span style="font-size:12px;color:var(--muted)">ETH</span></div></div>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <h3><span>R00T/ETH · live candles (public v4) + private line + arb marks</span><span id="clock"></span></h3>
+      <canvas id="chart"></canvas>
+      <div class="legend">
+        <span><i style="background:#7CFFB2"></i>candle up</span>
+        <span><i style="background:#ff5c6c"></i>candle down</span>
+        <span><i style="background:#9B7BFF"></i>private zkAMM price</span>
+        <span><i style="background:#D6FE51"></i>hook arb (SpreadCaptured)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span>Hook arb transactions</span><span id="arbcount">0</span></h3>
+      <div class="treasrow"><span class="big" id="treas2">—</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">ETH captured → regeneration</span></div>
+      <div class="arblist">
+        <table>
+          <thead><tr><th>block</th><th>profit</th><th>uni px</th><th>priv px</th><th>tx</th></tr></thead>
+          <tbody id="arbrows"><tr><td colspan="6"><div class="empty">loading arb history from the hook…</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span id="src">source: on-chain reads · Sepolia</span>
+    <a href="https://sepolia.etherscan.io/address/0x2B019cC4D35CeB177fe41a4A8b4D873494C20040#events" target="_blank">view all hook events on Etherscan ↗</a>
+  </div>
+</div>
+
+<script>
+// ── base R00T/ETH market on Sepolia ──
+const RPCS = [
+  'https://sepolia.drpc.org',
+  'https://ethereum-sepolia-rpc.publicnode.com',
+  'https://eth-sepolia.g.alchemy.com/v2/EwUWHgcUazqY-WR9tRe46'
+];
+const STATE_VIEW='0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c';
+const POOL_ID   ='0xc85eee3324217afd9113d8b66e59e1e4380976ede7ee4cd3882cc107eca74bfb';
+const PRIV_POOL ='0xf597Edb2B8380177c42D2FAc45A2D9A4f191D549';
+const TREASURY  ='0xBe196EEfCD38593a681f906F11fa4832889e96F5';
+const HOOK      ='0x2B019cC4D35CeB177fe41a4A8b4D873494C20040';
+const SEL_SLOT0 ='0xc815641c', SEL_RES='0x0902f1ac';
+const SPREAD_TOPIC='0x1d772d5e137c115346546b1e058b61c64ffbf2c0e9915fb535b04f02398a8cad';
+const FROM_BLOCK=11343000;
+const ETHERSCAN='https://sepolia.etherscan.io/tx/';
+
+let rpcIdx=0;
+async function rpc(method,params){
+  for(let t=0;t<RPCS.length;t++){
+    const url=RPCS[(rpcIdx+t)%RPCS.length];
+    try{
+      const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+      const j=await r.json();
+      if(j.result!==undefined){rpcIdx=(rpcIdx+t)%RPCS.length;return j.result;}
+    }catch(e){}
+  }
+  throw new Error('rpc');
+}
+const call=(to,data)=>rpc('eth_call',[{to,data},'latest']);
+const word=(hex,i)=>BigInt('0x'+hex.slice(2+i*64,2+(i+1)*64));
+
+// ── state ──
+// hist = real historical prices seeded from the base market's SpreadCaptured events (each arb
+//        records the public + private price at that moment). live = points polled since page open.
+// The chart draws hist.concat(live), so it shows the REAL price journey immediately, then grows live.
+let hist=[];             // {pub,priv,arb:true}
+const live=[];           // {pub,priv,arb}
+let treasury=0, lastTreas=null, orient=null, lastPub=null, seededArbs=false, seenTx=new Set();
+const seriesAll = () => hist.concat(live);
+
+function fmt(n){ if(!isFinite(n))return '—'; return n>=1000?Math.round(n).toLocaleString():n>=1?n.toFixed(2):n.toPrecision(3); }
+
+// ── live price poll ──
+async function poll(){
+  try{
+    const [slot0,res,bal]=await Promise.all([
+      call(STATE_VIEW,SEL_SLOT0+POOL_ID.slice(2)),
+      call(PRIV_POOL,SEL_RES),
+      rpc('eth_getBalance',[TREASURY,'latest'])
+    ]);
+    const sqrtP=Number(word(slot0,0));
+    const pub=Math.pow(sqrtP/Math.pow(2,96),2);
+    const r0=Number(word(res,0)), r1=Number(word(res,1));
+    if(orient===null) orient=Math.abs(Math.log((r1/r0)/pub))<Math.abs(Math.log((r0/r1)/pub))?'a':'b';
+    const priv=orient==='a'?r1/r0:r0/r1;
+    treasury=Number(BigInt(bal))/1e18;
+    lastPub=pub;
+
+    const grew = lastTreas!==null && treasury>lastTreas+1e-9; // real arb landed
+    live.push({pub,priv,arb:grew}); if(live.length>400)live.shift();
+    const spread=Math.abs(pub-priv)/Math.max(pub,priv)*100;
+
+    setText('pubPrice',fmt(pub)); setText('privPrice',fmt(priv));
+    const sp=document.getElementById('spread'); sp.textContent = spread<0.15?'CONVERGED':spread.toFixed(2)+'%'; sp.style.color=spread<0.15?'var(--green)':'var(--ink)';
+    bumpText('treas',treasury.toFixed(4)); document.getElementById('treas').appendChild(unit());
+    bumpText('treas2',treasury.toFixed(4));
+
+    if(grew){ hookFlash(); loadArbs(); }     // real arb → flash + refresh the tx list
+    if(!seededArbs) loadArbs();               // first poll gives us lastPub → seed the chart history
+    lastTreas=treasury;
+    setText('src','source: on-chain reads · Sepolia · '+new Date().toLocaleTimeString());
+    setText('clock',new Date().toLocaleTimeString());
+  }catch(e){ setText('src','reconnecting to Sepolia…'); }
+}
+function unit(){ const s=document.createElement('span'); s.style.fontSize='12px'; s.style.color='var(--muted)'; s.textContent=' ETH'; return s; }
+function setText(id,t){ const e=document.getElementById(id); if(e)e.textContent=t; }
+function bumpText(id,t){ const e=document.getElementById(id); if(!e)return; if(e.textContent!==t){e.textContent=t; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump');} }
+function hookFlash(){ const f=document.getElementById('hookflash'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),1400); }
+
+// ── arb transactions (SpreadCaptured logs) ──
+async function loadArbs(){
+  try{
+    const logs=await rpc('eth_getLogs',[{address:HOOK,topics:[SPREAD_TOPIC],fromBlock:'0x'+FROM_BLOCK.toString(16),toBlock:'latest'}]);
+    if(!Array.isArray(logs)||!logs.length)return;
+    const all=logs.map(l=>({
+      marketId:l.topics[1],
+      block:parseInt(l.blockNumber,16),
+      profit:Number(word(l.data,0))/1e18,
+      uni:Number(word(l.data,1))/1e18,
+      priv:Number(word(l.data,2))/1e18,
+      tx:l.transactionHash
+    }));
+    // the hook serves many markets; keep the BASE R00T/ETH one — the marketId whose price sits
+    // closest to the live public price (so the chart + table share one consistent scale).
+    const ref = lastPub || 20000;
+    let baseId=all[0].marketId, bd=Infinity;
+    all.forEach(e=>{ if(e.uni>0){ const d=Math.abs(Math.log(e.uni/ref)); if(d<bd){bd=d;baseId=e.marketId;} } });
+    const rows=all.filter(e=>e.marketId===baseId).sort((a,b)=>b.block-a.block);
+
+    // seed the chart's historical price series from these real arbs (ascending in time)
+    hist = rows.slice().sort((a,b)=>a.block-b.block).map(e=>({pub:e.uni, priv:e.priv, arb:true}));
+    seededArbs = true;
+
+    renderArbs(rows);
+    setText('arbcount',rows.length+' arbs');
+  }catch(e){ /* CORS/range hiccup — keep the Etherscan link */ }
+}
+function renderArbs(rows){
+  const tb=document.getElementById('arbrows');
+  while(tb.firstChild) tb.removeChild(tb.firstChild);
+  if(!rows.length){ const tr=tb.insertRow(); const td=tr.insertCell(); td.colSpan=5; const d=document.createElement('div'); d.className='empty'; d.textContent='no arbs yet — do a swap to create a spread, the hook back-runs it'; td.appendChild(d); return; }
+  rows.slice(0,40).forEach(r=>{
+    const tr=tb.insertRow(); if(!seenTx.has(r.tx)){ tr.className='new'; seenTx.add(r.tx); }
+    cell(tr, '#'+r.block);
+    const p=cell(tr, (r.profit>0?'+':'')+r.profit.toFixed(5)); p.className='profit';
+    cell(tr, fmt(r.uni));
+    cell(tr, fmt(r.priv));
+    const td=tr.insertCell(); const a=document.createElement('a'); a.href=ETHERSCAN+r.tx; a.target='_blank'; a.textContent=r.tx.slice(0,8)+'…'; td.appendChild(a);
+  });
+}
+function cell(tr,txt){ const td=tr.insertCell(); td.textContent=txt; return td; }
+
+// ── candlestick chart ──
+const chart=document.getElementById('chart'), cx=chart.getContext('2d');
+const NCANDLES=44;
+// group the (historical + live) price series into ~44 candles by count, so the chart is always full.
+function buildCandles(){
+  const s=seriesAll();
+  if(!s.length)return[];
+  const size=Math.max(1,Math.ceil(s.length/NCANDLES));
+  const out=[];
+  for(let i=0;i<s.length;i+=size){
+    const g=s.slice(i,i+size);
+    let h=-Infinity,l=Infinity,arb=false;
+    g.forEach(p=>{h=Math.max(h,p.pub);l=Math.min(l,p.pub);arb=arb||p.arb;});
+    out.push({o:g[0].pub,h,l,c:g[g.length-1].pub,priv:g[g.length-1].priv,arb});
+  }
+  return out;
+}
+// smooth animation between frames so candles/lines glide instead of snapping
+let disp=[];
+function draw(){
+  const r=chart.getBoundingClientRect(); chart.width=r.width*devicePixelRatio; chart.height=r.height*devicePixelRatio;
+  cx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const W=r.width,H=r.height; cx.clearRect(0,0,W,H);
+  const candles=buildCandles();
+  if(candles.length<2){ requestAnimationFrame(draw); return; }
+  // ease displayed candles toward target for a live "breathing" feel
+  if(disp.length!==candles.length) disp=candles.map(c=>({...c}));
+  else disp.forEach((d,i)=>{const t=candles[i];['o','h','l','c','priv'].forEach(k=>d[k]+=(t[k]-d[k])*0.18);d.arb=candles[i].arb;});
+  let lo=Infinity,hi=-Infinity;
+  disp.forEach(c=>{lo=Math.min(lo,c.l,c.priv);hi=Math.max(hi,c.h,c.priv);});
+  if(hi===lo){hi=lo*1.001+1;} const pad=(hi-lo)*0.12; lo-=pad; hi+=pad;
+  const plotW=W-14, n=disp.length, cw=Math.max(3,Math.min(18,plotW/n*0.6));
+  const X=i=>6+(i/(n-1))*plotW;
+  const Y=v=>H-16-((v-lo)/(hi-lo))*(H-28);
+  // grid
+  cx.strokeStyle='rgba(255,255,255,.045)'; cx.lineWidth=1;
+  for(let g=0;g<=4;g++){const y=16+g*(H-28)/4; cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
+  // arb vertical marks (behind candles)
+  disp.forEach((c,i)=>{ if(c.arb){ const x=X(i); cx.strokeStyle='rgba(214,254,81,.22)'; cx.lineWidth=1; cx.beginPath();cx.moveTo(x,14);cx.lineTo(x,H-6);cx.stroke(); }});
+  // candles
+  disp.forEach((c,i)=>{
+    const up=c.c>=c.o; const col=up?'#7CFFB2':'#ff5c6c'; const x=X(i);
+    cx.strokeStyle=col; cx.fillStyle=col; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(x,Y(c.h)); cx.lineTo(x,Y(c.l)); cx.stroke();
+    const yO=Y(c.o),yC=Y(c.c); const top=Math.min(yO,yC); const bh=Math.max(2,Math.abs(yC-yO));
+    cx.globalAlpha=up?0.92:0.85; cx.fillRect(x-cw/2,top,cw,bh); cx.globalAlpha=1;
+  });
+  // private zkAMM line (violet) weaving around the candles → the rebalancing
+  cx.strokeStyle='#9B7BFF'; cx.lineWidth=1.8; cx.beginPath();
+  disp.forEach((c,i)=>{ const x=X(i),y=Y(c.priv); i?cx.lineTo(x,y):cx.moveTo(x,y); }); cx.stroke();
+  const last=disp[n-1];
+  cx.fillStyle='#9B7BFF'; cx.beginPath(); cx.arc(X(n-1),Y(last.priv),3.2,0,7); cx.fill();
+  // arb ▲ under marked candles
+  cx.fillStyle='#D6FE51';
+  disp.forEach((c,i)=>{ if(c.arb){ const x=X(i); cx.beginPath(); cx.moveTo(x,H-4); cx.lineTo(x-4,H-11); cx.lineTo(x+4,H-11); cx.closePath(); cx.fill(); }});
+  // last public price label
+  cx.fillStyle='#F5F5F3'; cx.font='11px "IBM Plex Mono",monospace'; cx.textAlign='right';
+  cx.fillText(fmt(last.c), W-4, Y(last.c)-4);
+  requestAnimationFrame(draw);
+}
+
+// boot
+draw();
+poll(); setInterval(poll,3000);
+setInterval(loadArbs,20000);
+</script>
+</body>
+</html>

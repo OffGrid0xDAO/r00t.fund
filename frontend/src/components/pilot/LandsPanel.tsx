@@ -7,8 +7,9 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAccount } from 'wagmi';
 import { BASE_TOKEN } from './lands';
-import { CONTRACTS, HACKATHON } from '../../config';
+import { CONTRACTS } from '../../config';
 import { useCCAAuctions } from '../../hooks/useCCAAuctions';
+import { BackRaise } from './BackRaise';
 
 const ROOT_ADDR = CONTRACTS.rootToken;
 const uniswapUrl = (out: string) => `https://app.uniswap.org/swap?inputCurrency=${ROOT_ADDR}&outputCurrency=${out}`;
@@ -16,7 +17,7 @@ const EMOJI: Record<string, string> = { OAK: '🌳', NUT: '🌰', CARROT: '🥕'
 
 export function LandsPanel({ onOpenMap, onStartLand }: { onOpenMap?: () => void; onStartLand?: () => void }) {
   const { address } = useAccount();
-  const { auctions, loading } = useCCAAuctions(address);
+  const { auctions, loading, refetch } = useCCAAuctions(address);
   const [filter, setFilter] = useState<'all' | 'live' | 'raising'>('all');
 
   const liveCount = auctions.filter((a) => a.phase === 2).length;
@@ -104,10 +105,7 @@ export function LandsPanel({ onOpenMap, onStartLand }: { onOpenMap?: () => void;
                     Trade ${a.ticker} ↗
                   </a>
                 ) : (
-                  <a href={`${HACKATHON.explorerUrl}/address/${a.token}`} target="_blank" rel="noopener noreferrer"
-                    className="block text-center py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors" style={{ background: 'var(--bg-secondary)' }}>
-                    Raising — back it in the Steward Console
-                  </a>
+                  <BackRaise parcelId={a.parcelId} ticker={a.ticker} color={st.color} auctionEnd={a.auctionEnd} onDone={refetch} />
                 )}
               </motion.div>
             );

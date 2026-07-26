@@ -14,9 +14,13 @@
  */
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useWalletClient, usePublicClient } from 'wagmi';
+import { createPublicClient, http } from 'viem';
 import { poseidon2, poseidon3, poseidon4 } from 'poseidon-lite';
-import { CONTRACTS, NETWORK } from '../config';
+import { CONTRACTS, HACKATHON, NETWORK } from '../config';
 import { landVaultAbi } from '../abis/landVault';
+
+// wide-range logs endpoint (drpc) — free-tier Alchemy caps eth_getLogs so a full-history scan 400s.
+const logsClient = createPublicClient({ transport: http(HACKATHON.logsRpc) });
 
 const ZERO_VALUE = 21663839004416932945382355908790599225266501822907911457504978515578255421292n;
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -192,36 +196,52 @@ export function useLandVault(viewingKey: string | null) {
   const claim = useCallback(async (note: LandNote, recipient: string, kind: 'root' | 'parcel') => {
     if (!isReady || !walletClient) throw new Error('wallet/vault not ready');
 
-    // Build the ordered leaf list. PRIMARY: the Ponder cache. FALLBACK (if servers are
-    // down): rebuild straight from on-chain Funded events via getLogs — the chain is the
-    // source of truth, so claims never depend on our infra. Only your note secret matters.
-    let leaves: bigint[] | null = null;
-    const data = await queryPonder<{ merkleTreeStates: { items: { leaves: string }[] } }>(
-      `query($a: String!){ merkleTreeStates(where: { id: $a }, limit: 1){ items { leaves } } }`,
-      { a: vaultLower }
-    );
-    const leavesRaw = data?.merkleTreeStates?.items?.[0]?.leaves;
-    if (leavesRaw) {
-      leaves = (JSON.parse(leavesRaw) as string[]).map((s) => BigInt(s));
-    } else if (publicClient) {
-      // trustless fallback: read Funded(commitment, leafIndex, …) logs and order by leafIndex
-      const logs = await publicClient.getLogs({
-        address: vault,
-        event: { type: 'event', name: 'Funded', inputs: [
-          { name: 'commitment', type: 'uint256', indexed: true },
-          { name: 'leafIndex', type: 'uint256', indexed: true },
-          { name: 'parcelId', type: 'bytes32' }, { name: 'rootOut', type: 'uint256' },
-          { name: 'paid', type: 'uint256' }, { name: 'payToken', type: 'address' }, { name: 'note', type: 'bytes' },
-        ] } as const,
-        fromBlock: 0n, toBlock: 'latest',
-      });
+    // Rebuild the ordered leaf list straight from on-chain Funded events — the chain is the source of
+    // truth (via the WIDE-RANGE logs RPC; Alchemy free tier caps eth_getLogs). One wide call, chunk on balk.
+    const loadLeavesFromChain = async (): Promise<bigint[]> => {
+      const fundedEvent = { type: 'event', name: 'Funded', inputs: [
+        { name: 'commitment', type: 'uint256', indexed: true },
+        { name: 'leafIndex', type: 'uint256', indexed: true },
+        { name: 'parcelId', type: 'bytes32' }, { name: 'rootOut', type: 'uint256' },
+        { name: 'paid', type: 'uint256' }, { name: 'payToken', type: 'address' }, { name: 'note', type: 'bytes' },
+      ] } as const;
+      let logs: any[] = [];
+      try {
+        logs = (await logsClient.getLogs({ address: vault, event: fundedEvent, fromBlock: 0n, toBlock: 'latest' })) as any[];
+      } catch {
+        const latest = await logsClient.getBlockNumber();
+        const CHUNK = 45_000n; // safe window for capped endpoints
+        for (let start = 0n; start <= latest; start += CHUNK) {
+          const end = start + CHUNK - 1n > latest ? latest : start + CHUNK - 1n;
+          try { logs.push(...(await logsClient.getLogs({ address: vault, event: fundedEvent, fromBlock: start, toBlock: end })) as any[]); } catch { /* skip a bad window */ }
+        }
+      }
       const byIndex = new Map<number, bigint>();
-      for (const l of logs as any[]) byIndex.set(Number(l.args.leafIndex), BigInt(l.args.commitment));
+      for (const l of logs) byIndex.set(Number(l.args.leafIndex), BigInt(l.args.commitment));
       const max = Math.max(-1, ...byIndex.keys());
-      leaves = Array.from({ length: max + 1 }, (_, i) => byIndex.get(i) ?? 0n);
+      return Array.from({ length: max + 1 }, (_, i) => byIndex.get(i) ?? 0n);
+    };
+
+    // PRIMARY: the Ponder cache (fast). But it can LAG a fresh deposit, so if your commitment isn't in
+    // it, reconcile against the chain before giving up — a stale index must never block a valid claim.
+    let leaves: bigint[] | null = null;
+    try {
+      const data = await queryPonder<{ merkleTreeStates: { items: { leaves: string }[] } }>(
+        `query($a: String!){ merkleTreeStates(where: { id: $a }, limit: 1){ items { leaves } } }`,
+        { a: vaultLower }
+      );
+      const leavesRaw = data?.merkleTreeStates?.items?.[0]?.leaves;
+      if (leavesRaw) leaves = (JSON.parse(leavesRaw) as string[]).map((s) => BigInt(s));
+    } catch { /* indexer down → chain below */ }
+
+    const target = BigInt(note.commitment);
+    let leafIndex = leaves ? leaves.findIndex((l) => l === target) : -1;
+    if (leafIndex < 0) {
+      // Ponder empty OR stale (missing this commitment) → the chain is authoritative.
+      leaves = await loadLeavesFromChain();
+      leafIndex = leaves.findIndex((l) => l === target);
     }
     if (!leaves) throw new Error('could not load the commitment tree (no indexer, no RPC)');
-    const leafIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
     if (leafIndex < 0) throw new Error('commitment not on-chain yet — wait a moment and retry');
 
     const { pathElements, pathIndices } = buildMerklePath(leaves, leafIndex);
