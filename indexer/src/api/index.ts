@@ -68,7 +68,7 @@ ponder.use(async (c, next) => {
 
 /**
  * GraphQL API - auto-generated from ponder.schema.ts
- * Serves trades, commitments, pool state, stats, and merkle tree data
+ * Serves trades, commitments, pool state, stats, and merkle tree data.
  */
 ponder.use("/graphql", graphql({ schema }));
 ponder.use("/", graphql({ schema }));
@@ -85,7 +85,11 @@ ponder.get("/webhook/alchemy", (c) => {
   return c.text("ok");
 });
 
-ponder.post("/webhook/alchemy", async (c) => {
+// NOTE: register POST routes on the raw `ponder.hono` instance, NOT `ponder.post(...)`.
+// Ponder 0.7.17 has a bug where `ponder.post()` wires the handler to Hono's PUT verb
+// (`hono[method === "GET" ? "get" : "put"]`), so real POST requests 404. `ponder.hono` is the
+// underlying Hono app (mounted via `hono.route("/", userApp)`) and registers POST correctly.
+ponder.hono.post("/webhook/alchemy", async (c) => {
   try {
     const body = await c.req.json();
     console.log(
@@ -126,7 +130,7 @@ function ensureGeo() {
   return geoReady;
 }
 
-ponder.post("/land-geometry", async (c) => {
+ponder.hono.post("/land-geometry", async (c) => {  // ponder.hono (not ponder.post): see POST-bug note above
   if (!geoPool) return c.json({ error: "no database" }, 503);
   try {
     await ensureGeo();
