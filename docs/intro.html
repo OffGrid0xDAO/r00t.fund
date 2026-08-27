@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>r00t.fund × StartupVoucher</title>
+<style>
+  :root {
+    --accent: #b8e63c;
+    --accent-glow: #d4ff5a;
+    --lime-deep: #6e9418;
+    --ink: #06090a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: var(--ink);
+    overflow: hidden;
+    font-family: 'Helvetica Neue', 'Inter', system-ui, -apple-system, sans-serif;
+    color: #f4f8ea;
+    cursor: default;
+  }
+
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  /* ---------- Cinematic video background ---------- */
+  .bg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* slow cinematic push-in */
+    animation: kenburns 26s ease-out forwards;
+    filter: saturate(0.85) contrast(1.05);
+  }
+  @keyframes kenburns {
+    0%   { transform: scale(1.12) translateY(-1%); }
+    100% { transform: scale(1.24) translateY(1.5%); }
+  }
+
+  /* Darkening + color-grade layers */
+  .grade {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .grade.tint {
+    /* deep green/black wash to fold the drone footage into the brand */
+    background:
+      radial-gradient(120% 90% at 50% 42%, rgba(6,9,10,0.15) 0%, rgba(6,9,10,0.72) 62%, rgba(3,5,5,0.96) 100%),
+      linear-gradient(180deg, rgba(6,12,4,0.55) 0%, rgba(4,7,4,0.35) 45%, rgba(3,5,5,0.85) 100%);
+  }
+  .grade.accent {
+    mix-blend-mode: soft-light;
+    background: radial-gradient(80% 60% at 50% 55%, rgba(184,230,60,0.28) 0%, rgba(184,230,60,0) 70%);
+    opacity: 0;
+    animation: accentBreath 8s ease-in-out 1.6s infinite alternate;
+  }
+  @keyframes accentBreath {
+    from { opacity: 0.25; }
+    to   { opacity: 0.6; }
+  }
+
+  /* film grain */
+  .grade.grain {
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grainShift 0.6s steps(2) infinite;
+  }
+  @keyframes grainShift {
+    0% { transform: translate(0,0); }
+    100% { transform: translate(-4%, 3%); }
+  }
+
+  /* Letterbox cinematic bars */
+  .bar {
+    position: absolute;
+    left: 0; right: 0;
+    height: 9vh;
+    background: #000;
+    z-index: 20;
+    transform: scaleY(0);
+  }
+  .bar.top { top: 0; transform-origin: top; animation: barIn 1.1s cubic-bezier(.7,0,.2,1) 0.15s forwards; }
+  .bar.bottom { bottom: 0; transform-origin: bottom; animation: barIn 1.1s cubic-bezier(.7,0,.2,1) 0.15s forwards; }
+  @keyframes barIn { to { transform: scaleY(1); } }
+
+  /* ---------- Foreground lockup ---------- */
+  .lockup-wrap {
+    position: relative;
+    z-index: 15;
+    display: grid;
+    place-items: center;
+  }
+  /* soft feathered dark backdrop — grounds both logos, kills the sun flare */
+  .backdrop {
+    position: absolute;
+    inset: -40% -12%;
+    z-index: 14;
+    background: radial-gradient(58% 62% at 50% 50%,
+      rgba(2,4,3,0.90) 0%,
+      rgba(2,4,3,0.66) 46%,
+      rgba(2,4,3,0) 76%);
+    filter: blur(34px);
+    pointer-events: none;
+    opacity: 0;
+    animation: fadeIn 1.6s ease 0.9s forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .lockup {
+    position: relative;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(24px, 5vw, 80px);
+    padding: 0 6vw;
+    opacity: 0;
+    animation: lockupIn 1.4s cubic-bezier(.16,.84,.28,1) 1.1s forwards;
+  }
+  @keyframes lockupIn {
+    from { opacity: 0; transform: translateY(22px); filter: blur(6px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  }
+
+  /* r00t root mark */
+  .brand-root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .root-mark {
+    width: clamp(96px, 13vw, 180px);
+    height: auto;
+    overflow: visible;
+    filter: drop-shadow(0 0 30px rgba(184,230,60,0.55));
+  }
+  .root-mark path {
+    stroke: var(--accent-glow);
+    stroke-width: 1.5;
+    stroke-dasharray: 2400;
+    stroke-dashoffset: 2400;
+    fill-opacity: 0;
+    animation:
+      drawRoot 2.6s ease-in-out 1.3s forwards,
+      fillRoot 1.2s ease 3.0s forwards;
+  }
+  @keyframes drawRoot { to { stroke-dashoffset: 0; } }
+  @keyframes fillRoot { to { fill-opacity: 1; } }
+
+  .wordmark {
+    font-weight: 700;
+    font-size: clamp(20px, 2.6vw, 34px);
+    letter-spacing: 0.02em;
+    color: #f4f8ea;
+  }
+  .wordmark b { color: var(--accent-glow); }
+
+  /* the "×" cross */
+  .cross {
+    font-size: clamp(26px, 3.4vw, 52px);
+    font-weight: 300;
+    color: rgba(244,248,234,0.55);
+    line-height: 1;
+    transform: translateY(-6px);
+    text-shadow: 0 0 18px rgba(184,230,60,0.35);
+  }
+
+  /* StartupVoucher mark — pre-processed to a genuinely transparent white PNG
+     (white background stripped per-pixel, ink recoloured to white). No box,
+     no blend hacks; just a soft shadow for edge separation over bright video. */
+  .brand-sv {
+    display: flex;
+    align-items: center;
+  }
+  .brand-sv img {
+    width: clamp(240px, 30vw, 480px);
+    height: auto;
+    filter: drop-shadow(0 2px 14px rgba(0,0,0,0.55));
+  }
+
+  /* Tagline */
+  .tagline {
+    position: absolute;
+    z-index: 15;
+    bottom: 15vh;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: clamp(11px, 1.15vw, 15px);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: rgba(244,248,234,0.72);
+    opacity: 0;
+    animation: fadeUp 1.6s ease 2.6s forwards;
+  }
+  .tagline .dot { color: var(--accent-glow); }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); letter-spacing: 0.28em; }
+    to   { opacity: 1; transform: translateY(0);    letter-spacing: 0.42em; }
+  }
+
+  /* subtle sheen sweep across the lockup once */
+  .sheen {
+    position: absolute;
+    z-index: 16;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.09) 48%, transparent 56%);
+    transform: translateX(-120%);
+    animation: sweep 2.2s ease 3.4s;
+  }
+  @keyframes sweep { to { transform: translateX(120%); } }
+
+  /* Sound / replay hint */
+  .hint {
+    position: absolute;
+    z-index: 30;
+    right: 22px; bottom: 12vh;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(244,248,234,0.4);
+    opacity: 0;
+    animation: fadeUp 1s ease 4s forwards;
+    display: flex;
+    gap: 16px;
+  }
+  .hint button {
+    background: none; border: 1px solid rgba(244,248,234,0.22);
+    color: inherit; font: inherit; letter-spacing: inherit;
+    padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .hint button:hover { border-color: var(--accent-glow); color: var(--accent-glow); }
+
+  @media (max-width: 720px) {
+    .lockup { flex-direction: column; gap: 26px; }
+    .cross { transform: none; }
+    .tagline { bottom: 13vh; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001s !important; animation-delay: 0s !important; }
+    .root-mark path { stroke-dashoffset: 0; fill-opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <video class="bg-video" autoplay muted loop playsinline poster="">
+      <source src="intro-assets/bg-drone.mp4" type="video/mp4" />
+    </video>
+
+    <div class="grade tint"></div>
+    <div class="grade accent"></div>
+    <div class="grade grain"></div>
+
+    <div class="bar top"></div>
+    <div class="bar bottom"></div>
+
+    <div class="sheen"></div>
+
+    <div class="lockup-wrap">
+      <div class="lockup">
+      <div class="brand-root">
+        <svg class="root-mark" xmlns="http://www.w3.org/2000/svg" viewBox="12 12 348 386" fill="var(--accent)">
+          <path d="M212.521332,290.474915
+            C216.026886,293.578308 219.322052,296.383972 222.522064,299.294250
+            C246.724380,321.305176 240.959717,358.669464 210.941635,374.454926
+            C184.330643,388.448761 150.493912,376.351196 139.356140,348.861145
+            C132.007019,330.722229 137.307526,309.935028 153.288895,297.728394
+            C170.754272,284.388275 178.548080,266.483978 179.853516,245.218597
+            C180.271378,238.411499 180.149384,231.556915 179.979416,224.731400
+            C179.704697,213.700165 172.631454,208.843750 162.525558,213.085983
+            C146.624115,219.761078 134.772034,230.160370 130.069855,247.764099
+            C126.775711,260.096527 115.278198,267.565643 103.298645,266.709991
+            C90.673042,265.808197 80.772224,257.257599 78.395973,245.203415
+            C74.986389,227.907440 90.072647,212.085281 108.328331,214.581711
+            C124.465866,216.788483 139.076263,213.570160 152.659683,204.883270
+            C153.640869,204.255783 154.628738,203.633926 155.570190,202.949844
+            C164.245544,196.646042 163.920959,190.078781 154.402817,185.055939
+            C137.097687,175.923828 119.010185,170.310944 99.227829,175.000275
+            C91.991035,176.715714 85.091179,179.956177 77.819023,181.399536
+            C55.177525,185.893356 31.899712,168.176132 29.194962,144.854752
+            C26.514469,121.742516 44.553093,100.230537 67.714584,98.918144
+            C88.774246,97.724846 105.761673,107.864021 111.662323,126.968140
+            C117.885674,147.117020 131.128784,160.201843 149.427246,169.064240
+            C154.202042,171.376785 159.109528,173.548019 164.161819,175.124847
+            C172.451981,177.712204 178.290359,174.859848 179.237686,166.384857
+            C181.245087,148.425873 182.133347,130.260727 170.344818,114.623222
+            C167.072876,110.282974 163.200592,106.232811 159.000763,102.783806
+            C144.013870,90.476219 138.468826,74.397957 143.906677,57.632801
+            C149.524445,40.312874 165.616028,28.091072 183.953751,27.216412
+            C207.676666,26.084894 226.928665,40.454231 231.303680,63.474380
+            C234.074249,78.052315 228.982788,90.655457 217.674240,100.003166
+            C206.274933,109.425880 196.693283,119.976334 194.869156,135.052124
+            C193.619614,145.379181 193.787811,155.994949 194.494431,166.402039
+            C194.999908,173.846878 201.256699,177.794769 208.152130,175.581558
+            C226.552719,169.675583 243.316544,160.954590 254.171051,144.101913
+            C257.272125,139.287231 259.372894,133.680283 261.141907,128.182297
+            C267.417511,108.678108 284.018829,97.648224 305.785278,98.942902
+            C324.215332,100.039116 340.923798,114.938301 343.780029,133.706451
+            C346.135376,149.183456 341.224304,162.574829 328.886292,172.352875
+            C316.618256,182.075439 302.077057,185.867691 287.615265,179.463058
+            C264.337555,169.154144 242.768265,173.267792 221.384979,183.860229
+            C209.065811,189.962646 208.936813,196.890152 220.388611,204.482590
+            C234.036942,213.531326 248.822662,216.926697 265.099243,214.557739
+            C276.897339,212.840607 287.793793,218.720581 292.972046,228.881821
+            C297.972198,238.693588 296.626465,249.794830 288.758881,258.007843
+            C281.872650,265.196381 273.243683,268.130188 263.297852,266.019073
+            C252.893829,263.810699 245.825165,257.388519 243.248672,247.271866
+            C238.614639,229.076233 225.831207,219.109482 209.658676,212.446274
+            C202.248154,209.393051 195.445404,212.720963 194.667419,220.562256
+            C192.436142,243.051636 192.932022,265.279205 207.353485,284.573975
+            C208.843903,286.568024 210.622177,288.346893 212.521332,290.474915
+          z" />
+        </svg>
+        <div class="wordmark"><b>r00t</b>.fund</div>
+      </div>
+
+      <div class="cross">×</div>
+
+      <div class="brand-sv">
+        <img src="intro-assets/startupvoucher-white.png" alt="StartupVoucher" />
+      </div>
+      </div>
+    </div>
+
+    <div class="tagline">Regenerar a terra <span class="dot">•</span> Finança regenerativa, on-chain</div>
+
+    <div class="hint">
+      <button id="sound">🔊 Sound</button>
+      <button id="replay">↻ Replay</button>
+    </div>
+  </div>
+
+  <script>
+    const video = document.querySelector('.bg-video');
+    const stage = document.querySelector('.stage');
+    const soundBtn = document.getElementById('sound');
+    const replayBtn = document.getElementById('replay');
+
+    // Toggle audio (starts muted for autoplay compliance)
+    soundBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      if (!video.muted) video.play();
+      soundBtn.textContent = video.muted ? '🔊 Sound' : '🔇 Mute';
+    });
+
+    // Replay the full cinematic sequence
+    replayBtn.addEventListener('click', () => {
+      const clone = stage.cloneNode(true);
+      // re-bind after replacing (simplest: reload lightweight)
+      video.currentTime = 0; video.play();
+      document.body.querySelectorAll('.lockup, .tagline, .sheen, .bar, .grade.accent, .hint, .bg-video')
+        .forEach(el => {
+          const anim = el.style.animation;
+          el.style.animation = 'none';
+          void el.offsetWidth;      // force reflow
+          el.style.animation = '';
+        });
+    });
+  </script>
+</body>
+</html>

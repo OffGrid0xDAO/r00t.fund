@@ -66,6 +66,35 @@ function parseExtentAspect(text: string): number | undefined {
   try { const g = JSON.parse(text); const e = g?.extentMeters; return e?.width && e?.height ? e.width / e.height : undefined; } catch { return undefined; }
 }
 
+// Build the renderable land geometry from the uploaded files. When a precomputed terrain bundle
+// (heightmap.propertyBoundary + zones) is present we keep the RAW terrain space verbatim so the map
+// renders IDENTICALLY to the pilot demo; otherwise we fall back to the normalized boundary + client
+// auto-parceling. Shared by BOTH the launch path and render-on-upload so they build identical geometry.
+function buildLandObj(files: Files, name: string, region: string, boundary: number[][] | null, launched: boolean): MyLand | null {
+  const zones = files.zones ? parseZones(files.zones) : null;
+  const rawBoundary = zones ? (files.heightmap ? parseHeightmapBoundary(files.heightmap) : null) : null;
+  if (zones && rawBoundary) {
+    return {
+      name, region,
+      boundary: rawBoundary,
+      zones,
+      contours: (files.contours ? parseContours(files.contours) : null) ?? undefined,
+      river: (files.river ? parseRiverPoints(files.river) : null) ?? undefined,
+      aspect: files.heightmap ? parseExtentAspect(files.heightmap) : undefined,
+      launched, createdAt: Date.now(),
+    };
+  }
+  if (boundary) {
+    return {
+      name, region,
+      boundary,
+      river: (files.river ? parseRiverPoints(files.river) : null) ?? undefined,
+      launched, createdAt: Date.now(),
+    };
+  }
+  return null;
+}
+
 // parse a GeoJSON polygon ring → normalized [0,1] preview coords (firewall: we
 // only keep the SHAPE, normalized; the real lng/lat are dropped on the client).
 function parseBoundary(text: string): [number, number][] | null {
@@ -211,32 +240,11 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
     }
     log('✓ all parcels launched — trading on zkAMM + Uniswap v4 with the arb hook');
 
-    // persist THIS steward's land terrain ONLY now that the launch succeeded, so an abandoned or
-    // half-finished wizard run never ghost-saves a broken land (which would override the pilot map).
-    // If a precomputed terrain bundle (zones) was uploaded, store the RAW terrain-space geometry so the
-    // map renders EXACTLY like the pilot demo (same boundary + zones + contours + river, one space).
-    // Otherwise fall back to the normalized boundary + client auto-parceling.
-    const zones = files.zones ? parseZones(files.zones) : null;
-    const rawBoundary = zones ? (files.heightmap ? parseHeightmapBoundary(files.heightmap) : null) : null;
-    let landObj: MyLand | null = null;
-    if (zones && rawBoundary) {
-      landObj = {
-        name, region,
-        boundary: rawBoundary,
-        zones,
-        contours: (files.contours ? parseContours(files.contours) : null) ?? undefined,
-        river: (files.river ? parseRiverPoints(files.river) : null) ?? undefined,
-        aspect: files.heightmap ? parseExtentAspect(files.heightmap) : undefined,
-        launched: true, createdAt: Date.now(),
-      };
-    } else if (boundary) {
-      landObj = {
-        name, region,
-        boundary,
-        river: (files.river ? parseRiverPoints(files.river) : null) ?? undefined,
-        launched: true, createdAt: Date.now(),
-      };
-    }
+    // Mark THIS steward's land as fully launched (parcels open on-chain). The terrain was already
+    // persisted + shared the moment it was uploaded (see the render-on-upload effect) so the map shows
+    // it without waiting for the launch; here we just upgrade it to `launched:true` + attach the
+    // on-chain land address, and re-push so every device reflects the launched state.
+    const landObj = buildLandObj(files, name, region, boundary, true);
     if (landObj) {
       saveMyLand(address, landObj);                                   // local (this device, instant)
       pushLandGeometry(landObj, { steward: address, landAddress: createdLand }); // shared store → every device
@@ -246,6 +254,21 @@ export function StartYourLand({ onClose }: { onClose: () => void }) {
   };
 
   const boundary = useMemo(() => (files.boundary ? parseBoundary(files.boundary) : null), [files.boundary]);
+
+  // ── render-on-upload: the moment valid terrain is uploaded, persist + share the land geometry so the
+  // map renders it IMMEDIATELY — no on-chain launch required. Saved as `launched:false` (preview: parcels
+  // open on-chain later); the launch step upgrades it to `launched:true`. A geometry signature guards
+  // against re-saving on every keystroke/render (which would loop the MYLAND_EVENT map refresh). ──
+  const uploadedSig = useRef('');
+  useEffect(() => {
+    const landObj = buildLandObj(files, name, region, boundary, false);
+    if (!landObj) return;
+    const sig = JSON.stringify([landObj.boundary, landObj.zones ?? null, landObj.river ?? null, landObj.contours ?? null]);
+    if (sig === uploadedSig.current) return;
+    uploadedSig.current = sig;
+    saveMyLand(address, landObj);                       // local (this device, instant → map refreshes)
+    pushLandGeometry(landObj, { steward: address });    // shared store → every device
+  }, [files, boundary, name, region, address]);
 
   // Rich preview: when the terrain bundle (heightmap + zones/contours) is uploaded, draw the REAL plan
   // (boundary + parcels + contours) at TRUE proportions — the same coordinate space + aspect the map

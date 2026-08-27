@@ -88,9 +88,10 @@ export function PlotMapTopo({ className = '', onStartLand, demo = false }: { cla
     });
 
     const mine = loadMyLand(address);
-    // Only render a FULLY-launched land — a half-finished/abandoned wizard run never overrides the
-    // hardcoded pilot showcase. (Lands saved before the `launched` flag existed are treated as stale.)
-    if (mine && mine.launched && mine.boundary?.length >= 3) {
+    // Render any land with a valid boundary — the terrain shows the moment it's uploaded (render-on-
+    // upload), not only after a full on-chain launch. The app has no hardcoded pilot to override, so a
+    // preview land is strictly better than an empty "No land yet". `launched` still tracks parcel state.
+    if (mine && mine.boundary?.length >= 3) {
       setNoLand(false);
       setOwnLand(true);
       setBoundary(mine.boundary);

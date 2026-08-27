@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<base href="/pitch/" />
+<title>r00t.fund — Pitch Deck</title>
+<style>
+  :root {
+    --accent: #b8e63c;
+    --accent-glow: #d4ff5a;
+    --lime-deep: #6e9418;
+    --ink: #06090a;
+    --ink-2: #0a0f10;
+    --panel: rgba(255,255,255,0.03);
+    --panel-brd: rgba(184,230,60,0.14);
+    --paper: #f4f8ea;
+    --muted: rgba(244,248,234,0.62);
+    --muted-2: rgba(244,248,234,0.40);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; }
+
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Helvetica Neue', 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Global film grain + vignette ---------- */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 999; pointer-events: none;
+    opacity: 0.05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- Slide scaffold ---------- */
+  .slide {
+    position: relative;
+    min-height: 100vh;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(48px, 7vh, 96px) clamp(32px, 8vw, 140px);
+    overflow: hidden;
+    border-bottom: 1px solid rgba(184,230,60,0.06);
+  }
+  .slide::before {
+    content: '';
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(90% 70% at 78% 12%, rgba(184,230,60,0.07) 0%, rgba(184,230,60,0) 55%),
+      radial-gradient(120% 100% at 20% 100%, rgba(110,148,24,0.10) 0%, rgba(6,9,10,0) 60%);
+  }
+  .slide > * { position: relative; z-index: 1; }
+
+  /* faint slide number + kicker rail */
+  .rail {
+    position: absolute; top: clamp(28px,4vh,44px); left: clamp(32px,8vw,140px); right: clamp(32px,8vw,140px);
+    z-index: 2;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase;
+    color: var(--muted-2);
+  }
+  .rail .brand-mini { display: flex; align-items: center; gap: 9px; color: var(--muted); }
+  .rail .brand-mini svg { width: 15px; height: 15px; filter: drop-shadow(0 0 6px rgba(184,230,60,.5)); }
+  .rail .brand-mini b { color: var(--accent-glow); font-weight: 700; }
+  .rail .num b { color: var(--accent); }
+
+  /* ---------- Typography ---------- */
+  .kicker {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: clamp(11px, 1vw, 13px); letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 26px;
+  }
+  .kicker::before { content: ''; width: 26px; height: 1px; background: var(--accent); opacity: .7; }
+
+  h1 { font-size: clamp(40px, 6.2vw, 92px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; }
+  h2 { font-size: clamp(30px, 4.4vw, 62px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 22px; }
+  h3 { font-size: clamp(19px, 1.7vw, 24px); font-weight: 700; letter-spacing: -0.01em; }
+  .lede { font-size: clamp(17px, 1.7vw, 23px); color: var(--muted); max-width: 60ch; line-height: 1.55; }
+  .em { color: var(--accent-glow); }
+  .emx { color: var(--paper); font-weight: 700; }
+  strong { color: var(--paper); font-weight: 700; }
+
+  /* ---------- Cover ---------- */
+  .cover { align-items: center; text-align: center; justify-content: center; }
+  .cover::before {
+    background:
+      radial-gradient(60% 55% at 50% 42%, rgba(184,230,60,0.14) 0%, rgba(184,230,60,0) 62%),
+      radial-gradient(120% 90% at 50% 120%, rgba(110,148,24,0.18) 0%, rgba(6,9,10,0) 55%);
+  }
+  .cover-mark { width: clamp(120px, 15vw, 190px); height: auto; overflow: visible; filter: drop-shadow(0 0 44px rgba(184,230,60,0.55)); margin-bottom: 30px; }
+  .cover-mark path { fill: var(--accent); }
+  .cover h1 { font-size: clamp(52px, 8vw, 118px); }
+  .cover h1 b { color: var(--accent-glow); }
+  .cover .sub { margin-top: 20px; font-size: clamp(18px, 2vw, 28px); font-weight: 600; letter-spacing: -0.01em; color: var(--paper); }
+  .cover .tagline {
+    margin-top: 34px; font-size: clamp(11px, 1.1vw, 14px);
+    letter-spacing: 0.42em; text-transform: uppercase; color: var(--muted);
+  }
+  .cover .tagline .dot { color: var(--accent-glow); }
+  .cover .badges { margin-top: 46px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 999px;
+    border: 1px solid var(--panel-brd); background: var(--panel);
+    font-size: 12px; letter-spacing: 0.06em; color: var(--muted);
+  }
+  .badge .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.4;transform:scale(.7);} }
+  .badge b { color: var(--accent-glow); font-weight: 700; }
+
+  /* ---------- Layout helpers ---------- */
+  .two { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(36px, 5vw, 80px); align-items: center; }
+  .stack > * + * { margin-top: 20px; }
+
+  .cards { display: grid; gap: 18px; }
+  .cards.c3 { grid-template-columns: repeat(3, 1fr); }
+  .cards.c2 { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    border: 1px solid var(--panel-brd); background: var(--panel);
+    border-radius: 18px; padding: 26px 24px;
+    transition: border-color .25s, transform .25s;
+  }
+  .card:hover { border-color: rgba(184,230,60,0.4); transform: translateY(-3px); }
+  .card .ico { font-size: 26px; margin-bottom: 14px; display: block; }
+  .card h3 { margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .card .tag { display:inline-block; margin-bottom:14px; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color: var(--accent); }
+
+  /* ---------- Stat row ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 8px; }
+  .stat { border-left: 2px solid var(--accent); padding-left: 20px; }
+  .stat .n { font-size: clamp(34px, 4vw, 54px); font-weight: 700; letter-spacing: -0.02em; color: var(--accent-glow); line-height: 1; }
+  .stat .l { margin-top: 10px; color: var(--muted); font-size: 14px; }
+
+  /* ---------- Flow diagram ---------- */
+  .flow {
+    border: 1px solid var(--panel-brd); background: linear-gradient(180deg, rgba(184,230,60,0.04), rgba(6,9,10,0));
+    border-radius: 22px; padding: 34px; display: grid; gap: 22px;
+  }
+  .flow-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: stretch; }
+  .pool {
+    border-radius: 16px; padding: 20px 22px; border: 1px solid rgba(244,248,234,0.12);
+    background: rgba(255,255,255,0.02);
+  }
+  .pool.pub { border-color: rgba(255,0,122,0.35); background: rgba(255,0,122,0.05); }
+  .pool.priv { border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.06); }
+  .pool .t { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+  .pool .m { font-size: 20px; font-weight: 700; margin-top: 6px; }
+  .pool .s { font-size: 13px; color: var(--muted-2); margin-top: 4px; }
+  .arb-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--accent); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; min-width: 120px; }
+  .arb-mid .bolt { font-size: 22px; }
+  .hookbox {
+    border: 1px solid var(--accent); border-radius: 16px; padding: 18px 22px; text-align: center;
+    background: rgba(184,230,60,0.08); box-shadow: 0 0 34px rgba(184,230,60,0.12) inset;
+  }
+  .hookbox .code { font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: var(--accent-glow); font-weight: 700; font-size: 17px; }
+  .hookbox .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .treasury {
+    border: 1px dashed rgba(184,230,60,0.5); border-radius: 16px; padding: 16px 22px; text-align: center;
+    background: rgba(184,230,60,0.05);
+  }
+  .treasury .m { font-weight: 700; color: var(--accent-glow); }
+  .treasury .s { color: var(--muted); font-size: 13px; }
+  .down-arrow { text-align: center; color: var(--accent); font-size: 20px; letter-spacing: .3em; }
+
+  /* mono / addresses */
+  .mono { font-family: 'SF Mono', ui-monospace, Menlo, monospace; }
+  .addr-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .addr-table td { padding: 11px 4px; border-bottom: 1px solid rgba(244,248,234,0.08); font-size: 14px; vertical-align: middle; }
+  .addr-table td:first-child { color: var(--muted); white-space: nowrap; padding-right: 26px; }
+  .addr-table td:last-child { font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: var(--accent-glow); font-size: 12.5px; }
+
+  ul.check { list-style: none; }
+  ul.check li { position: relative; padding-left: 30px; margin-bottom: 16px; color: var(--muted); font-size: clamp(15px,1.35vw,18px); line-height: 1.5; }
+  ul.check li::before { content: '→'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+  ul.check li b { color: var(--paper); }
+
+  .quote { font-size: clamp(20px, 2.4vw, 34px); font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; max-width: 22ch; }
+
+  /* species table */
+  .species { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 40px; margin-top: 8px; }
+  .species .sp { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid rgba(244,248,234,0.08); }
+  .species .sp .name { color: var(--paper); font-size: 15px; }
+  .species .sp .name i { color: var(--muted); font-style: italic; font-size: 13px; margin-left: 8px; }
+  .species .sp .qty { color: var(--accent-glow); font-weight: 700; font-family: 'SF Mono', ui-monospace, monospace; }
+
+  /* closing */
+  .closing { align-items: center; text-align: center; justify-content: center; }
+  .closing::before { background: radial-gradient(60% 60% at 50% 50%, rgba(184,230,60,0.12), rgba(6,9,10,0) 65%); }
+  .closing .mark { width: clamp(70px, 8vw, 100px); margin-bottom: 24px; filter: drop-shadow(0 0 30px rgba(184,230,60,.5)); }
+  .closing .mark path { fill: var(--accent); }
+  .closing h2 { font-size: clamp(40px, 6vw, 84px); max-width: 16ch; }
+  .closing h2 .em { color: var(--accent-glow); }
+  .closing .foot { margin-top: 34px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; }
+  .closing .link { margin-top: 18px; font-size: clamp(20px,2.4vw,32px); font-weight:700; color: var(--accent-glow); letter-spacing:-0.01em; }
+
+  /* ---------- Fixed nav / progress ---------- */
+  .progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--lime-deep), var(--accent-glow)); z-index: 1000; width: 0; transition: width .2s; box-shadow: 0 0 12px var(--accent); }
+  .dots { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 11px; }
+  .dots a { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(184,230,60,0.45); display: block; transition: all .2s; }
+  .dots a.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); transform: scale(1.25); }
+  .nav-hint { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 1000; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted-2); display: flex; gap: 14px; align-items: center; }
+  .nav-hint kbd { border: 1px solid rgba(244,248,234,0.2); border-radius: 5px; padding: 2px 7px; font-family: inherit; }
+
+  /* ---------- Cover cinematic land terrain ---------- */
+  .cover-scene {
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
+    border: 0; pointer-events: none; background: transparent;
+  }
+  .cover-grain {
+    position: absolute; inset: -50%; z-index: 0; pointer-events: none;
+    opacity: .06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grainShift .6s steps(2) infinite;
+  }
+  @keyframes grainShift { 0%{transform:translate(0,0)} 50%{transform:translate(-3%,2%)} 100%{transform:translate(2%,-2%)} }
+  .cover-grade {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(70% 60% at 34% 46%, rgba(6,9,10,0.86) 0%, rgba(6,9,10,0.52) 40%, rgba(6,9,10,0) 66%),
+      linear-gradient(180deg, rgba(4,7,4,0.30) 0%, rgba(3,5,5,0.20) 55%, rgba(3,5,5,0.66) 100%);
+  }
+  .cover-grade.accent {
+    mix-blend-mode: soft-light;
+    background: radial-gradient(46% 40% at 40% 44%, rgba(184,230,60,0.22) 0%, rgba(184,230,60,0) 72%);
+    animation: accentBreath 8s ease-in-out infinite alternate;
+  }
+  @keyframes accentBreath { from { opacity: .3; } to { opacity: .6; } }
+  .cover > *:not(.cover-scene):not(.cover-grade):not(.cover-grain) { z-index: 2; }
+
+  /* bigger, more visible logo */
+  .cover-mark {
+    width: clamp(160px, 20vw, 280px);
+    animation: markGlow 4.5s ease-in-out infinite alternate;
+  }
+  @keyframes markGlow {
+    from { filter: drop-shadow(0 0 34px rgba(184,230,60,0.5)) drop-shadow(0 0 10px rgba(184,230,60,0.4)); }
+    to   { filter: drop-shadow(0 0 74px rgba(212,255,90,0.9)) drop-shadow(0 0 26px rgba(184,230,60,0.7)); }
+  }
+
+  /* ---------- Embedded live hook visual ---------- */
+  .slide-embed { padding: 0; }
+  .hook-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; z-index: 1; }
+  .embed-tag {
+    position: absolute; top: 24px; left: 50%; transform: translateX(-50%); z-index: 3;
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted);
+    background: rgba(6,9,10,0.55); border: 1px solid var(--panel-brd);
+    padding: 9px 20px; border-radius: 999px; backdrop-filter: blur(8px); white-space: nowrap;
+  }
+  .embed-tag b { color: var(--accent); }
+
+  /* ---------- Terrain backdrop ---------- */
+  .terrain-bg {
+    position: absolute; inset: 0; z-index: 0;
+    background: url('intro-assets/pilot-terrain.png') center/cover no-repeat;
+    opacity: 0.28; filter: grayscale(0.15) contrast(1.08) brightness(0.9);
+  }
+  .terrain-bg::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(6,9,10,0.94) 0%, rgba(6,9,10,0.72) 48%, rgba(6,9,10,0.52) 100%);
+  }
+
+  /* ---------- Raise / allocation ---------- */
+  .terms { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 4px; }
+  .term { border: 1px solid var(--panel-brd); background: var(--panel); border-radius: 12px; padding: 11px 16px; }
+  .term .k { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted-2); }
+  .term .v { font-weight: 700; color: var(--paper); font-size: clamp(14px, 1.35vw, 18px); margin-top: 4px; letter-spacing: -0.01em; }
+  .term .v b { color: var(--accent-glow); font-weight: 700; }
+  .term .v span { color: var(--muted); font-weight: 400; font-size: 0.82em; }
+  .uof-label { margin: 22px 0 12px; font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+  .uof-label::before { content: ''; width: 22px; height: 1px; background: var(--accent); opacity: .7; }
+  .ask-foot { margin-top: 18px; font-size: 12px; color: var(--muted-2); line-height: 1.5; max-width: 80ch; }
+  .ask-total { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .ask-total .n { font-size: clamp(46px, 6vw, 84px); font-weight: 700; letter-spacing: -0.03em; color: var(--accent-glow); line-height: 1; text-shadow: 0 0 40px rgba(184,230,60,0.28); }
+  .ask-total .l { color: var(--muted); font-size: clamp(14px,1.4vw,17px); letter-spacing: 0.02em; }
+  .alloc { display: grid; gap: 11px; margin-top: 2px; }
+  .alloc-row { display: grid; grid-template-columns: 1.4fr 2.2fr auto; gap: 20px; align-items: center; }
+  .alloc-row .who { }
+  .alloc-row .who .t { font-weight: 700; font-size: clamp(15px,1.35vw,18px); color: var(--paper); }
+  .alloc-row .who .d { color: var(--muted); font-size: 13px; margin-top: 3px; line-height: 1.4; }
+  .alloc-row .track { height: 12px; border-radius: 999px; background: rgba(255,255,255,0.05); overflow: hidden; border: 1px solid rgba(184,230,60,0.12); }
+  .alloc-row .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--lime-deep), var(--accent-glow)); box-shadow: 0 0 16px rgba(184,230,60,0.4); transform-origin: left; animation: growBar 1.1s cubic-bezier(.16,.84,.28,1) both; }
+  @keyframes growBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .alloc-row .amt { text-align: right; white-space: nowrap; }
+  .alloc-row .amt b { font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: var(--accent-glow); font-size: clamp(16px,1.5vw,20px); font-weight: 700; }
+  .alloc-row .amt span { color: var(--muted-2); font-size: 12px; margin-left: 8px; }
+
+  @media (max-width: 860px) {
+    .two { grid-template-columns: 1fr; }
+    .cards.c3 { grid-template-columns: 1fr; }
+    .alloc-row { grid-template-columns: 1fr auto; }
+    .alloc-row .track { grid-column: 1 / -1; order: 3; }
+    .cards.c2 { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr; }
+    .flow-row { grid-template-columns: 1fr; }
+    .species { grid-template-columns: 1fr; }
+    .dots { display: none; }
+    .slide { padding: 90px 26px 70px; }
+  }
+
+  @media print {
+    html { scroll-snap-type: none; }
+    .slide { min-height: 100vh; page-break-after: always; border: none; }
+    .progress, .dots, .nav-hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="dots" id="dots"></div>
+<div class="nav-hint"><kbd>↓</kbd> / <kbd>Space</kbd> next <span>•</span> <kbd>←</kbd> <kbd>→</kbd> navigate</div>
+
+<!-- reusable root-mark path -->
+<svg width="0" height="0" style="position:absolute"><defs><g id="rootmark"><path d="M212.521332,290.474915 C216.026886,293.578308 219.322052,296.383972 222.522064,299.294250 C246.724380,321.305176 240.959717,358.669464 210.941635,374.454926 C184.330643,388.448761 150.493912,376.351196 139.356140,348.861145 C132.007019,330.722229 137.307526,309.935028 153.288895,297.728394 C170.754272,284.388275 178.548080,266.483978 179.853516,245.218597 C180.271378,238.411499 180.149384,231.556915 179.979416,224.731400 C179.704697,213.700165 172.631454,208.843750 162.525558,213.085983 C146.624115,219.761078 134.772034,230.160370 130.069855,247.764099 C126.775711,260.096527 115.278198,267.565643 103.298645,266.709991 C90.673042,265.808197 80.772224,257.257599 78.395973,245.203415 C74.986389,227.907440 90.072647,212.085281 108.328331,214.581711 C124.465866,216.788483 139.076263,213.570160 152.659683,204.883270 C153.640869,204.255783 154.628738,203.633926 155.570190,202.949844 C164.245544,196.646042 163.920959,190.078781 154.402817,185.055939 C137.097687,175.923828 119.010185,170.310944 99.227829,175.000275 C91.991035,176.715714 85.091179,179.956177 77.819023,181.399536 C55.177525,185.893356 31.899712,168.176132 29.194962,144.854752 C26.514469,121.742516 44.553093,100.230537 67.714584,98.918144 C88.774246,97.724846 105.761673,107.864021 111.662323,126.968140 C117.885674,147.117020 131.128784,160.201843 149.427246,169.064240 C154.202042,171.376785 159.109528,173.548019 164.161819,175.124847 C172.451981,177.712204 178.290359,174.859848 179.237686,166.384857 C181.245087,148.425873 182.133347,130.260727 170.344818,114.623222 C167.072876,110.282974 163.200592,106.232811 159.000763,102.783806 C144.013870,90.476219 138.468826,74.397957 143.906677,57.632801 C149.524445,40.312874 165.616028,28.091072 183.953751,27.216412 C207.676666,26.084894 226.928665,40.454231 231.303680,63.474380 C234.074249,78.052315 228.982788,90.655457 217.674240,100.003166 C206.274933,109.425880 196.693283,119.976334 194.869156,135.052124 C193.619614,145.379181 193.787811,155.994949 194.494431,166.402039 C194.999908,173.846878 201.256699,177.794769 208.152130,175.581558 C226.552719,169.675583 243.316544,160.954590 254.171051,144.101913 C257.272125,139.287231 259.372894,133.680283 261.141907,128.182297 C267.417511,108.678108 284.018829,97.648224 305.785278,98.942902 C324.215332,100.039116 340.923798,114.938301 343.780029,133.706451 C346.135376,149.183456 341.224304,162.574829 328.886292,172.352875 C316.618256,182.075439 302.077057,185.867691 287.615265,179.463058 C264.337555,169.154144 242.768265,173.267792 221.384979,183.860229 C209.065811,189.962646 208.936813,196.890152 220.388611,204.482590 C234.036942,213.531326 248.822662,216.926697 265.099243,214.557739 C276.897339,212.840607 287.793793,218.720581 292.972046,228.881821 C297.972198,238.693588 296.626465,249.794830 288.758881,258.007843 C281.872650,265.196381 273.243683,268.130188 263.297852,266.019073 C252.893829,263.810699 245.825165,257.388519 243.248672,247.271866 C238.614639,229.076233 225.831207,219.109482 209.658676,212.446274 C202.248154,209.393051 195.445404,212.720963 194.667419,220.562256 C192.436142,243.051636 192.932022,265.279205 207.353485,284.573975 C208.843903,286.568024 210.622177,288.346893 212.521332,290.474915 z"/></g></defs></svg>
+
+<!-- ============ 1 · COVER ============ -->
+<section class="slide cover" id="s1">
+  <iframe class="cover-scene" src="terrain-hero.html" title="Pilot terrain" scrolling="no" loading="eager"></iframe>
+  <div class="cover-grain"></div>
+  <div class="cover-grade"></div>
+  <div class="cover-grade accent"></div>
+  <div class="rail">
+    <span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span>
+    <span class="num">ETHGLOBAL LISBON 2026</span>
+  </div>
+  <svg class="cover-mark" viewBox="12 12 348 386"><use href="#rootmark"/></svg>
+  <h1><b>r00t</b>.fund</h1>
+  <div class="sub">The private launchpad for regenerative land</div>
+  <div class="tagline">Arbitrage that heals the ground <span class="dot">•</span> Private to trade, public to regenerate</div>
+  <div class="badges">
+    <span class="badge"><span class="live-dot"></span> <b>LIVE</b>&nbsp;on Ethereum Sepolia</span>
+    <span class="badge">Uniswap v4 Hook</span>
+    <span class="badge">Shielded zkAMM</span>
+    <span class="badge">World ID · ENS</span>
+  </div>
+</section>
+
+<!-- ============ 2 · THE DREAM ============ -->
+<section class="slide" id="s2">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>02</b> / 13 · VISION</span></div>
+  <span class="kicker">The dream</span>
+  <h2>A future for crypto that is<br><span class="em">less extractive.</span></h2>
+  <p class="lede">
+    The smartest technology we've built — launchpads, trading bots, MEV searchers — is
+    all pointed at one thing: <strong>extracting value from each other.</strong>
+    Billions of dollars of the most sophisticated algorithms on earth, optimized to
+    front-run, to snipe, to drain.
+  </p>
+  <p class="lede" style="margin-top:24px; color:var(--paper); font-size:clamp(19px,2vw,27px); font-weight:600;">
+    Now imagine we turned that same machine around — and routed it
+    <span class="em">into the ground.</span>
+  </p>
+</section>
+
+<!-- ============ 3 · THE PROBLEM ============ -->
+<section class="slide" id="s3">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>03</b> / 13 · PROBLEM</span></div>
+  <span class="kicker">The broken loop</span>
+  <h2>Money for the earth<br>never reaches the earth.</h2>
+  <div class="two" style="margin-top:12px;">
+    <p class="lede">
+      Every year billions flow into carbon markets and reforestation — and
+      <strong>60–80% is eaten by intermediaries:</strong> brokers, certifiers, consultants,
+      registry fees, before anything touches the soil. A landowner replanting a burned
+      hillside sees a fraction of what a credit buyer paid. Sometimes nothing.
+      <br><br>
+      Meanwhile the extractive machine of DeFi captures enormous value — and returns
+      <span class="em">none of it to the physical world.</span>
+    </p>
+    <div class="stats" style="grid-template-columns:1fr;">
+      <div class="stat"><div class="n">60–80%</div><div class="l">of regen funding consumed by middlemen before it reaches the land</div></div>
+      <div class="stat"><div class="n">$0</div><div class="l">of DeFi arbitrage &amp; MEV value returned to the real world today</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 · THE INSIGHT ============ -->
+<section class="slide" id="s4">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>04</b> / 13 · INSIGHT</span></div>
+  <span class="kicker">The core idea</span>
+  <h2>We don't fight the extractive<br>algorithm. <span class="em">We redirect it.</span></h2>
+  <div class="two">
+    <p class="lede">
+      Every token on r00t.fund trades on <strong>two pools at once</strong>: a public
+      <strong>Uniswap v4</strong> pool, and a private, <strong>shielded zkAMM</strong>.
+      <br><br>
+      When a trade moves one pool, the two drift apart — and that gap is an arbitrage.
+      Normally a bot races in and pockets the spread. Instead, our Uniswap v4 hook
+      <strong>back-runs that arbitrage itself, in the same transaction,</strong> and sends
+      the captured spread straight to a land-regeneration treasury.
+    </p>
+    <div class="quote">
+      Arbitrage becomes <span class="em">regeneration.</span><br>
+      The privacy premium funds the land.
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 · HOW IT WORKS (live embed) ============ -->
+<section class="slide slide-embed" id="s5">
+  <div class="embed-tag"><b>05 · How it works</b> &nbsp;—&nbsp; one hook, two pools, every swap heals · <b>live Sepolia treasury</b></div>
+  <iframe class="hook-frame" src="hook-pools.html" title="RegenArbHook — dual pool rebalance" loading="lazy"></iframe>
+</section>
+
+<!-- ============ 6 · MEV BLOCKER ============ -->
+<section class="slide" id="s6mev">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>06</b> / 13 · MEV DEFENSE</span></div>
+  <span class="kicker">The MEV blocker</span>
+  <h2>The value a bot would steal is<br>the value that <span class="em">funds the land.</span></h2>
+  <p class="lede" style="margin-top:6px;max-width:74ch;">
+    On a normal public AMM, every swap sits exposed in the mempool — sandwiched, front-run, and
+    back-run by searchers. That extracted value (the <strong>LVR</strong> LPs bleed to arbitrageurs) leaks
+    out of the ecosystem forever. r00t.fund's two-pool design <strong>shuts both doors at once.</strong>
+  </p>
+  <div class="cards c2" style="margin-top:26px;">
+    <div class="card" style="border-color:rgba(255,0,122,0.28);background:rgba(255,0,122,0.04);">
+      <span class="tag" style="color:#ff5c9d;">Extractive MEV · today</span>
+      <h3 style="margin-bottom:14px;">The searcher wins</h3>
+      <ul class="check" style="margin:0;">
+        <li style="margin-bottom:12px;"><b>Front-run &amp; sandwich</b> — trades visible in the mempool are picked off before they land.</li>
+        <li style="margin-bottom:12px;"><b>Cross-pool arb</b> — the spread between venues is raced for and pocketed by bots.</li>
+        <li style="margin-bottom:0;"><b>Value leaves</b> — extracted profit exits to the searcher; nothing returns to LPs or the world.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(184,230,60,0.4);background:rgba(184,230,60,0.05);">
+      <span class="tag">Regenerative capture · r00t.fund</span>
+      <h3 style="margin-bottom:14px;">The land wins</h3>
+      <ul class="check" style="margin:0;">
+        <li style="margin-bottom:12px;"><b>Nothing to front-run</b> — the shielded zkAMM hides trade amounts, so private-side swaps can't be sandwiched.</li>
+        <li style="margin-bottom:12px;"><b>Arb internalized</b> — the hook back-runs the cross-pool spread <b>atomically in <span class="mono">afterSwap</span></b> — no mempool gap for a searcher to exploit.</li>
+        <li style="margin-bottom:0;"><b>Value redirected</b> — the exact LVR a bot would take is swept to the plot's regen treasury.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:24px;color:var(--accent-glow);font-weight:600;">Private trading, public price integrity — and the MEV that would've fed a bot now plants oak trees.</p>
+</section>
+
+<!-- ============ 7 · THE STEWARD FLOW ============ -->
+<section class="slide" id="s6">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>07</b> / 13 · PRODUCT</span></div>
+  <span class="kicker">The product</span>
+  <h2>A launchpad — where each token<br>is half a hectare of real earth.</h2>
+  <ul class="check" style="margin-top:14px; max-width:74ch;">
+    <li>A <b>steward creates a land</b> — uploads real boundary &amp; topography, proves a unique human with <b>World ID</b>, gets an <b>ENS</b> identity, and commits <b>$R00T</b> as seed liquidity.</li>
+    <li>They <b>launch parcel tokens</b> through a <b>Continuous Clearing Auction</b> — a uniform-price fair launch, so backers (not the steward) discover the price.</li>
+    <li>On clear, the auction <b>seeds both pools</b> — the public v4 pool and the shielded zkAMM — and registers the market on the shared hook, <b>in one transaction.</b></li>
+    <li><b>People trade.</b> Every swap moves the public price, the pools drift, and the hook fires — <b>routing the spread to that plot's regen fund.</b></li>
+  </ul>
+  <p class="lede" style="margin-top:20px; color:var(--accent-glow); font-weight:600;">The more a parcel is traded, the more its land is regenerated.</p>
+</section>
+
+<!-- ============ 7 · THREE INTEGRATIONS ============ -->
+<section class="slide" id="s7">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>08</b> / 13 · STACK</span></div>
+  <span class="kicker">Built deep across three ecosystems</span>
+  <h2 style="margin-bottom:28px;">A production stack, not a mockup.</h2>
+  <div class="cards c3">
+    <div class="card">
+      <span class="ico">🦄</span>
+      <span class="tag">Uniswap Foundation</span>
+      <h3>RegenArbHook + CCA</h3>
+      <p>A production v4 <b>afterSwap</b> hook doing real in-transaction cross-pool arbitrage via flash accounting. One shared hook serves every parcel through a <span class="mono">MarketRegistered</span> registry — nothing hardcoded. A Continuous Clearing Auction seeds both pools on launch.</p>
+    </div>
+    <div class="card">
+      <span class="ico">🌍</span>
+      <span class="tag">World</span>
+      <h3>Proof of humanity</h3>
+      <p>Before a wallet can create a land, the steward proves they're a <b>unique human</b> with World ID (IDKit → orb / device). Sybil-resistant land creation — <b>real people steward real land.</b></p>
+    </div>
+    <div class="card">
+      <span class="ico">🔑</span>
+      <span class="tag">ENS</span>
+      <h3>Steward identity</h3>
+      <p>Every steward gets a human-readable <b>.eth</b> name + avatar resolved from L1, shown across the app. Every parcel is an ENS subname (<span class="mono">oak.r00t.eth</span>) whose records show its price, pools &amp; live regen status.</p>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:26px;">And the privacy is genuine — the shielded pool uses <strong>real zero-knowledge proofs</strong> (Circom / Groth16, Poseidon Merkle trees). User trade amounts stay private; the public reserves sync every block.</p>
+</section>
+
+<!-- ============ 8 · PROOF / LIVE ============ -->
+<section class="slide" id="s8">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>09</b> / 13 · PROOF</span></div>
+  <span class="kicker"><span class="live-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);"></span> Live on Ethereum Sepolia</span>
+  <h2>Not a projection.<br>On-chain, <span class="em">today.</span></h2>
+  <div class="two" style="margin-top:8px;">
+    <p class="lede">
+      The full stack is deployed on Ethereum Sepolia — LandFactory, the CCA launchpad,
+      the shared arb hook, a real shielded ZkAMMPair, and a regen treasury.
+      <br><br>
+      The treasury is <strong>already holding real ETH</strong> — captured purely from
+      arbitrage, verifiable from <span class="mono em">SpreadCaptured</span> events on
+      Etherscan.
+    </p>
+    <table class="addr-table">
+      <tr><td>RegenArbHook</td><td>0x2B01…0040</td></tr>
+      <tr><td>RegenLaunchpad (CCA)</td><td>0xC6d8…CB11</td></tr>
+      <tr><td>LandFactory</td><td>0x38c1…C2eB</td></tr>
+      <tr><td>$R00T token</td><td>0x70E3…AbC9</td></tr>
+      <tr><td>Shielded ZkAMMPair</td><td>0xf597…D549</td></tr>
+      <tr><td>Regen treasury (ETH)</td><td>0xBe19…96F5</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 9 · TOKENOMICS ============ -->
+<section class="slide" id="s9">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>10</b> / 13 · TOKENOMICS</span></div>
+  <span class="kicker">Two token layers · one invariant</span>
+  <h2 style="margin-bottom:26px;">Pledged capital funds the land.<br>It is <span class="em">never</span> used as LP.</h2>
+  <div class="cards c2">
+    <div class="card">
+      <span class="tag">Base layer</span>
+      <h3>$R00T <span style="color:var(--muted);font-weight:400;font-size:15px;">· 69M fixed supply</span></h3>
+      <p>The protocol reserve currency. Everything is priced in it. Opening a land is an <b>OTC sale of the steward's $R00T to the crowd</b> — the steward converts illiquid $R00T into real regeneration capital.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Parcel layer</span>
+      <h3>$OAK / $CARROT / …</h3>
+      <p>A localized, yield-bearing wrapper around $R00T — "$R00T with a place and a carbon yield." Always paired to $R00T in a v4 pool. Backers mint <b>at the live pool price</b>, so nothing to arb, no mint-cheap-then-dump.</p>
+    </div>
+  </div>
+  <div class="stats" style="margin-top:30px;">
+    <div class="stat"><div class="n">100%</div><div class="l">of backer pledges → land treasury (regeneration capex)</div></div>
+    <div class="stat"><div class="n">70 / 30</div><div class="l">swap-fee split, steward / protocol</div></div>
+    <div class="stat"><div class="n">1 tx</div><div class="l">auction → dual pools → hook → ENS records, from one dashboard</div></div>
+  </div>
+</section>
+
+<!-- ============ 10 · REAL PROJECT ============ -->
+<section class="slide" id="s10">
+  <div class="terrain-bg"></div>
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>11</b> / 13 · WHY</span></div>
+  <span class="kicker">Why we built this</span>
+  <h2>It started with our own land —<br>burned, and still waiting.</h2>
+  <div class="two" style="margin-top:8px;">
+    <p class="lede">
+      After the <strong>September 2025 fires</strong> in Portugal, our pilot site was
+      destroyed. We started small — 25+ kg of ground-cover seed and a few trees planted
+      by hand — but the promised government fire-damage funds never came, and ICNF
+      processes move at glacial speed.
+      <br><br>
+      So we stopped waiting, and <strong>built the rail that funds regeneration directly.</strong>
+      Every dollar we win goes straight into replanting the forest.
+    </p>
+    <div>
+      <h3 style="margin-bottom:16px;">Restoration plan — <span class="em">9 ha · 2,550 native trees</span></h3>
+      <div class="species">
+        <div class="sp"><span class="name">Carvalho-roble <i>Q. robur</i></span><span class="qty">800</span></div>
+        <div class="sp"><span class="name">Carvalho-negral <i>Q. pyrenaica</i></span><span class="qty">600</span></div>
+        <div class="sp"><span class="name">Castanheiro <i>C. sativa</i></span><span class="qty">400</span></div>
+        <div class="sp"><span class="name">Espinheiro <i>C. monogyna</i></span><span class="qty">300</span></div>
+        <div class="sp"><span class="name">Abrunheiro <i>P. spinosa</i></span><span class="qty">200</span></div>
+        <div class="sp"><span class="name">Medronheiro <i>A. unedo</i></span><span class="qty">150</span></div>
+        <div class="sp"><span class="name">Freixo <i>F. angustifolia</i></span><span class="qty">100</span></div>
+        <div class="sp"><span class="name" style="color:var(--accent-glow);font-weight:700;">Total</span><span class="qty">2,550</span></div>
+      </div>
+      <p style="margin-top:14px;color:var(--muted-2);font-size:13px;">Planting target: Spring 2026 · ICNF Ref PRRF-SE-2025-0042 · exact site withheld (Project 001)</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 12 · THE ASK ============ -->
+<section class="slide" id="s-ask">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>12</b> / 13 · THE ASK</span></div>
+  <span class="kicker">The raise</span>
+  <h2 style="margin-bottom:14px;">Raising <span class="em">$250K</span> to light the flywheel.</h2>
+  <div class="ask-total">
+    <span class="n">$250K</span>
+    <span class="l">pre-seed · the protocol self-funds via the arb flywheel — this seeds the launches that light it</span>
+  </div>
+
+  <!-- deal terms -->
+  <div class="terms">
+    <div class="term"><div class="k">Round</div><div class="v">Pre-seed <span>· SAFT</span></div></div>
+    <div class="term"><div class="k">Valuation</div><div class="v"><b>$5M</b> <span>FDV</span></div></div>
+    <div class="term"><div class="k">Investor allocation</div><div class="v"><b>5%</b> of $R00T <span>· 3.45M</span></div></div>
+    <div class="term"><div class="k">Token price</div><div class="v">~<b>$0.072</b> <span>/ $R00T</span></div></div>
+    <div class="term"><div class="k">Vesting</div><div class="v">6-mo cliff <span>→ 24-mo linear</span></div></div>
+  </div>
+
+  <div class="uof-label">Use of funds</div>
+  <div class="alloc">
+    <div class="alloc-row">
+      <div class="who"><div class="t">Protocol liquidity</div><div class="d">Seed the $R00T + parcel v4 pools and the shielded zkAMM — deep markets from day one</div></div>
+      <div class="track"><div class="fill" style="width:40%;animation-delay:.05s"></div></div>
+      <div class="amt"><b>$100K</b><span>40%</span></div>
+    </div>
+    <div class="alloc-row">
+      <div class="who"><div class="t">First launches on the launchpad</div><div class="d">Seed the opening cohort of parcel launches — bootstrap each plot's pools &amp; regen treasury so trading has something to compound</div></div>
+      <div class="track"><div class="fill" style="width:30%;animation-delay:.15s"></div></div>
+      <div class="amt"><b>$75K</b><span>30%</span></div>
+    </div>
+    <div class="alloc-row">
+      <div class="who"><div class="t">Reforestation — the pilot</div><div class="d">2,550 native trees across 9.9 ha of burned hillside · planting Spring 2026</div></div>
+      <div class="track"><div class="fill" style="width:16%;animation-delay:.25s"></div></div>
+      <div class="amt"><b>$40K</b><span>16%</span></div>
+    </div>
+    <div class="alloc-row">
+      <div class="who"><div class="t">Security review</div><div class="d">Targeted review of the v4 hook, vaults &amp; ZK circuits before mainnet — AI-assisted, focused on the value-handling paths</div></div>
+      <div class="track"><div class="fill" style="width:10%;animation-delay:.35s"></div></div>
+      <div class="amt"><b>$25K</b><span>10%</span></div>
+    </div>
+    <div class="alloc-row">
+      <div class="who"><div class="t">Legal &amp; token counsel</div><div class="d">Securities review before a tradable token backed by real land touches mainnet</div></div>
+      <div class="track"><div class="fill" style="width:4%;animation-delay:.45s"></div></div>
+      <div class="amt"><b>$10K</b><span>4%</span></div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:22px;color:var(--accent-glow);font-weight:600;">$250K seeds the first launches — they light the flywheel, then arbitrage keeps it turning and the land keeps greening.</p>
+  <p class="ask-foot">Indicative terms for discussion only — not an offer or solicitation. Token allocation vests from $R00T's fixed 69M supply; unlocks begin at mainnet TGE. Final terms subject to definitive documents &amp; legal review.</p>
+</section>
+
+<!-- ============ 13 · CLOSE ============ -->
+<section class="slide closing" id="s11">
+  <div class="rail"><span class="brand-mini"><svg viewBox="12 12 348 386"><use href="#rootmark"/></svg><span><b>r00t</b>.fund</span></span><span class="num"><b>13</b> / 13</span></div>
+  <svg class="mark" viewBox="12 12 348 386"><use href="#rootmark"/></svg>
+  <h2>Arbitrage that <span class="em">heals the ground.</span></h2>
+  <div class="link">r00t.fund</div>
+  <div class="foot">Fund what heals · Private to trade, public to regenerate · Built at ETHGlobal Lisbon 2026</div>
+</section>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const dots = document.getElementById('dots');
+  const progress = document.getElementById('progress');
+
+  slides.forEach((s, i) => {
+    const a = document.createElement('a');
+    a.href = '#' + s.id;
+    a.title = 'Slide ' + (i + 1);
+    // scroll in-page rather than navigate (avoids <base href> turning the hash into a full navigation)
+    a.addEventListener('click', (e) => { e.preventDefault(); s.scrollIntoView({ behavior: 'smooth' }); });
+    dots.appendChild(a);
+  });
+  const dotEls = [...dots.children];
+
+  let current = 0;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        current = slides.indexOf(e.target);
+        dotEls.forEach((d, i) => d.classList.toggle('on', i === current));
+        progress.style.width = ((current + 1) / slides.length * 100) + '%';
+      }
+    });
+  }, { threshold: 0.5 });
+  slides.forEach(s => io.observe(s));
+
+  function go(dir) {
+    const next = Math.max(0, Math.min(slides.length - 1, current + dir));
+    slides[next].scrollIntoView({ behavior: 'smooth' });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowDown', 'ArrowRight', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); go(1); }
+    if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(-1); }
+    if (e.key === 'Home') slides[0].scrollIntoView({ behavior: 'smooth' });
+    if (e.key === 'End') slides[slides.length - 1].scrollIntoView({ behavior: 'smooth' });
+  });
+</script>
+</body>
+</html>
