@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r00t.fund · Pilot terrain</title>
+<style>
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- dark r00t palette (matches PilotTerrain readPalette, .dark theme) ----------
+const BG = new THREE.Color('#121210');
+const INK = new THREE.Color('#D6FE51');           // --accent-on-bg (dark)
+const tier = t => new THREE.Color().copy(INK).lerp(BG, t);
+const palette = {
+  bg: BG,
+  grid: tier(0.72), major: INK.clone(), medium: tier(0.32), minor: tier(0.55),
+  accent: new THREE.Color('#D6FE51'),
+  accentSoft: new THREE.Color('#D6FE51').lerp(new THREE.Color('#ffffff'), 0.4),
+  river: new THREE.Color('#5BA8B5'),
+};
+
+// ---------- helpers (ported 1:1 from PilotTerrain.tsx) ----------
+function blurPass(src, res, radius){
+  const dst = new Float32Array(src.length);
+  for(let y=0;y<res;y++) for(let x=0;x<res;x++){
+    let sum=0,cnt=0;
+    for(let sy=-radius;sy<=radius;sy++) for(let sx=-radius;sx<=radius;sx++){
+      const ny=y+sy,nx=x+sx;
+      if(ny>=0&&ny<res&&nx>=0&&nx<res){ sum+=src[ny*res+nx]; cnt++; }
+    }
+    dst[y*res+x]=sum/cnt;
+  }
+  return dst;
+}
+const smoothstep=(e0,e1,x)=>{ const t=Math.max(0,Math.min(1,(x-e0)/(e1-e0))); return t*t*(3-2*t); };
+function sampleElevation(s,res,nx,ny,scale){
+  const gxf=Math.max(0,Math.min(res-1.01,nx*(res-1))), gyf=Math.max(0,Math.min(res-1.01,ny*(res-1)));
+  const gx0=Math.floor(gxf),gy0=Math.floor(gyf), gx1=Math.min(gx0+1,res-1),gy1=Math.min(gy0+1,res-1);
+  const fx=gxf-gx0,fy=gyf-gy0;
+  const h00=s[gy0*res+gx0]??0,h10=s[gy0*res+gx1]??0,h01=s[gy1*res+gx0]??0,h11=s[gy1*res+gx1]??0;
+  return (h00*(1-fx)*(1-fy)+h10*fx*(1-fy)+h01*(1-fx)*fy+h11*fx*fy)*scale;
+}
+
+// ---------- scene ----------
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,innerWidth/innerHeight,0.1,50);
+camera.position.set(-6.772,5.759,3.879);
+camera.lookAt(-3.15,0.3,-1.0);
+function resize(){ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+
+let propMat=null, rimMat=null;
+
+function build(heightmap, contours, river){
+  const res=heightmap.resolution;
+  const aspect=heightmap.extentMeters.width/heightmap.extentMeters.height;
+  const sizeY=8, sizeX=sizeY*aspect, elevScale=2.2;
+  const halfX=sizeX/2, halfY=sizeY/2;
+  const camLocal=[-6.772,-3.879,5.759];
+
+  let smoothed=new Float32Array(heightmap.data);
+  smoothed=blurPass(smoothed,res,2); smoothed=blurPass(smoothed,res,2);
+
+  const pb={xMin:0,xMax:1,yMin:0,yMax:1};
+  if(heightmap.propertyBoundary&&heightmap.propertyBoundary.length>=3){
+    pb.xMin=Math.min(...heightmap.propertyBoundary.map(p=>p[0]))-0.01;
+    pb.xMax=Math.max(...heightmap.propertyBoundary.map(p=>p[0]))+0.01;
+    pb.yMin=Math.min(...heightmap.propertyBoundary.map(p=>p[1]))-0.01;
+    pb.yMax=Math.max(...heightmap.propertyBoundary.map(p=>p[1]))+0.01;
+  }
+  const inProp=(nx,ny)=>{
+    if(!heightmap.propertyMask) return false;
+    if(nx<pb.xMin||nx>pb.xMax||ny<pb.yMin||ny>pb.yMax) return false;
+    const gx=Math.round(nx*(res-1)),gy=Math.round(ny*(res-1));
+    if(gx<0||gx>=res||gy<0||gy>=res) return false;
+    return heightmap.propertyMask[gy*res+gx]===1;
+  };
+  const edgeFade=(px,py)=>{ const dx=Math.abs(px)/halfX,dy=Math.abs(py)/halfY; return (1-smoothstep(0.80,1.0,dx))*(1-smoothstep(0.80,1.0,dy)); };
+  const elevAt=(nx,ny)=>{ const h=sampleElevation(smoothed,res,nx,ny,elevScale); return h*edgeFade((nx-0.5)*sizeX,(ny-0.5)*sizeY); };
+  const worldPos=(ix,iy)=>{ const nx=ix/(res-1),ny=iy/(res-1); const px=(nx-0.5)*sizeX,py=(ny-0.5)*sizeY; const h=(smoothed[iy*res+ix]??0)*elevScale; return [px,py,h*edgeFade(px,py)]; };
+  const facing=(nx,ny)=>{
+    const d=0.003;
+    const z0=elevAt(nx,ny),zx=elevAt(Math.min(nx+d,1),ny),zy=elevAt(nx,Math.min(ny+d,1));
+    const nX=0*(zy-z0)-(zx-z0)*(d*sizeY), nY=(zx-z0)*0-(d*sizeX)*(zy-z0), nZ=(d*sizeX)*(d*sizeY);
+    const px=(nx-0.5)*sizeX,py=(ny-0.5)*sizeY;
+    return (nX*(camLocal[0]-px)+nY*(camLocal[1]-py)+nZ*(camLocal[2]-z0))>0;
+  };
+  const vColor=(px,py,base)=>{ const dx=Math.abs(px)/halfX,dy=Math.abs(py)/halfY; const fade=(1-smoothstep(0.5,0.88,dx))*(1-smoothstep(0.5,0.88,dy)); return new THREE.Color().copy(base).lerp(palette.bg,1-fade); };
+
+  const group=new THREE.Group();
+  group.rotation.set(-Math.PI/2,0,0);
+
+  // grid
+  const gStep=12,iStep=2; const gPos=[],gCol=[];
+  const pushGrid=rows=>{
+    for(let a=0;a<res;a+=gStep) for(let b=0;b<res-iStep;b+=iStep){
+      const midNx=rows?(b+iStep/2)/(res-1):a/(res-1), midNy=rows?a/(res-1):(b+iStep/2)/(res-1);
+      if(!facing(midNx,midNy)) continue;
+      const nb=Math.min(b+iStep,res-1);
+      const [x0,y0,z0]=worldPos(rows?b:a,rows?a:b), [x1,y1,z1]=worldPos(rows?nb:a,rows?a:nb);
+      gPos.push(x0,y0,z0,x1,y1,z1);
+      const c0=vColor(x0,y0,palette.grid),c1=vColor(x1,y1,palette.grid);
+      gCol.push(c0.r,c0.g,c0.b,c1.r,c1.g,c1.b);
+    }
+  };
+  pushGrid(true); pushGrid(false);
+  const gridGeo=new THREE.BufferGeometry();
+  gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gPos,3));
+  gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gCol,3));
+
+  // contours
+  const buckets={ major:{pos:[],col:[]}, medium:{pos:[],col:[]}, minor:{pos:[],col:[]}, prop:{pos:[],col:[]} };
+  const colOf={ major:palette.major, medium:palette.medium, minor:palette.minor };
+  for(const cl of contours.contours){
+    const pts=cl.p;
+    for(let i=0;i<pts.length-1;i++){
+      const [nx0,ny0]=pts[i], [nx1,ny1]=pts[i+1];
+      const midNx=(nx0+nx1)/2, midNy=(ny0+ny1)/2;
+      if(!facing(midNx,midNy)) continue;
+      const px0=(nx0-0.5)*sizeX,py0=(ny0-0.5)*sizeY,pz0=elevAt(nx0,ny0)+0.006;
+      const px1=(nx1-0.5)*sizeX,py1=(ny1-0.5)*sizeY,pz1=elevAt(nx1,ny1)+0.006;
+      if(edgeFade(px0,py0)<0.02&&edgeFade(px1,py1)<0.02) continue;
+      if(inProp(midNx,midNy)){
+        const b=buckets.prop;
+        b.pos.push(px0,py0,pz0+0.004,px1,py1,pz1+0.004);
+        const c0=vColor(px0,py0,palette.accent),c1=vColor(px1,py1,palette.accent);
+        b.col.push(c0.r,c0.g,c0.b,c1.r,c1.g,c1.b);
+      } else {
+        const b=buckets[cl.l]??buckets.minor;
+        b.pos.push(px0,py0,pz0,px1,py1,pz1);
+        const base=colOf[cl.l]??palette.minor;
+        const c0=vColor(px0,py0,base),c1=vColor(px1,py1,base);
+        b.col.push(c0.r,c0.g,c0.b,c1.r,c1.g,c1.b);
+      }
+    }
+  }
+  const mkGeo=b=>{ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(b.pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(b.col,3)); return g; };
+
+  // property fill + rim
+  let shapeGeo=null, boundaryGeo=null;
+  if(heightmap.propertyBoundary&&heightmap.propertyBoundary.length>=3){
+    const pts=heightmap.propertyBoundary;
+    const shape=new THREE.Shape();
+    shape.moveTo((pts[0][0]-0.5)*sizeX,(pts[0][1]-0.5)*sizeY);
+    for(let p=1;p<pts.length;p++) shape.lineTo((pts[p][0]-0.5)*sizeX,(pts[p][1]-0.5)*sizeY);
+    shape.closePath();
+    shapeGeo=new THREE.ShapeGeometry(shape);
+    const sp=shapeGeo.attributes.position;
+    for(let i=0;i<sp.count;i++){ const sx=sp.getX(i),sy=sp.getY(i); const h=sampleElevation(smoothed,res,sx/sizeX+0.5,sy/sizeY+0.5,elevScale); sp.setZ(i,h*edgeFade(sx,sy)+0.015); }
+    shapeGeo.computeVertexNormals();
+    const rim=[];
+    for(let p=0;p<pts.length;p++){ const [ax,ay]=pts[p],[bx,by]=pts[(p+1)%pts.length]; for(let s=0;s<8;s++){ const nx=ax+((bx-ax)*s)/8,ny=ay+((by-ay)*s)/8; rim.push((nx-0.5)*sizeX,(ny-0.5)*sizeY,elevAt(nx,ny)+0.022); } }
+    boundaryGeo=new THREE.BufferGeometry();
+    boundaryGeo.setAttribute('position',new THREE.Float32BufferAttribute(rim,3));
+  }
+
+  // river
+  let riverGeo=null;
+  if(river&&river.centerline&&river.centerline.length>=3){
+    const rp=[];
+    for(const [nx,ny] of river.centerline){ const px=(nx-0.5)*sizeX,py=(ny-0.5)*sizeY; if(edgeFade(px,py)<0.05) continue; rp.push(new THREE.Vector3(px,py,elevAt(nx,ny)+0.008)); }
+    if(rp.length>=3) riverGeo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp),rp.length*4,0.05,6,false);
+  }
+
+  // assemble
+  group.add(new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.22})));
+  group.add(new THREE.LineSegments(mkGeo(buckets.minor),new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.32})));
+  group.add(new THREE.LineSegments(mkGeo(buckets.medium),new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.55})));
+  group.add(new THREE.LineSegments(mkGeo(buckets.major),new THREE.LineBasicMaterial({vertexColors:true})));
+  if(shapeGeo){ propMat=new THREE.MeshBasicMaterial({color:palette.accent,side:THREE.DoubleSide,transparent:true,opacity:0.32,depthWrite:false}); group.add(new THREE.Mesh(shapeGeo,propMat)); }
+  if(boundaryGeo){ rimMat=new THREE.LineBasicMaterial({color:palette.accent,transparent:true,opacity:0.8,depthWrite:false}); group.add(new THREE.LineLoop(boundaryGeo,rimMat)); }
+  group.add(new THREE.LineSegments(mkGeo(buckets.prop),new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:1})));
+  if(riverGeo) group.add(new THREE.Mesh(riverGeo,new THREE.MeshBasicMaterial({color:palette.river,transparent:true,opacity:0.4})));
+
+  scene.add(group);
+}
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const t=clock.getElapsedTime();
+  const pulse=0.5+0.5*Math.sin(t*0.8);
+  if(propMat){ propMat.color.copy(palette.accentSoft).lerp(palette.accent,pulse*0.7); propMat.opacity=0.28+0.16*pulse; }
+  if(rimMat){ rimMat.opacity=0.5+0.4*pulse; }
+  renderer.render(scene,camera);
+}
+animate();
+
+Promise.all([
+  fetch('/terrain/heightmap.json').then(r=>r.json()),
+  fetch('/terrain/contours.json').then(r=>r.json()),
+  fetch('/terrain/river.json').then(r=>r.json()).catch(()=>null),
+]).then(([hm,ct,rv])=>build(hm,ct,rv));
+</script>
+</body>
+</html>
