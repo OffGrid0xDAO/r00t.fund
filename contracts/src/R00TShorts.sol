@@ -317,6 +317,15 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
         // Cap repurchase cost at what we actually have
         uint256 actualRepurchaseCost = repurchaseCost > totalHeld ? totalHeld : repurchaseCost;
 
+        // Execute REAL buy: send ETH to pool, receive ROOT tokens back. The pair
+        // prices the buy-back itself and refunds what it did not use, so the
+        // payout must be computed from the ETH it reports as used, not from
+        // this contract's own estimate (which is ~1 bp higher).
+        if (actualRepurchaseCost > 0) {
+            actualRepurchaseCost =
+                pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
+        }
+
         // Calculate payout: user gets whatever is left after buying back tokens
         uint256 payout = totalHeld - actualRepurchaseCost;
 
@@ -330,10 +339,6 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
         // ============ INTERACTIONS ============
 
-        // Execute REAL buy: send ETH to pool, receive ROOT tokens back
-        if (actualRepurchaseCost > 0) {
-            pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
-        }
         // Always decrement by the full shorted amount — this was added at open time
         // and must be fully removed at close regardless of partial fills
         totalOpenInterest -= position.tokenAmountShorted;
@@ -388,6 +393,13 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
         // Cap at what we have
         uint256 actualRepurchaseCost = repurchaseCost > totalHeld ? totalHeld : repurchaseCost;
+
+        // Execute REAL buy to close position - tokens return to this contract.
+        // Use the ETH the pair reports as used: it refunds the rest of our estimate.
+        if (actualRepurchaseCost > 0) {
+            actualRepurchaseCost =
+                pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
+        }
         uint256 remaining = totalHeld - actualRepurchaseCost;
 
         // Liquidation bonus (5% of remaining)
@@ -398,10 +410,6 @@ contract R00TShorts is IR00TShorts, ReentrancyGuard, Ownable {
 
         // ============ INTERACTIONS ============
 
-        // Execute REAL buy to close position - tokens return to this contract
-        if (actualRepurchaseCost > 0) {
-            pair.buyTokensForShorts{value: actualRepurchaseCost}(position.tokenAmountShorted);
-        }
         // Always decrement by the full shorted amount — this was added at open time
         // and must be fully removed at liquidation regardless of partial fills
         totalOpenInterest -= position.tokenAmountShorted;
