@@ -73,7 +73,7 @@ contract MockPair {
 
     /// @notice Shorts buys ROOT tokens with ETH
     /// @dev If msg.value is less than required, buys as many tokens as affordable (for liquidation)
-    function buyTokensForShorts(uint256 tokenAmount) external payable returns (uint256 ethUsed) {
+    function buyTokensForShorts(uint256 tokenAmount) external payable virtual returns (uint256 ethUsed) {
         require(msg.sender == shortsContract, "Only shorts");
         require(tokenAmount < tokenReserve, "Insufficient tokens");
 
@@ -126,6 +126,33 @@ contract MockPair {
 
     /// @notice Accept ETH
     receive() external payable {}
+}
+
+/// @notice MockPair priced like ZkAMMPair.buyTokensForShorts: the raw AMM amount plus a 1% fee
+///         on top (30 bps protocol + 70 bps LP), with the unused ETH refunded to the caller
+contract ZkFeeMockPair is MockPair {
+    constructor(uint256 _ethReserve, uint256 _tokenReserve, address _rootToken)
+        payable
+        MockPair(_ethReserve, _tokenReserve, _rootToken)
+    {}
+
+    function buyTokensForShorts(uint256 tokenAmount) external payable override returns (uint256 ethUsed) {
+        require(msg.sender == shortsContract, "Only shorts");
+        require(tokenAmount < tokenReserve, "Insufficient tokens");
+
+        uint256 ethRequiredRaw = (ethReserve * tokenAmount) / (tokenReserve - tokenAmount) + 1;
+        ethUsed = ethRequiredRaw + (ethRequiredRaw * 30) / 10000 + (ethRequiredRaw * 70) / 10000;
+        require(msg.value >= ethUsed, "Partial fill not modelled");
+
+        ethReserve += ethUsed;
+        tokenReserve -= tokenAmount;
+        rootToken.transfer(msg.sender, tokenAmount);
+
+        if (msg.value > ethUsed) {
+            (bool refundSuccess, ) = payable(msg.sender).call{value: msg.value - ethUsed}("");
+            require(refundSuccess, "Refund failed");
+        }
+    }
 }
 
 /// @notice Attacker contract for reentrancy testing
@@ -461,6 +488,37 @@ contract R00TShortsTest is Test {
         assertGt(payout, 0, "Should receive some payout");
         // But less than full collateral (they lost money)
         assertLt(payout, collateral, "Should have lost some money");
+    }
+
+    function test_CloseShort_PaysWhatThePairRefunds() public {
+        // A pair priced like ZkAMMPair uses slightly less ETH than R00TShorts' own estimate
+        // and refunds the rest; the refund belongs to the position owner.
+        ZkFeeMockPair zkPair =
+            new ZkFeeMockPair{value: INITIAL_ETH}(INITIAL_ETH, INITIAL_TOKENS, address(rootToken));
+        rootToken.transfer(address(zkPair), INITIAL_TOKENS);
+        R00TShorts zkShorts = new R00TShorts(address(zkPair), address(rootToken), treasury);
+        zkPair.setShortsContract(address(zkShorts));
+        rootToken.transfer(address(zkShorts), SHORTS_TOKEN_SUPPLY);
+
+        vm.prank(user1);
+        uint256 positionId = zkShorts.openShort{value: 1 ether}(0);
+        IR00TShorts.ShortPosition memory pos = zkShorts.getPosition(positionId);
+        uint256 totalHeld = pos.ethCollateral + pos.ethFromSale;
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 pairBefore = address(zkPair).balance;
+        uint256 userBefore = user1.balance;
+        vm.prank(user1);
+        zkShorts.closeShort(positionId, type(uint256).max);
+        uint256 ethUsedByPair = address(zkPair).balance - pairBefore;
+
+        assertEq(user1.balance - userBefore, totalHeld - ethUsedByPair, "Payout must be what the pair did not use");
+        assertEq(
+            address(zkShorts).balance,
+            zkShorts.totalCollateralLocked() + zkShorts.accumulatedFees(),
+            "No unaccounted ETH left in R00TShorts"
+        );
     }
 
     function test_CloseShort_RevertNotOpen() public {
